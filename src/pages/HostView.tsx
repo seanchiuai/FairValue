@@ -234,6 +234,15 @@ export default function HostView() {
               </div>
             </div>
           </div>
+
+          {/* AI Analyst Chat */}
+          <CogneeChat
+            propertyId={roomCode || ''}
+            askingPrice={house.asking_price}
+            market={market}
+            activity={activity}
+            players={players}
+          />
         </div>
 
         {/* Right Column: QR + Leaderboard + Activity */}
@@ -348,14 +357,6 @@ export default function HostView() {
             </div>
           </div>
 
-          {/* AI Analyst Chat */}
-          <CogneeChat
-            propertyId={roomCode || ''}
-            askingPrice={house.asking_price}
-            market={market}
-            activity={activity}
-            players={players}
-          />
         </div>
       </div>
 

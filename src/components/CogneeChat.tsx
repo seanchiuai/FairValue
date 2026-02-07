@@ -202,7 +202,7 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    maxHeight: 300,
+    maxHeight: 420,
     overflowY: 'auto',
     marginBottom: 10,
     paddingRight: 4,
