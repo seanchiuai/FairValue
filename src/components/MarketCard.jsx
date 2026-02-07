@@ -59,8 +59,8 @@ function MarketCard({
           />
         </Link>
         
-        {/* Upload Controls - Show on Hover */}
-        {showUploader && (
+        {/* Upload Controls - Only show on hover when NO image exists */}
+        {showUploader && !imageUrl && (
           <div className="thumbnail-overlay" onClick={(e) => e.stopPropagation()}>
             <MarketImageUploader
               marketId={property.id}
