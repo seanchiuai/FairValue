@@ -219,7 +219,7 @@ export default function HostView() {
           <div style={s.qrCard}>
             <div style={s.qrTitle}>Scan to Join</div>
             <div style={s.qrWrapper}>
-              <QRCodeSVG value={joinUrl} size={160} bgColor="transparent" fgColor="#EAF0F7" />
+              <QRCodeSVG value={joinUrl} size={160} bgColor="#FFFFFF" fgColor="#000000" style={{ borderRadius: 8, padding: 8 }} />
             </div>
             <div style={s.qrUrl}>{joinUrl}</div>
             <div style={s.ngrokField}>
