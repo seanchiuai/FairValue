@@ -13,10 +13,14 @@ import {
   Users,
   Clock,
   Info,
-  ChevronRight
+  ChevronRight,
+  Search,
+  Brain,
+  Loader2
 } from 'lucide-react';
 import { createChart, IChartApi, ISeriesApi, LineData } from 'lightweight-charts';
 import { mockProperties } from '../data/properties';
+import { initializeMarketGraph, storeLMSRState, searchMarketInsights } from '../services/cogneeService';
 import './MarketPage.css';
 
 interface Bet {
@@ -65,6 +69,12 @@ const MarketPage: React.FC = () => {
   const [betAmount, setBetAmount] = useState<string>('');
   const [bets, setBets] = useState<Bet[]>([]);
 
+  // AI Search State
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [showAISearch, setShowAISearch] = useState<boolean>(false);
+
   // LMSR Helper Functions
   const costFunction = useCallback((qOver: number, qUnder: number): number => {
     return B_LIQUIDITY * Math.log(Math.exp(qOver / B_LIQUIDITY) + Math.exp(qUnder / B_LIQUIDITY));
@@ -109,6 +119,17 @@ const MarketPage: React.FC = () => {
     
     return (lo + hi) / 2;
   }, [costFunction]);
+
+  // Initialize Cognee market graph on mount
+  useEffect(() => {
+    const initCognee = async () => {
+      if (propertyId) {
+        await initializeMarketGraph(propertyId, askingPrice);
+        console.log('Cognee market graph initialized');
+      }
+    };
+    initCognee();
+  }, [propertyId, askingPrice]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -257,9 +278,12 @@ const MarketPage: React.FC = () => {
     // const payout = shares; // Each share pays $1 if correct - stored for potential future use
     
     // Update LMSR state
+    const newQOver = outcome === 'over' ? lmsrState.qOver + shares : lmsrState.qOver;
+    const newQUnder = outcome === 'under' ? lmsrState.qUnder + shares : lmsrState.qUnder;
+    
     setLmsrState(prev => ({
-      qOver: outcome === 'over' ? prev.qOver + shares : prev.qOver,
-      qUnder: outcome === 'under' ? prev.qUnder + shares : prev.qUnder,
+      qOver: newQOver,
+      qUnder: newQUnder,
       totalWagered: prev.totalWagered + actualCost,
       totalTrades: prev.totalTrades + 1
     }));
@@ -298,6 +322,36 @@ const MarketPage: React.FC = () => {
         value: newFairValue,
       });
     }
+
+    // Store LMSR state in Cognee
+    if (propertyId) {
+      storeLMSRState(
+        {
+          qOver: newQOver,
+          qUnder: newQUnder,
+          totalWagered: lmsrState.totalWagered + actualCost,
+          totalTrades: lmsrState.totalTrades + 1,
+          fairValue: newFairValue,
+          askingPrice: askingPrice,
+          timestamp: new Date().toISOString(),
+          propertyId: propertyId
+        },
+        {
+          id: newBet.id,
+          direction: newBet.direction,
+          amount: wager,
+          priceAtBet: newBet.priceAtBet,
+          timestamp: newBet.timestamp,
+          propertyId: propertyId,
+          shares: shares,
+          actualCost: actualCost
+        }
+      ).then(() => {
+        console.log('LMSR state stored in Cognee');
+      }).catch((error) => {
+        console.error('Failed to store LMSR state:', error);
+      });
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -318,6 +372,22 @@ const MarketPage: React.FC = () => {
   const confidence = getConfidence();
   const priceDelta = marketData.fairValue - property.currentPrice;
   const priceDeltaPercent = ((priceDelta / property.currentPrice) * 100).toFixed(1);
+
+  // AI Search Handler
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !propertyId) return;
+    
+    setIsSearching(true);
+    try {
+      const results = await searchMarketInsights(searchQuery, propertyId, 'GRAPH_COMPLETION');
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setSearchResults({ error: 'Search failed. Please try again.' });
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   return (
     <div className="market-page">
@@ -421,6 +491,62 @@ const MarketPage: React.FC = () => {
                 <span className="stat-value" style={{ color: confidence.color }}>{confidence.text}</span>
                 <span className="stat-desc">{marketData.participantCount} traders</span>
               </div>
+            </div>
+
+            {/* AI Search Section */}
+            <div className="ai-search-section">
+              <div className="ai-search-header" onClick={() => setShowAISearch(!showAISearch)}>
+                <div className="ai-search-title">
+                  <Brain size={20} />
+                  <h3>AI Market Insights</h3>
+                </div>
+                <span className="ai-search-toggle">{showAISearch ? '−' : '+'}</span>
+              </div>
+              
+              {showAISearch && (
+                <div className="ai-search-content">
+                  <div className="ai-search-input-group">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      placeholder="Ask about market trends, betting patterns, or price predictions..."
+                      className="ai-search-input"
+                    />
+                    <button 
+                      className="ai-search-btn" 
+                      onClick={handleSearch}
+                      disabled={isSearching}
+                    >
+                      {isSearching ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
+                      {isSearching ? 'Analyzing...' : 'Search'}
+                    </button>
+                  </div>
+                  
+                  {searchResults && (
+                    <div className="ai-search-results">
+                      {searchResults.error ? (
+                        <p className="ai-search-error">{searchResults.error}</p>
+                      ) : (
+                        <div className="ai-search-response">
+                          {searchResults.results && searchResults.results.map((result: any, idx: number) => (
+                            <div key={idx} className="ai-result-item">
+                              <p>{result.text || JSON.stringify(result)}</p>
+                            </div>
+                          ))}
+                          {searchResults.answer && (
+                            <div className="ai-answer">
+                              <strong>Answer:</strong>
+                              <p>{searchResults.answer}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
