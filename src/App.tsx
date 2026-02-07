@@ -1,13 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import HomePage from './pages/HomePage';
+import Markets from './pages/Markets';
 import MarketPage from './pages/MarketPage';
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<Markets />} />
         <Route path="/market/:propertyId" element={<MarketPage />} />
       </Routes>
     </Router>
