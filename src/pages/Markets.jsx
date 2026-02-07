@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Search, 
+import {
+  Search,
   ChevronDown,
   X,
-  Home
+  Home,
+  Users
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
 import { properties } from '../data/properties';
@@ -23,6 +25,7 @@ const TYPE_MAP = { 'House': 'SINGLE_FAMILY', 'Condo': 'CONDO', 'Multi-Family': '
 const BED_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
 function Markets() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('price-desc');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -93,6 +96,10 @@ function Markets() {
         </div>
 
         <div className="header-right">
+          <button className="multiplayer-btn" onClick={() => navigate('/join')}>
+            <Users size={16} />
+            Multiplayer
+          </button>
           <span className="header-count">{properties.length} Properties</span>
         </div>
       </header>
@@ -245,7 +252,14 @@ function Markets() {
           border-radius: 50%;
         }
         .search-clear:hover { background: #E8E8ED; color: #1D1D1F; }
-        .header-right { display: flex; align-items: center; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .multiplayer-btn {
+          display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+          background: #0071E3; border: none; border-radius: 980px;
+          color: #FFF; font-size: 13px; font-weight: 600; cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .multiplayer-btn:hover { background: #0077ED; transform: scale(1.03); }
         .header-count { font-size: 13px; color: #8E8E93; font-weight: 500; }
 
         .filters-bar {
