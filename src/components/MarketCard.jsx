@@ -150,13 +150,23 @@ function MarketCard({
       <style>{`
         .market-card-wrapper {
           position: relative;
+          background: #2C3A4A;
+          border: 1px solid #3A4A5D;
+          border-radius: 10px;
+          overflow: hidden;
+          transition: all 0.15s ease;
+        }
+
+        .market-card-wrapper:hover {
+          border-color: #455670;
+          background: #314255;
         }
 
         .card-thumbnail-section {
           position: relative;
-          margin-bottom: 12px;
-          padding: 0 16px;
-          padding-top: 16px;
+          margin: 0;
+          padding: 0;
+          width: 100%;
         }
 
         .thumbnail-link {
@@ -166,9 +176,9 @@ function MarketCard({
 
         .thumbnail-overlay {
           position: absolute;
-          bottom: 8px;
-          left: 24px;
-          right: 24px;
+          bottom: 12px;
+          left: 12px;
+          right: 12px;
           z-index: 10;
           background: rgba(31, 42, 54, 0.98);
           border: 1px solid #3A4A5D;
@@ -178,19 +188,9 @@ function MarketCard({
 
         .market-card {
           display: block;
-          background: #2C3A4A;
-          border: 1px solid #3A4A5D;
-          border-radius: 0 0 10px 10px;
-          padding: 0 16px 16px 16px;
+          padding: 14px 16px 16px 16px;
           text-decoration: none;
           color: inherit;
-          transition: all 0.15s ease;
-          border-top: none;
-        }
-
-        .market-card:hover {
-          border-color: #455670;
-          background: #314255;
         }
 
         .card-header {
