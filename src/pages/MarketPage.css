@@ -42,7 +42,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.nav-spacer { width: 80px; }
+.nav-bid-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: #0071E3;
+  border-radius: 980px;
+  color: white;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.nav-bid-link:hover { background: #0077ED; }
 
 /* Content */
 .market-content {
@@ -298,6 +311,41 @@
 .school-rating.good { background: rgba(52,199,89,0.1); color: #34C759; }
 .school-rating.avg { background: rgba(255,149,0,0.1); color: #FF9500; }
 .school-rating.low { background: rgba(255,59,48,0.1); color: #FF3B30; }
+
+/* Bid Section */
+.bid-section {
+  background: linear-gradient(135deg, #0071E3 0%, #0055B3 100%) !important;
+  border: none !important;
+}
+.bid-section-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.bid-text .section-title {
+  color: white;
+}
+.bid-desc {
+  font-size: 14px;
+  color: rgba(255,255,255,0.8);
+  margin: 0;
+  line-height: 1.5;
+}
+.bid-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 28px;
+  background: white;
+  color: #0071E3;
+  text-decoration: none;
+  border-radius: 980px;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.bid-cta-btn:hover { background: #F5F5F7; transform: scale(1.03); }
 
 /* CTA */
 .detail-cta {

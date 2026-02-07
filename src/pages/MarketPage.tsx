@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Home, 
@@ -18,7 +18,9 @@ import {
   Brain,
   Loader2,
   MapPin,
-  Building2
+  Building2,
+  Gavel,
+  ExternalLink
 } from 'lucide-react';
 import { createChart, IChartApi, ISeriesApi, LineData } from 'lightweight-charts';
 import { properties, Property } from '../data/properties';
@@ -35,6 +37,7 @@ interface Bet {
 
 const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
+  const navigate = useNavigate();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const fairValueSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -349,10 +352,11 @@ const MarketPage: React.FC = () => {
           <ArrowLeft size={18} />
           <span>Back to Markets</span>
         </Link>
-        <div className="nav-title">
-          <span>Prediction Market</span>
-        </div>
-        <div className="nav-spacer" />
+        <div className="nav-title">{property.address}</div>
+        <Link to="/join" className="nav-bid-link">
+          <Gavel size={14} />
+          <span>Host a Bid</span>
+        </Link>
       </nav>
 
       <div className="market-content">
@@ -636,6 +640,27 @@ const MarketPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Start a Bid */}
+        <div className="detail-section bid-section">
+          <div className="bid-section-inner">
+            <div className="bid-text">
+              <h2 className="section-title"><Gavel size={18} /> Multiplayer Mode</h2>
+              <p className="bid-desc">Think you know the fair value? Host a live bidding game with friends and test your instincts.</p>
+            </div>
+            <Link to="/join" className="bid-cta-btn">
+              Start a Bid
+            </Link>
+          </div>
+        </div>
+
+        {/* Zillow Link */}
+        <div className="detail-cta">
+          <a href={property.hdpUrl} target="_blank" rel="noopener noreferrer" className="zillow-link">
+            <ExternalLink size={16} />
+            View Full Listing on Zillow
+          </a>
         </div>
       </div>
     </div>
