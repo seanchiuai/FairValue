@@ -42,21 +42,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.nav-bid-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  background: #0071E3;
-  border-radius: 980px;
-  color: white;
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-.nav-bid-link:hover { background: #0077ED; }
-
 /* Content */
 .market-content {
   max-width: 860px;
@@ -339,10 +324,12 @@
   background: white;
   color: #0071E3;
   text-decoration: none;
+  border: none;
   border-radius: 980px;
   font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 .bid-cta-btn:hover { background: #F5F5F7; transform: scale(1.03); }

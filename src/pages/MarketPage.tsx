@@ -1,5 +1,5 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   MapPin,
@@ -17,12 +17,43 @@ import {
   Gavel
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
+import { useSession } from '../hooks/useSession';
 import './MarketPage.css';
 
 const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
+  const navigate = useNavigate();
   const { properties, loading } = useProperties();
+  const { sessionId } = useSession();
+  const [creating, setCreating] = useState(false);
   const property = properties.find(p => p.id === propertyId) || properties[0];
+
+  const handleStartBid = async () => {
+    if (!property || creating) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: property.address,
+          asking_price: property.price,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      await fetch(`/api/rooms/${data.room_code}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, nickname: 'Host' }),
+      });
+
+      navigate(`/host/${data.room_code}`);
+    } catch {
+      setCreating(false);
+    }
+  };
 
   if (loading || !property) {
     return <div className="market-page"><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#7F93A8' }}>Loading property...</div></div>;
@@ -51,10 +82,6 @@ const MarketPage: React.FC = () => {
           <span>Back to Markets</span>
         </Link>
         <div className="nav-title">{property.address}</div>
-        <Link to="/join" className="nav-bid-link">
-          <Gavel size={14} />
-          <span>Host a Bid</span>
-        </Link>
       </nav>
 
       <div className="market-content">
@@ -213,9 +240,14 @@ const MarketPage: React.FC = () => {
               <h2 className="section-title"><Gavel size={18} /> Multiplayer Mode</h2>
               <p className="bid-desc">Think you know the fair value? Host a live bidding game with friends and test your instincts.</p>
             </div>
-            <Link to="/join" className="bid-cta-btn">
-              Start a Bid
-            </Link>
+            <button
+              className="bid-cta-btn"
+              onClick={handleStartBid}
+              disabled={creating}
+              style={{ opacity: creating ? 0.6 : 1 }}
+            >
+              {creating ? 'Creating room...' : 'Start a Bid'}
+            </button>
           </div>
         </div>
 

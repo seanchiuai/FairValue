@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Search,
   ChevronDown,
   X,
   Home,
-  Gavel
 } from 'lucide-react';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
@@ -116,10 +114,6 @@ function Markets() {
         </div>
 
         <div className="header-right">
-          <Link to="/join" className="host-bid-btn">
-            <Gavel size={16} />
-            <span>Host a Bid</span>
-          </Link>
           <span className="header-count">{properties.length} Properties</span>
         </div>
       </header>
@@ -277,22 +271,6 @@ function Markets() {
         }
         .search-clear:hover { background: #E8E8ED; color: #1D1D1F; }
         .header-right { display: flex; align-items: center; gap: 12px; }
-        .host-bid-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 18px;
-          background: #0071E3;
-          border: none;
-          border-radius: 980px;
-          color: white;
-          font-size: 13px;
-          font-weight: 600;
-          text-decoration: none;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-        .host-bid-btn:hover { background: #0077ED; transform: scale(1.03); }
         .header-count { font-size: 13px; color: #8E8E93; font-weight: 500; }
 
         .filters-bar {
