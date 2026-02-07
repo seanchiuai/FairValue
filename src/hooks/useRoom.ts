@@ -144,6 +144,24 @@ export function useRoom(roomCode: string, sessionId: string) {
 
   const myPlayer = players.find((p) => p.session_id === sessionId) || null;
 
+  const joinRoom = useCallback(
+    async (nickname: string) => {
+      const res = await fetch(`/api/rooms/${roomCode}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, nickname }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (data.market) setMarket(data.market);
+      if (data.players) setPlayers(data.players);
+      if (data.house) setHouse(data.house);
+      if (data.activity) setActivity(data.activity);
+      return data;
+    },
+    [roomCode, sessionId]
+  );
+
   const placeBet = useCallback(
     async (outcome: 'over' | 'under', wager: number) => {
       const res = await fetch(`/api/rooms/${roomCode}/bet`, {
@@ -174,5 +192,6 @@ export function useRoom(roomCode: string, sessionId: string) {
     connected,
     loading,
     placeBet,
+    joinRoom,
   };
 }

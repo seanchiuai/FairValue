@@ -90,7 +90,7 @@ export default function HostView() {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, []);
+  }, [loading]);
 
   // Update chart when market changes
   useEffect(() => {

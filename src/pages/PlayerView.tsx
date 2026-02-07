@@ -6,7 +6,7 @@ import { Wifi, WifiOff, TrendingUp, TrendingDown, DollarSign, Trophy } from 'luc
 
 export default function PlayerView() {
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { sessionId } = useSession();
+  const { sessionId, nickname: savedNickname, saveNickname } = useSession();
   const {
     market,
     myPlayer,
@@ -16,11 +16,15 @@ export default function PlayerView() {
     connected,
     loading,
     placeBet,
+    joinRoom,
   } = useRoom(roomCode || '', sessionId);
 
   const [wager, setWager] = useState<number>(25);
   const [betting, setBetting] = useState(false);
   const [betError, setBetError] = useState('');
+  const [joinName, setJoinName] = useState(savedNickname);
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState('');
 
   const handleBet = async (outcome: 'over' | 'under') => {
     if (betting || !wager || wager <= 0) return;
@@ -47,6 +51,62 @@ export default function PlayerView() {
     return (
       <div style={s.page}>
         <div style={s.loading}>Room not found</div>
+      </div>
+    );
+  }
+
+  // Player hasn't joined yet — show nickname form
+  if (!myPlayer) {
+    const handleJoin = async () => {
+      if (!joinName.trim()) {
+        setJoinError('Enter your name');
+        return;
+      }
+      setJoining(true);
+      setJoinError('');
+      try {
+        await joinRoom(joinName.trim());
+        saveNickname(joinName.trim());
+      } catch (err: any) {
+        setJoinError(err.message || 'Failed to join');
+      } finally {
+        setJoining(false);
+      }
+    };
+
+    return (
+      <div style={s.page}>
+        <div style={s.joinContainer}>
+          <div style={s.joinTitle}>Join Game</div>
+          <div style={s.joinRoomCode}>{roomCode}</div>
+          {house && (
+            <div style={s.joinProperty}>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{house.address}</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                Asking: ${house.asking_price.toLocaleString()}
+              </div>
+            </div>
+          )}
+          <div style={s.joinField}>
+            <label style={s.joinLabel}>Your Name</label>
+            <input
+              style={s.joinInput}
+              value={joinName}
+              onChange={(e) => setJoinName(e.target.value)}
+              placeholder="Enter your name"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+            />
+          </div>
+          {joinError && <div style={s.joinError}>{joinError}</div>}
+          <button
+            style={{ ...s.joinBtn, opacity: joining ? 0.6 : 1 }}
+            onClick={handleJoin}
+            disabled={joining}
+          >
+            {joining ? 'Joining...' : 'Join Room'}
+          </button>
+        </div>
       </div>
     );
   }
@@ -448,5 +508,78 @@ const s: Record<string, React.CSSProperties> = {
     borderTop: '1px solid var(--border-subtle)',
     fontSize: 14,
     color: 'var(--text-primary)',
+  },
+  joinContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    padding: 24,
+    gap: 16,
+  },
+  joinTitle: {
+    fontSize: 22,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+  },
+  joinRoomCode: {
+    fontSize: 28,
+    fontWeight: 800,
+    letterSpacing: 6,
+    color: 'var(--accent-primary)',
+  },
+  joinProperty: {
+    textAlign: 'center',
+    padding: '12px 16px',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 10,
+    width: '100%',
+    maxWidth: 320,
+  },
+  joinField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    width: '100%',
+    maxWidth: 320,
+  },
+  joinLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  joinInput: {
+    padding: '14px 16px',
+    background: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 10,
+    color: 'var(--text-primary)',
+    fontSize: 16,
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+    textAlign: 'center',
+  },
+  joinError: {
+    color: 'var(--accent-danger)',
+    fontSize: 13,
+  },
+  joinBtn: {
+    padding: '14px 24px',
+    background: 'var(--accent-primary)',
+    border: 'none',
+    borderRadius: 10,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: 'pointer',
+    width: '100%',
+    maxWidth: 320,
+    minHeight: 48,
+    touchAction: 'manipulation',
   },
 };
