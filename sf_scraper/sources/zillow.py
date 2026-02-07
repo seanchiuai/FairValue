@@ -22,7 +22,10 @@ from sf_scraper.utils import normalize_text, to_float, to_int
 
 APIFY_API_BASE_URL = "https://api.apify.com/v2"
 APIFY_DEFAULT_ACTOR_ID = "propertyapi~zillow-property-lead-scraper"
+APIFY_DEFAULT_DETAILS_ACTOR_ID = "mido_99~zillow-details-scraper"
 APIFY_DEFAULT_SEARCH_URL = "https://www.zillow.com/san-francisco-ca/sold/"
+APIFY_DETAILS_BATCH_SIZE = 20
+APIFY_DETAILS_URLS_PER_PAGE_LIMIT = 80
 ZILLOW_BASE_URL = "https://www.zillow.com"
 
 
@@ -243,6 +246,71 @@ def _build_default_actor_input(search_url: str, extra_input: dict[str, Any] | No
     return payload
 
 
+def _is_sparse_lead_item(item: dict[str, Any]) -> bool:
+    keys = set(item.keys())
+    if "properties" in keys:
+        return False
+    if not {"detailUrl", "url", "hdpUrl"} & keys:
+        return False
+
+    fields_that_indicate_detail_data = {
+        "statusType",
+        "status",
+        "homeStatus",
+        "listingStatus",
+        "soldDate",
+        "dateSold",
+        "price",
+        "listPrice",
+        "unformattedPrice",
+        "beds",
+        "bedrooms",
+        "baths",
+        "bathrooms",
+        "sqft",
+        "area",
+        "livingArea",
+        "homeType",
+        "propertyType",
+        "city",
+        "state",
+        "zipcode",
+        "zip",
+        "postalCode",
+        "address",
+        "streetAddress",
+        "fullAddress",
+    }
+    return all(
+        _first(item, [field_name]) is None for field_name in fields_that_indicate_detail_data
+    )
+
+
+def _extract_detail_urls_for_enrichment(items: list[dict[str, Any]]) -> list[str]:
+    urls: list[str] = []
+    for item in items:
+        if not _is_sparse_lead_item(item):
+            continue
+        detail_url = normalize_text(_first(item, ["detailUrl", "url", "propertyUrl", "zillowUrl", "hdpUrl"]))
+        if not detail_url:
+            continue
+        urls.append(urljoin(ZILLOW_BASE_URL, detail_url))
+    return list(dict.fromkeys(urls))
+
+
+def _build_details_actor_input(detail_urls: list[str]) -> dict[str, Any]:
+    return {
+        "start_urls": [{"url": detail_url} for detail_url in detail_urls],
+        "property_status": "sold",
+        "concurrency": min(8, max(1, len(detail_urls))),
+        "max_retries": 3,
+        "proxyConfiguration": {
+            "useApifyProxy": True,
+            "apifyProxyGroups": ["RESIDENTIAL"],
+        },
+    }
+
+
 def _parse_apify_items(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
@@ -311,33 +379,63 @@ def _to_listing(
     context_item: dict[str, Any],
     now: datetime,
     sold_within_days: int,
+    require_sold_status: bool = True,
 ) -> Listing | None:
     details = property_item.get("details") if isinstance(property_item.get("details"), dict) else {}
+    address_data = property_item.get("address") if isinstance(property_item.get("address"), dict) else {}
 
     status = normalize_text(
         _first(
             property_item,
-            ["statusType", "status", "homeStatus", "listingStatus"],
+            ["statusType", "status", "homeStatus", "listingStatus", "keystoneHomeStatus"],
         )
-        or _first(context_item, ["statusType", "status", "homeStatus", "listingStatus"])
+        or _first(context_item, ["statusType", "status", "homeStatus", "listingStatus", "keystoneHomeStatus"])
     )
-    if not _is_sold_status(status):
+    if require_sold_status and not _is_sold_status(status):
         return None
 
     sold_at = _extract_sold_datetime(property_item, context_item)
-    if sold_at is None or not _sold_within_days(sold_at, now=now, lookback_days=sold_within_days):
+    if require_sold_status:
+        if sold_at is None or not _sold_within_days(sold_at, now=now, lookback_days=sold_within_days):
+            return None
+    elif sold_at is not None and not _sold_within_days(sold_at, now=now, lookback_days=sold_within_days):
         return None
 
-    source_id = str(_first(property_item, ["zpid", "zuid", "id", "propertyId"]) or "")
-    detail_url = normalize_text(_first(property_item, ["detailUrl", "url", "propertyUrl", "zillowUrl"]))
+    source_id = str(_first(property_item, ["zpid", "zuid", "id", "propertyId", "listingAccountUserId"]) or "")
+    detail_url = normalize_text(_first(property_item, ["detailUrl", "url", "propertyUrl", "zillowUrl", "hdpUrl"]))
     source_url: str | None = None
     if detail_url:
         source_url = urljoin(ZILLOW_BASE_URL, detail_url)
 
-    full_address = normalize_text(_first(property_item, ["address", "streetAddress", "fullAddress"]))
-    city = normalize_text(_first(property_item, ["city", "addressCity"]))
-    state = normalize_text(_first(property_item, ["state", "addressState"]))
-    postal = normalize_text(_first(property_item, ["zipcode", "zip", "postalCode", "addressZipcode"]))
+    raw_address = _first(property_item, ["address", "streetAddress", "fullAddress", "abbreviatedAddress"])
+    if isinstance(raw_address, dict):
+        raw_address = _first(raw_address, ["streetAddress", "formattedAddress"])
+    full_address = normalize_text(raw_address)
+    if full_address is None and address_data:
+        full_address = normalize_text(
+            ", ".join(
+                part
+                for part in [
+                    normalize_text(address_data.get("streetAddress")),
+                    normalize_text(address_data.get("city")),
+                    " ".join(
+                        part
+                        for part in [
+                            normalize_text(address_data.get("state")),
+                            normalize_text(address_data.get("zipcode")),
+                        ]
+                        if part
+                    ),
+                ]
+                if part
+            )
+        )
+
+    city = normalize_text(_first(property_item, ["city", "addressCity"])) or normalize_text(address_data.get("city"))
+    state = normalize_text(_first(property_item, ["state", "addressState"])) or normalize_text(address_data.get("state"))
+    postal = normalize_text(_first(property_item, ["zipcode", "zip", "postalCode", "addressZipcode"])) or normalize_text(
+        address_data.get("zipcode")
+    )
 
     if city is None or state is None or postal is None:
         parsed_city, parsed_state, parsed_postal = _parse_city_state_zip(full_address)
@@ -345,17 +443,17 @@ def _to_listing(
         state = state or parsed_state
         postal = postal or parsed_postal
 
-    price = to_int(_first(property_item, ["price", "listPrice", "unformattedPrice"]))
+    price = to_int(_first(property_item, ["price", "listPrice", "unformattedPrice", "lastSoldPrice"]))
     beds = to_float(_first(property_item, ["beds", "bedrooms", "bed"]))
     baths = to_float(_first(property_item, ["baths", "bathrooms", "bath"]))
-    sqft = to_int(_first(property_item, ["area", "sqft", "livingArea"]))
+    sqft = to_int(_first(property_item, ["area", "sqft", "livingArea", "livingAreaValue"]))
 
     if beds is None:
         beds = to_float(_first(details, ["beds", "bedrooms"]))
     if baths is None:
         baths = to_float(_first(details, ["baths", "bathrooms"]))
     if sqft is None:
-        sqft = to_int(_first(details, ["sqft", "livingArea"]))
+        sqft = to_int(_first(details, ["sqft", "livingArea", "livingAreaValue"]))
 
     latitude, longitude = _extract_lat_lon(property_item)
     if latitude is None or longitude is None:
@@ -379,8 +477,8 @@ def _to_listing(
         return None
 
     property_type = normalize_text(
-        _first(property_item, ["homeType", "propertyType", "propertySubType"])
-        or _first(details, ["homeType", "propertyType", "propertySubType"])
+        _first(property_item, ["homeType", "propertyType", "propertySubType", "hdpTypeDimension"])
+        or _first(details, ["homeType", "propertyType", "propertySubType", "hdpTypeDimension"])
     )
     if not _is_house_type(property_type):
         return None
@@ -396,7 +494,8 @@ def _to_listing(
         return None
 
     if not source_id:
-        fallback = f"{full_address or ''}|{price}|{sold_at.date().isoformat()}"
+        sold_date_part = sold_at.date().isoformat() if sold_at is not None else "unknown-date"
+        fallback = f"{full_address or ''}|{price}|{sold_date_part}"
         source_id = hashlib.sha1(fallback.encode("utf-8")).hexdigest()[:16]
 
     raw = dict(property_item)
@@ -429,6 +528,7 @@ def parse_apify_dataset_items(
     *,
     now: datetime | None = None,
     sold_within_days: int = 30,
+    require_sold_status: bool = True,
 ) -> list[Listing]:
     current_time = now or datetime.now(timezone.utc)
 
@@ -436,7 +536,13 @@ def parse_apify_dataset_items(
     for item in items:
         properties = item.get("properties") if isinstance(item.get("properties"), list) else None
         if properties is None:
-            listing = _to_listing(item, context_item={}, now=current_time, sold_within_days=sold_within_days)
+            listing = _to_listing(
+                item,
+                context_item={},
+                now=current_time,
+                sold_within_days=sold_within_days,
+                require_sold_status=require_sold_status,
+            )
             if listing is not None:
                 listings.append(listing)
             continue
@@ -444,7 +550,13 @@ def parse_apify_dataset_items(
         for property_item in properties:
             if not isinstance(property_item, dict):
                 continue
-            listing = _to_listing(property_item, context_item=item, now=current_time, sold_within_days=sold_within_days)
+            listing = _to_listing(
+                property_item,
+                context_item=item,
+                now=current_time,
+                sold_within_days=sold_within_days,
+                require_sold_status=require_sold_status,
+            )
             if listing is not None:
                 listings.append(listing)
 
@@ -463,6 +575,7 @@ class ZillowSanFranciscoSource(SourceAdapter):
         sold_within_days: int = 30,
         apify_token: str | None = None,
         apify_actor_id: str = APIFY_DEFAULT_ACTOR_ID,
+        apify_details_actor_id: str = APIFY_DEFAULT_DETAILS_ACTOR_ID,
         apify_search_url: str = APIFY_DEFAULT_SEARCH_URL,
         apify_actor_input: dict[str, Any] | None = None,
     ) -> None:
@@ -473,6 +586,7 @@ class ZillowSanFranciscoSource(SourceAdapter):
         self.sold_within_days = max(1, sold_within_days)
         self.apify_token = (apify_token or "").strip()
         self.apify_actor_id = apify_actor_id.strip() or APIFY_DEFAULT_ACTOR_ID
+        self.apify_details_actor_id = apify_details_actor_id.strip() or APIFY_DEFAULT_DETAILS_ACTOR_ID
         self.apify_search_url = apify_search_url.strip() or APIFY_DEFAULT_SEARCH_URL
         self.apify_actor_input = dict(apify_actor_input or {})
 
@@ -491,5 +605,33 @@ class ZillowSanFranciscoSource(SourceAdapter):
                 timeout_seconds=self.timeout_seconds,
                 retry_attempts=self.retry_attempts,
             )
+            parsed = parse_apify_dataset_items(items, sold_within_days=self.sold_within_days)
+            if parsed:
+                return parsed
 
-        return parse_apify_dataset_items(items, sold_within_days=self.sold_within_days)
+            detail_urls = _extract_detail_urls_for_enrichment(items)
+            if not detail_urls:
+                return []
+
+            max_urls = max(20, self.page_limit * APIFY_DETAILS_URLS_PER_PAGE_LIMIT)
+            detail_urls = detail_urls[:max_urls]
+
+            detail_items: list[dict[str, Any]] = []
+            detail_timeout = max(90, self.timeout_seconds)
+            for start in range(0, len(detail_urls), APIFY_DETAILS_BATCH_SIZE):
+                batch_urls = detail_urls[start : start + APIFY_DETAILS_BATCH_SIZE]
+                batch_items = _request_apify_dataset_items(
+                    session=session,
+                    actor_id=self.apify_details_actor_id,
+                    token=self.apify_token,
+                    actor_input=_build_details_actor_input(batch_urls),
+                    timeout_seconds=detail_timeout,
+                    retry_attempts=self.retry_attempts,
+                )
+                detail_items.extend(batch_items)
+
+        return parse_apify_dataset_items(
+            detail_items,
+            sold_within_days=self.sold_within_days,
+            require_sold_status=False,
+        )
