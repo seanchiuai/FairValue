@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+
 export interface Property {
   id: string;
   zpid: number;
@@ -29,56 +31,86 @@ export interface Property {
   priceHistory: { date: string; event: string; price: number; source: string }[];
 }
 
-const rawData: any[] = require('./properties.json');
+function mapRaw(rawData: any[]): Property[] {
+  return rawData.map((item, index) => {
+    const addr = item.address || {};
+    const photos = (item.responsivePhotos || []).flatMap((rp: any) => {
+      const jpegs = rp?.mixedSources?.jpeg || [];
+      return jpegs.map((j: any) => ({ url: j.url, width: j.width }));
+    });
+    const bestPhoto = photos.find((p: any) => p.width === 768) || photos.find((p: any) => p.width === 576) || photos[0];
 
-export const properties: Property[] = rawData.map((item, index) => {
-  const addr = item.address || {};
-  const photos = (item.responsivePhotos || []).flatMap((rp: any) => {
-    const jpegs = rp?.mixedSources?.jpeg || [];
-    return jpegs.map((j: any) => ({ url: j.url, width: j.width }));
+    return {
+      id: String(item.zpid || index + 1),
+      zpid: item.zpid,
+      address: item.streetAddress || addr.streetAddress || '',
+      city: item.city || addr.city || 'San Francisco',
+      state: item.state || addr.state || 'CA',
+      zipCode: item.zipcode || addr.zipcode || '94110',
+      bedrooms: item.bedrooms ?? null,
+      bathrooms: item.bathrooms ?? null,
+      livingArea: item.livingArea ?? null,
+      yearBuilt: item.yearBuilt ?? null,
+      price: item.price || 0,
+      zestimate: item.zestimate ?? null,
+      rentZestimate: item.rentZestimate ?? null,
+      homeType: item.homeType || '',
+      homeStatus: item.homeStatus || '',
+      dateSoldString: item.dateSoldString || null,
+      daysOnZillow: item.daysOnZillow ?? null,
+      description: item.description || '',
+      brokerageName: item.brokerageName || null,
+      imgSrc: bestPhoto?.url || '',
+      photos,
+      hdpUrl: item.hdpUrl ? `https://www.zillow.com${item.hdpUrl}` : '',
+      latitude: item.latitude || 0,
+      longitude: item.longitude || 0,
+      county: item.county || '',
+      propertyTaxRate: item.propertyTaxRate ?? null,
+      schools: (item.schools || []).map((s: any) => ({
+        name: s.name || '',
+        rating: s.rating ?? null,
+        distance: s.distance || 0,
+        level: s.level || '',
+        link: s.link || '',
+      })),
+      priceHistory: (item.priceHistory || []).map((ph: any) => ({
+        date: ph.date || '',
+        event: ph.event || '',
+        price: ph.price || 0,
+        source: ph.source || '',
+      })),
+    };
   });
-  // Pick the best card-size image (768w) or fallback
-  const bestPhoto = photos.find((p: any) => p.width === 768) || photos.find((p: any) => p.width === 576) || photos[0];
+}
 
-  return {
-    id: String(item.zpid || index + 1),
-    zpid: item.zpid,
-    address: item.streetAddress || addr.streetAddress || '',
-    city: item.city || addr.city || 'San Francisco',
-    state: item.state || addr.state || 'CA',
-    zipCode: item.zipcode || addr.zipcode || '94110',
-    bedrooms: item.bedrooms ?? null,
-    bathrooms: item.bathrooms ?? null,
-    livingArea: item.livingArea ?? null,
-    yearBuilt: item.yearBuilt ?? null,
-    price: item.price || 0,
-    zestimate: item.zestimate ?? null,
-    rentZestimate: item.rentZestimate ?? null,
-    homeType: item.homeType || '',
-    homeStatus: item.homeStatus || '',
-    dateSoldString: item.dateSoldString || null,
-    daysOnZillow: item.daysOnZillow ?? null,
-    description: item.description || '',
-    brokerageName: item.brokerageName || null,
-    imgSrc: bestPhoto?.url || '',
-    photos,
-    hdpUrl: item.hdpUrl ? `https://www.zillow.com${item.hdpUrl}` : '',
-    latitude: item.latitude || 0,
-    longitude: item.longitude || 0,
-    county: item.county || '',
-    propertyTaxRate: item.propertyTaxRate ?? null,
-    schools: (item.schools || []).map((s: any) => ({
-      name: s.name || '',
-      rating: s.rating ?? null,
-      distance: s.distance || 0,
-      level: s.level || '',
-      link: s.link || '',
-    })),
-    priceHistory: (item.priceHistory || []).map((ph: any) => ({
-      date: ph.date || '',
-      event: ph.event || '',
-      price: ph.price || 0,
-      source: ph.source || '',
-    })),
-  };
-});
+// Module-level cache so the fetch only happens once across all consumers.
+let cached: Property[] | null = null;
+let fetchPromise: Promise<Property[]> | null = null;
+
+function fetchProperties(): Promise<Property[]> {
+  if (cached) return Promise.resolve(cached);
+  if (fetchPromise) return fetchPromise;
+  fetchPromise = fetch(`${process.env.PUBLIC_URL}/data/properties.json`)
+    .then(res => res.json())
+    .then((raw: any[]) => {
+      cached = mapRaw(raw);
+      return cached;
+    });
+  return fetchPromise;
+}
+
+export function useProperties(): { properties: Property[]; loading: boolean } {
+  const [properties, setProperties] = useState<Property[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
+
+  useEffect(() => {
+    if (cached) return;
+    fetchProperties().then(data => {
+      setProperties(data);
+      setLoading(false);
+    });
+  }, []);
+
+  return { properties, loading };
+}

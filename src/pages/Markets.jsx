@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
-import { properties } from '../data/properties';
+import { useProperties } from '../data/properties';
 
 const SORT_OPTIONS = [
   { value: 'price-desc', label: 'Price: High to Low' },
@@ -25,6 +25,8 @@ const TYPE_MAP = { 'House': 'SINGLE_FAMILY', 'Condo': 'CONDO', 'Multi-Family': '
 const BED_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
 function Markets() {
+  const navigate = useNavigate();
+  const { properties, loading } = useProperties();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('price-desc');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -63,7 +65,13 @@ function Markets() {
   });
 
   const hasFilters = homeType !== 'All' || minBeds !== 'Any' || searchQuery;
-  const featuredProperty = properties.reduce((best, p) => (p.price > (best?.price || 0) ? p : best), properties[0]);
+  const featuredProperty = properties.length > 0
+    ? properties.reduce((best, p) => (p.price > (best?.price || 0) ? p : best), properties[0])
+    : null;
+
+  if (loading) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#8E8E93', fontSize: 16 }}>Loading properties...</div>;
+  }
 
   return (
     <div className="markets-page">
