@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Search, 
@@ -21,7 +21,6 @@ const SORT_OPTIONS = [
 
 const HOME_TYPES = ['All', 'House', 'Condo', 'Multi-Family', 'Apartment', 'Lot'];
 const TYPE_MAP = { 'House': 'SINGLE_FAMILY', 'Condo': 'CONDO', 'Multi-Family': 'MULTI_FAMILY', 'Apartment': 'APARTMENT', 'Lot': 'LOT' };
-
 const BED_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
 function Markets() {
@@ -30,6 +29,19 @@ function Markets() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [homeType, setHomeType] = useState('All');
   const [minBeds, setMinBeds] = useState('Any');
+  const [navCollapsed, setNavCollapsed] = useState(false);
+  const lastScroll = useRef(0);
+
+  // iOS 26-style disappearing nav on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const y = window.scrollY;
+      setNavCollapsed(y > 120 && y > lastScroll.current);
+      lastScroll.current = y;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const filteredProperties = properties.filter((property) => {
     const q = searchQuery.toLowerCase();
@@ -38,16 +50,11 @@ function Markets() {
       property.city.toLowerCase().includes(q) ||
       property.zipCode.includes(q) ||
       (property.brokerageName || '').toLowerCase().includes(q);
-
     if (!matchesSearch) return false;
-
     if (homeType !== 'All' && property.homeType !== TYPE_MAP[homeType]) return false;
-
     if (minBeds !== 'Any') {
-      const min = parseInt(minBeds);
-      if ((property.bedrooms || 0) < min) return false;
+      if ((property.bedrooms || 0) < parseInt(minBeds)) return false;
     }
-
     return true;
   });
 
@@ -66,302 +73,297 @@ function Markets() {
   const featuredProperty = properties.reduce((best, p) => (p.price > (best?.price || 0) ? p : best), properties[0]);
 
   return (
-    <div className="markets-page">
-      {/* Header */}
-      <header className="header">
-        <div className="header-left">
-          <div className="logo">
-            <Home className="logo-icon" size={24} strokeWidth={1.5} />
-            <span className="logo-text">FairValue</span>
+    <div className="lg-page">
+      {/* Liquid Glass Nav */}
+      <header className={`lg-nav ${navCollapsed ? 'collapsed' : ''}`}>
+        <div className="lg-nav-inner">
+          <div className="lg-nav-left">
+            <Home className="lg-logo-icon" size={22} strokeWidth={1.8} />
+            <span className="lg-logo-text">FairValue</span>
           </div>
-        </div>
 
-        <div className="header-center">
-          <div className="search-container">
-            <Search className="search-icon" size={18} />
-            <input
-              type="text"
-              placeholder="Search by address, city, or brokerage..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-input"
-            />
-            {searchQuery && (
-              <button className="search-clear" onClick={() => setSearchQuery('')}>
-                <X size={14} />
-              </button>
-            )}
+          <div className="lg-nav-center">
+            <div className="lg-search">
+              <Search size={16} className="lg-search-icon" />
+              <input
+                type="text"
+                placeholder="Search properties..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="lg-search-input"
+              />
+              {searchQuery && (
+                <button className="lg-search-clear" onClick={() => setSearchQuery('')}><X size={13} /></button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="header-right">
-          <Link to="/join" className="host-bid-btn">
-            <Gavel size={16} />
-            <span>Host a Bid</span>
-          </Link>
-          <span className="header-count">{properties.length} Properties</span>
+          <div className="lg-nav-right">
+            <Link to="/join" className="lg-bid-btn">
+              <Gavel size={14} />
+              <span>Host a Bid</span>
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* Featured */}
       <FeaturedMarket property={featuredProperty} />
 
-      {/* Filters Bar */}
-      <section className="filters-bar">
-        <div className="filters-left">
-          {/* Home Type Tabs */}
-          <div className="filter-tabs">
+      {/* Floating Glass Filter Bar */}
+      <section className="lg-filters">
+        <div className="lg-filters-inner">
+          <div className="lg-filter-tabs">
             {HOME_TYPES.map((type) => (
-              <button
-                key={type}
-                className={`tab ${homeType === type ? 'active' : ''}`}
-                onClick={() => setHomeType(type)}
-              >
+              <button key={type} className={`lg-tab ${homeType === type ? 'active' : ''}`}
+                onClick={() => setHomeType(type)}>
                 {type}
               </button>
             ))}
-          </div>
-
-          <div className="filter-divider" />
-
-          {/* Bedrooms */}
-          <div className="filter-tabs">
+            <div className="lg-tab-divider" />
             {BED_OPTIONS.map((opt) => (
-              <button
-                key={opt}
-                className={`tab ${minBeds === opt ? 'active' : ''}`}
-                onClick={() => setMinBeds(opt)}
-              >
-                {opt === 'Any' ? 'Any Beds' : `${opt} Beds`}
+              <button key={opt} className={`lg-tab ${minBeds === opt ? 'active' : ''}`}
+                onClick={() => setMinBeds(opt)}>
+                {opt === 'Any' ? 'Beds' : `${opt}`}
               </button>
             ))}
-          </div>
-
-          {hasFilters && (
-            <button className="clear-btn" onClick={() => { setHomeType('All'); setMinBeds('Any'); setSearchQuery(''); }}>
-              <X size={13} />
-              Clear
-            </button>
-          )}
-        </div>
-
-        <div className="filters-right">
-          <div className="sort-dropdown">
-            <span className="sort-label">Sort</span>
-            <button
-              className="sort-trigger"
-              onClick={() => setShowSortDropdown(!showSortDropdown)}
-            >
-              {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
-              <ChevronDown size={14} className={showSortDropdown ? 'open' : ''} />
-            </button>
-
-            {showSortDropdown && (
-              <div className="sort-menu">
-                {SORT_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    className={`sort-option ${sortBy === option.value ? 'active' : ''}`}
-                    onClick={() => { setSortBy(option.value); setShowSortDropdown(false); }}
-                  >
-                    {option.label}
-                    {sortBy === option.value && <span className="check">✓</span>}
-                  </button>
-                ))}
-              </div>
+            {hasFilters && (
+              <button className="lg-tab lg-tab-clear" onClick={() => { setHomeType('All'); setMinBeds('Any'); setSearchQuery(''); }}>
+                <X size={12} /> Clear
+              </button>
             )}
           </div>
 
-          <div className="results-count">
-            {sortedProperties.length} of {properties.length}
+          <div className="lg-filter-right">
+            <div className="lg-sort-wrap">
+              <button className="lg-sort-btn" onClick={() => setShowSortDropdown(!showSortDropdown)}>
+                {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
+                <ChevronDown size={13} className={showSortDropdown ? 'flip' : ''} />
+              </button>
+              {showSortDropdown && (
+                <div className="lg-sort-menu">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button key={opt.value}
+                      className={`lg-sort-opt ${sortBy === opt.value ? 'active' : ''}`}
+                      onClick={() => { setSortBy(opt.value); setShowSortDropdown(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                      {opt.label}
+                      {sortBy === opt.value && <span>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className="lg-count">{sortedProperties.length}/{properties.length}</span>
           </div>
         </div>
       </section>
 
       {/* Grid */}
-      <section className="markets-grid">
-        {sortedProperties.map((property) => (
-          <MarketCard key={property.id} property={property} />
+      <section className="lg-grid">
+        {sortedProperties.map((p) => (
+          <MarketCard key={p.id} property={p} />
         ))}
       </section>
 
       {sortedProperties.length === 0 && (
-        <div className="empty-state">
-          <Search size={48} className="empty-icon" />
+        <div className="lg-empty">
+          <Search size={40} />
           <h3>No properties found</h3>
-          <p>Try adjusting your search or filters</p>
+          <p>Try adjusting your filters</p>
         </div>
       )}
 
-      <footer className="footer">
-        <p>© 2026 FairValue · {properties.length} properties in San Francisco 94110</p>
+      <footer className="lg-footer">
+        © 2026 FairValue · {properties.length} properties · San Francisco 94110
       </footer>
 
       <style>{`
-        .markets-page {
+        .lg-page {
           min-height: 100vh;
-          background: #F5F5F7;
-          color: #1D1D1F;
-          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+          background: var(--bg-mesh);
+          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
         }
 
-        .header {
-          display: flex;
-          align-items: center;
+        /* ─── Glass Nav ─── */
+        .lg-nav {
+          position: sticky; top: 0; z-index: 100;
+          padding: 0 28px;
+          transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+        }
+        .lg-nav-inner {
+          display: flex; align-items: center;
           justify-content: space-between;
-          padding: 0 32px;
           height: 56px;
+          padding: 0 20px;
+          background: rgba(255,255,255,0.55);
+          backdrop-filter: blur(40px) saturate(180%);
+          -webkit-backdrop-filter: blur(40px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.6);
+          border-top: none;
+          border-radius: 0 0 22px 22px;
+          box-shadow:
+            inset 0 -1px 0 rgba(0,0,0,0.03),
+            0 4px 24px rgba(0,0,0,0.06);
+        }
+        .lg-nav.collapsed .lg-nav-inner {
+          height: 40px;
+          border-radius: 0 0 16px 16px;
+          background: rgba(255,255,255,0.7);
+        }
+        .lg-nav.collapsed .lg-nav-center { opacity: 0; pointer-events: none; max-width: 0; }
+
+        .lg-nav-left { display: flex; align-items: center; gap: 8px; }
+        .lg-logo-icon { color: #007AFF; }
+        .lg-logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-primary); }
+
+        .lg-nav-center {
+          flex: 1; max-width: 360px; margin: 0 24px;
+          transition: all 0.3s;
+        }
+        .lg-search {
+          position: relative; display: flex; align-items: center;
+        }
+        .lg-search-icon { position: absolute; left: 10px; color: var(--text-muted); }
+        .lg-search-input {
+          width: 100%; padding: 7px 28px 7px 32px;
+          background: rgba(120,120,128,0.08);
+          border: 1px solid rgba(0,0,0,0.04);
+          border-radius: 14px; color: var(--text-primary);
+          font-size: 14px; outline: none;
+          transition: all 0.25s;
+        }
+        .lg-search-input::placeholder { color: var(--text-muted); }
+        .lg-search-input:focus {
           background: rgba(255,255,255,0.8);
-          backdrop-filter: saturate(180%) blur(20px);
-          -webkit-backdrop-filter: saturate(180%) blur(20px);
-          border-bottom: 1px solid #E8E8ED;
-          position: sticky;
-          top: 0;
-          z-index: 100;
+          border-color: rgba(0,122,255,0.3);
+          box-shadow: 0 0 0 3px rgba(0,122,255,0.1);
         }
-        .header-left { display: flex; align-items: center; gap: 32px; }
-        .logo { display: flex; align-items: center; gap: 8px; color: #1D1D1F; }
-        .logo-icon { color: #0071E3; }
-        .logo-text { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
-        .header-center { flex: 1; max-width: 420px; margin: 0 32px; }
-        .search-container { position: relative; display: flex; align-items: center; }
-        .search-icon { position: absolute; left: 12px; color: #AEAEB2; }
-        .search-input {
-          width: 100%;
-          padding: 8px 32px 8px 36px;
-          background: #F0F0F2;
-          border: 1px solid transparent;
-          border-radius: 10px;
-          color: #1D1D1F;
-          font-size: 14px;
-          outline: none;
-          transition: all 0.2s ease;
+        .lg-search-clear {
+          position: absolute; right: 6px;
+          background: rgba(120,120,128,0.12); border: none;
+          width: 20px; height: 20px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--text-secondary); cursor: pointer;
         }
-        .search-input::placeholder { color: #AEAEB2; }
-        .search-input:focus { background: #FFF; border-color: #D2D2D7; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
-        .search-clear {
-          position: absolute;
-          right: 8px;
-          background: none;
-          border: none;
-          color: #AEAEB2;
-          cursor: pointer;
-          padding: 4px;
-          display: flex;
-          border-radius: 50%;
-        }
-        .search-clear:hover { background: #E8E8ED; color: #1D1D1F; }
-        .header-right { display: flex; align-items: center; gap: 12px; }
-        .host-bid-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 18px;
-          background: #0071E3;
-          border: none;
-          border-radius: 980px;
-          color: white;
-          font-size: 13px;
-          font-weight: 600;
-          text-decoration: none;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-        .host-bid-btn:hover { background: #0077ED; transform: scale(1.03); }
-        .header-count { font-size: 13px; color: #8E8E93; font-weight: 500; }
 
-        .filters-bar {
-          display: flex;
+        .lg-nav-right { display: flex; align-items: center; gap: 10px; }
+        .lg-bid-btn {
+          display: flex; align-items: center; gap: 5px;
+          padding: 7px 16px;
+          background: rgba(0,122,255,0.85);
+          backdrop-filter: blur(12px);
+          border: 1px solid rgba(255,255,255,0.25);
+          border-radius: 980px;
+          color: white; font-size: 13px; font-weight: 600;
+          text-decoration: none; cursor: pointer;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 8px rgba(0,122,255,0.2);
+          transition: all 0.2s;
+        }
+        .lg-bid-btn:hover { background: rgba(0,122,255,0.95); transform: scale(1.04); }
+
+        /* ─── Glass Filters ─── */
+        .lg-filters {
+          margin: 0 32px 8px;
+        }
+        .lg-filters-inner {
+          display: flex; align-items: center;
           justify-content: space-between;
-          align-items: center;
-          padding: 12px 32px;
-          gap: 16px;
-          overflow-x: auto;
+          padding: 8px 12px;
+          background: rgba(255,255,255,0.45);
+          backdrop-filter: blur(30px) saturate(160%);
+          -webkit-backdrop-filter: blur(30px) saturate(160%);
+          border: 1px solid rgba(255,255,255,0.5);
+          border-radius: 20px;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.6),
+            0 2px 12px rgba(0,0,0,0.04);
+          gap: 8px;
+          overflow: visible;
         }
-        .filters-left { display: flex; align-items: center; gap: 8px; flex: 1; overflow-x: auto; scrollbar-width: none; }
-        .filters-left::-webkit-scrollbar { display: none; }
-        .filter-tabs { display: flex; gap: 2px; flex-shrink: 0; }
-        .tab {
-          padding: 5px 12px;
-          background: transparent;
-          border: none;
-          border-radius: 980px;
-          color: #6E6E73;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          white-space: nowrap;
-        }
-        .tab:hover { color: #1D1D1F; background: rgba(0,0,0,0.04); }
-        .tab.active { color: #1D1D1F; background: #FFF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-weight: 600; }
-        .filter-divider { width: 1px; height: 18px; background: #D2D2D7; flex-shrink: 0; }
-        .clear-btn {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          padding: 5px 12px;
-          background: transparent;
-          border: 1px solid #E8E8ED;
-          border-radius: 980px;
-          color: #8E8E93;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: all 0.2s ease;
-        }
-        .clear-btn:hover { background: rgba(255,59,48,0.06); border-color: rgba(255,59,48,0.3); color: #FF3B30; }
 
-        .filters-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-        .sort-dropdown { position: relative; }
-        .sort-label { color: #AEAEB2; font-size: 12px; margin-right: 6px; }
-        .sort-trigger {
-          display: flex; align-items: center; gap: 6px; padding: 6px 12px;
-          background: #FFF; border: 1px solid #E8E8ED; border-radius: 8px;
-          color: #1D1D1F; font-size: 12px; font-weight: 500; cursor: pointer;
+        .lg-filter-tabs { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }
+        .lg-tab-divider { width: 1px; height: 16px; background: rgba(0,0,0,0.08); margin: 0 4px; flex-shrink: 0; }
+        .lg-tab {
+          padding: 5px 12px; background: transparent;
+          border: none; border-radius: 980px;
+          color: var(--text-secondary); font-size: 12px;
+          font-weight: 500; cursor: pointer;
+          transition: all 0.2s; white-space: nowrap;
         }
-        .sort-trigger:hover { border-color: #D2D2D7; }
-        .sort-trigger svg { transition: transform 0.2s ease; color: #AEAEB2; }
-        .sort-trigger svg.open { transform: rotate(180deg); }
-        .sort-menu {
-          position: absolute; top: 100%; right: 0; margin-top: 6px; min-width: 180px;
-          background: #FFF; border: 1px solid #E8E8ED; border-radius: 12px; padding: 4px;
-          z-index: 50; box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+        .lg-tab:hover { color: var(--text-primary); background: rgba(0,0,0,0.04); }
+        .lg-tab.active {
+          color: var(--text-primary);
+          background: rgba(255,255,255,0.7);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255,255,255,0.6);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 4px rgba(0,0,0,0.06);
+          font-weight: 600;
         }
-        .sort-option {
-          display: flex; align-items: center; justify-content: space-between; width: 100%;
-          padding: 8px 10px; background: transparent; border: none; border-radius: 8px;
-          color: #6E6E73; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left;
+        .lg-tab-clear {
+          display: flex; align-items: center; gap: 3px;
+          color: var(--text-muted);
         }
-        .sort-option:hover { background: #F5F5F7; color: #1D1D1F; }
-        .sort-option.active { color: #0071E3; }
-        .sort-option .check { color: #0071E3; font-weight: 600; }
-        .results-count { color: #AEAEB2; font-size: 12px; font-weight: 500; }
+        .lg-tab-clear:hover { color: #FF3B30; background: rgba(255,59,48,0.06); }
 
-        .markets-grid {
+        .lg-filter-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .lg-sort-wrap { position: relative; }
+        .lg-sort-btn {
+          display: flex; align-items: center; gap: 5px;
+          padding: 5px 12px;
+          background: rgba(255,255,255,0.6);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255,255,255,0.5);
+          border-radius: 12px;
+          color: var(--text-primary); font-size: 12px;
+          font-weight: 500; cursor: pointer;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+        }
+        .lg-sort-btn svg { transition: transform 0.2s; color: var(--text-muted); }
+        .lg-sort-btn svg.flip { transform: rotate(180deg); }
+        .lg-sort-menu {
+          position: absolute; top: calc(100% + 6px); right: 0;
+          min-width: 180px; padding: 4px;
+          background: rgba(255,255,255,0.75);
+          backdrop-filter: blur(40px) saturate(180%);
+          -webkit-backdrop-filter: blur(40px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 16px; z-index: 50;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 8px 32px rgba(0,0,0,0.12);
+        }
+        .lg-sort-opt {
+          display: flex; align-items: center; justify-content: space-between;
+          width: 100%; padding: 8px 12px; background: transparent;
+          border: none; border-radius: 10px;
+          color: var(--text-secondary); font-size: 13px;
+          font-weight: 500; cursor: pointer; text-align: left;
+        }
+        .lg-sort-opt:hover { background: rgba(0,0,0,0.04); color: var(--text-primary); }
+        .lg-sort-opt.active { color: #007AFF; }
+        .lg-sort-opt span { color: #007AFF; font-weight: 700; }
+        .lg-count { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+        /* ─── Grid ─── */
+        .lg-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-          gap: 16px;
-          padding: 4px 32px 40px;
+          grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+          gap: 16px; padding: 8px 32px 40px;
         }
 
-        .empty-state {
+        .lg-empty {
           display: flex; flex-direction: column; align-items: center;
-          padding: 80px 24px; color: #AEAEB2; text-align: center;
+          padding: 60px 20px; color: var(--text-muted); text-align: center;
         }
-        .empty-icon { color: #D2D2D7; margin-bottom: 16px; }
-        .empty-state h3 { font-size: 17px; color: #1D1D1F; margin-bottom: 6px; font-weight: 600; }
-        .empty-state p { font-size: 14px; }
+        .lg-empty h3 { font-size: 17px; color: var(--text-primary); margin: 12px 0 4px; font-weight: 600; }
+        .lg-empty p { font-size: 14px; }
 
-        .footer { padding: 32px; text-align: center; color: #AEAEB2; font-size: 12px; }
+        .lg-footer { padding: 28px 32px; text-align: center; color: var(--text-muted); font-size: 12px; }
 
         @media (max-width: 768px) {
-          .header { padding: 0 16px; height: 52px; }
-          .header-center { display: none; }
-          .filters-bar { padding: 10px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
-          .filters-right { width: 100%; justify-content: space-between; }
-          .markets-grid { grid-template-columns: 1fr; padding: 12px 16px 32px; gap: 12px; }
+          .lg-nav { padding: 0 12px; }
+          .lg-nav-inner { padding: 0 12px; height: 50px; border-radius: 0 0 18px 18px; }
+          .lg-nav-center { display: none; }
+          .lg-filters { margin: 0 16px 8px; }
+          .lg-filters-inner { padding: 6px 8px; border-radius: 16px; }
+          .lg-grid { grid-template-columns: 1fr; padding: 8px 16px 32px; gap: 12px; }
         }
       `}</style>
     </div>

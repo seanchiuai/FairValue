@@ -1,41 +1,64 @@
 :root {
-  /* Clean Light Theme — Apple-Inspired */
-  
+  /* iOS 26 Liquid Glass Design System */
+
+  /* Glass Materials */
+  --glass-bg: rgba(255, 255, 255, 0.45);
+  --glass-bg-thick: rgba(255, 255, 255, 0.62);
+  --glass-bg-thin: rgba(255, 255, 255, 0.28);
+  --glass-bg-ultra: rgba(255, 255, 255, 0.12);
+  --glass-blur: blur(40px) saturate(180%);
+  --glass-blur-light: blur(20px) saturate(150%);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-border-subtle: rgba(255, 255, 255, 0.25);
+  --glass-highlight: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.0) 100%);
+  --glass-highlight-top: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 50%);
+  --glass-inner-shadow: inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(0,0,0,0.04);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.06);
+
   /* Backgrounds */
-  --bg-primary: #F5F5F7;           /* Warm off-white page background */
-  --bg-nav: #FFFFFF;               /* Nav background */
-  --bg-surface: #FFFFFF;           /* Card surface */
-  --bg-surface-hover: #FAFAFA;     /* Card hover state */
-  --bg-input: #F0F0F2;             /* Input/search backgrounds */
-  --bg-elevated: #FFFFFF;          /* Elevated surfaces */
-  
+  --bg-primary: #F2F1F6;
+  --bg-mesh: radial-gradient(ellipse at 20% 50%, rgba(120,180,255,0.12) 0%, transparent 50%),
+             radial-gradient(ellipse at 80% 20%, rgba(200,120,255,0.08) 0%, transparent 50%),
+             radial-gradient(ellipse at 50% 80%, rgba(100,220,200,0.08) 0%, transparent 50%),
+             #F2F1F6;
+  --bg-surface: var(--glass-bg);
+  --bg-input: rgba(120, 120, 128, 0.08);
+  --bg-nav: var(--glass-bg-thick);
+
   /* Borders */
-  --border-subtle: #E8E8ED;        /* Subtle 1px borders */
-  --border-default: #D2D2D7;       /* Default borders */
-  --border-focus: #0071E3;         /* Focus ring blue */
-  
-  /* Text */
-  --text-primary: #1D1D1F;         /* Near-black headings */
-  --text-secondary: #6E6E73;       /* Medium gray body text */
-  --text-muted: #AEAEB2;           /* Muted captions */
-  
-  /* Accents */
-  --accent-primary: #0071E3;       /* Apple blue */
-  --accent-primary-hover: #0077ED; /* Blue hover */
-  --accent-primary-subtle: rgba(0, 113, 227, 0.06); /* Subtle blue tint */
-  
-  /* Status Colors */
-  --accent-success: #34C759;       /* Clean green */
-  --accent-success-subtle: rgba(52, 199, 89, 0.08);
-  --accent-danger: #FF3B30;        /* Clean red */
-  --accent-danger-subtle: rgba(255, 59, 48, 0.06);
-  --accent-warning: #FF9500;       /* Warm amber */
-  --accent-warning-subtle: rgba(255, 149, 0, 0.08);
-  
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.1);
+
+  /* Text — iOS system colors */
+  --text-primary: #1C1C1E;
+  --text-secondary: #636366;
+  --text-muted: #AEAEB2;
+  --text-on-glass: rgba(0, 0, 0, 0.75);
+
+  /* Accents — iOS system blue */
+  --accent-primary: #007AFF;
+  --accent-primary-hover: #0070E0;
+  --accent-primary-subtle: rgba(0, 122, 255, 0.08);
+
+  /* Status */
+  --accent-success: #34C759;
+  --accent-success-subtle: rgba(52, 199, 89, 0.1);
+  --accent-danger: #FF3B30;
+  --accent-danger-subtle: rgba(255, 59, 48, 0.08);
+  --accent-warning: #FF9500;
+  --accent-warning-subtle: rgba(255, 149, 0, 0.1);
+
+  /* Radii — iOS 26 super-rounded */
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-pill: 980px;
+
+  /* Legacy compat */
+  --shadow-sm: var(--glass-shadow);
+  --shadow-md: var(--glass-shadow);
+  --shadow-lg: var(--glass-shadow-lg);
 }
 
 * {
@@ -46,47 +69,32 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
-  background: var(--bg-primary);
+  background: var(--bg-mesh);
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
 
-/* Utility Classes */
-.bg-surface { background: var(--bg-surface); }
-.bg-surface-hover:hover { background: var(--bg-surface-hover); }
-.bg-input { background: var(--bg-input); }
-.bg-nav { background: var(--bg-nav); }
-
-.border-subtle { border-color: var(--border-subtle); }
-.border-default { border-color: var(--border-default); }
-
-.text-primary { color: var(--text-primary); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted { color: var(--text-muted); }
-
-/* Focus States */
+/* Focus */
 *:focus-visible {
-  outline: 1px solid var(--accent-primary);
-  outline-offset: 1px;
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
-/* Scrollbar - Minimal */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+/* Scrollbar — invisible by default, appears on hover */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+/* Glass utility */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-shadow), var(--glass-shadow);
 }
