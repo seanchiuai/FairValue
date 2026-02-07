@@ -92,32 +92,13 @@ export default function HostView() {
     };
   }, [loading]);
 
-  // Seed chart with initial data point once chart + market are ready
-  const chartInitializedRef = useRef(false);
-  useEffect(() => {
-    if (!market || !seriesRef.current || chartInitializedRef.current) return;
-    chartInitializedRef.current = true;
-    timeCounterRef.current += 1;
-    const point: LineData = {
-      time: timeCounterRef.current as Time,
-      value: market.prob_over * 100,
-    };
-    dataPointsRef.current.push(point);
-    seriesRef.current.setData(dataPointsRef.current);
-  }, [market]);
+  // Keep latest market in a ref so the periodic tick always reads fresh values
+  const marketRef = useRef(market);
+  useEffect(() => { marketRef.current = market; }, [market]);
 
-  // Update chart on every market change (bets via WebSocket)
-  const prevMarketRef = useRef<typeof market>(null);
+  // Add a chart point whenever market state changes (initial load + bets via WebSocket)
   useEffect(() => {
     if (!market || !seriesRef.current) return;
-    // Skip the initial seed (handled above) and only fire on subsequent changes
-    if (prevMarketRef.current === null) {
-      prevMarketRef.current = market;
-      return;
-    }
-    if (prevMarketRef.current === market) return;
-    prevMarketRef.current = market;
-
     timeCounterRef.current += 1;
     const point: LineData = {
       time: timeCounterRef.current as Time,
@@ -127,21 +108,21 @@ export default function HostView() {
     seriesRef.current.setData(dataPointsRef.current);
   }, [market]);
 
-  // Periodic tick: extend the line every 2 seconds so the chart looks "live"
+  // Periodic tick: extend the line every 2s so the chart looks "live" between bets
   useEffect(() => {
-    if (!market) return;
     const interval = setInterval(() => {
-      if (!seriesRef.current || !market) return;
+      const m = marketRef.current;
+      if (!seriesRef.current || !m) return;
       timeCounterRef.current += 1;
       const point: LineData = {
         time: timeCounterRef.current as Time,
-        value: market.prob_over * 100,
+        value: m.prob_over * 100,
       };
       dataPointsRef.current.push(point);
       seriesRef.current.setData(dataPointsRef.current);
     }, 2000);
     return () => clearInterval(interval);
-  }, [market]);
+  }, []);
 
   const handleToggleAI = useCallback(async () => {
     if (!roomCode) return;
