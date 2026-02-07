@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Bed, Bath, Maximize, MapPin } from 'lucide-react';
+import Sparkline from './Sparkline';
 
-function MarketCard({ property }) {
+function MarketCard({ property, chartData }) {
   const formatPrice = (n) => n ? `$${n.toLocaleString()}` : '—';
   const typeLabel = (t) => {
     const map = { SINGLE_FAMILY: 'House', CONDO: 'Condo', MULTI_FAMILY: 'Multi-Family', APARTMENT: 'Apartment', LOT: 'Lot' };
@@ -21,6 +22,12 @@ function MarketCard({ property }) {
           <span className="card-type-badge">{typeLabel(property.homeType)}</span>
         </div>
       </div>
+
+      {chartData && (
+        <div className="card-chart">
+          <Sparkline data={chartData} width={320} height={48} />
+        </div>
+      )}
 
       <div className="card-body">
         <div className="card-price">{formatPrice(property.price)}</div>
@@ -111,6 +118,11 @@ function MarketCard({ property }) {
           font-size: 11px;
           font-weight: 600;
           color: #1D1D1F;
+        }
+        .card-chart {
+          padding: 8px 12px 0;
+          background: #FAFAFA;
+          border-bottom: 1px solid #F0F0F2;
         }
         .card-body {
           padding: 14px 16px 16px;

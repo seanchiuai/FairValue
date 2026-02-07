@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
+import { useMarketChart } from '../hooks/useMarketChart';
+import { calculateImpliedPrice } from '../lib/lmsr';
 import { Wifi, WifiOff, TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
 
 export default function PlayerView() {
@@ -18,6 +20,17 @@ export default function PlayerView() {
     placeBet,
     joinRoom,
   } = useRoom(roomCode || '', sessionId);
+
+  // Chart
+  const { addPoint, setRef: chartRef } = useMarketChart({ height: 200 });
+
+  useEffect(() => {
+    if (!market || !house) return;
+    addPoint({
+      probOver: market.prob_over,
+      fairValue: calculateImpliedPrice(market.prob_over, house.asking_price),
+    });
+  }, [market, house, addPoint]);
 
   const [wager, setWager] = useState<number>(25);
   const [betting, setBetting] = useState(false);
@@ -197,6 +210,18 @@ export default function PlayerView() {
             </div>
           </div>
 
+          {/* Chart */}
+          <div style={s.chartCard}>
+            <div style={s.chartHeader}>
+              <span style={s.chartTitle}>Market Probability</span>
+              <div style={s.legend}>
+                <span style={s.legendDot} /> Over %
+                <span style={{ ...s.legendDot, background: '#3BA776', marginLeft: 8 }} /> Fair value
+              </div>
+            </div>
+            <div ref={chartRef} style={{ width: '100%', height: 200 }} />
+          </div>
+
           {/* Positions */}
           {myPlayer && myPlayer.bets.length > 0 && (
             <div style={s.positionsCard}>
@@ -364,6 +389,38 @@ const s: Record<string, React.CSSProperties> = {
   probLabels: {
     display: 'flex',
     justifyContent: 'space-between',
+  },
+  chartCard: {
+    margin: '0 16px 12px',
+    padding: '12px 12px 8px',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 10,
+  },
+  chartHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chartTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+  },
+  legend: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 10,
+    color: 'var(--text-muted)',
+  },
+  legendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: '#4BA3FF',
+    display: 'inline-block',
   },
   positionsCard: {
     margin: '0 16px 12px',

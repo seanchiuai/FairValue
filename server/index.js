@@ -334,6 +334,50 @@ app.get('/api/markets', async (req, res) => {
   }
 });
 
+// Chart endpoints — must be before /api/markets/:id to avoid "charts" matching as :id
+app.get('/api/markets/charts', async (req, res) => {
+  try {
+    const rows = await sql`
+      SELECT m.property_id, t.prob_over_after, t.created_at
+      FROM trades t JOIN markets m ON t.market_id = m.id
+      WHERE t.created_at > NOW() - INTERVAL '24 hours'
+      ORDER BY m.property_id, t.created_at
+    `;
+    const grouped = {};
+    for (const row of rows) {
+      if (!grouped[row.property_id]) grouped[row.property_id] = [];
+      grouped[row.property_id].push({
+        prob: Number(row.prob_over_after),
+        time: row.created_at,
+      });
+    }
+    res.json(grouped);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.get('/api/markets/by-property/:propertyId/chart', async (req, res) => {
+  try {
+    const rows = await sql`
+      SELECT t.prob_over_after, t.created_at
+      FROM trades t
+      WHERE t.market_id = (SELECT id FROM markets WHERE property_id = ${req.params.propertyId} LIMIT 1)
+      ORDER BY t.created_at DESC
+      LIMIT 50
+    `;
+    const data = rows.reverse().map(r => ({
+      prob: Number(r.prob_over_after),
+      time: r.created_at,
+    }));
+    res.json(data);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
 app.get('/api/markets/:id', async (req, res) => {
   try {
     const rows = await sql`SELECT m.*, ms.q_over, ms.q_under, ms.b, ms.total_trades, ms.total_wagered
@@ -356,6 +400,68 @@ app.get('/api/markets/:id/history', async (req, res) => {
     res.status(500).json({ error: 'DB error' });
   }
 });
+
+// ─── 24/7 Market Simulation Engine ──────────────────────────────────
+
+const simulations = new Map(); // marketId -> { interval, market }
+
+async function startSimulations() {
+  try {
+    const rows = await sql`
+      SELECT m.id, m.property_id, ms.q_over, ms.q_under, ms.b, ms.total_trades, ms.total_wagered
+      FROM markets m JOIN market_state ms ON m.id = ms.market_id
+      WHERE m.status = 'open'
+    `;
+
+    let index = 0;
+    for (const row of rows) {
+      const marketId = row.id;
+      const market = {
+        qOver: Number(row.q_over),
+        qUnder: Number(row.q_under),
+        b: Number(row.b),
+        totalTrades: Number(row.total_trades),
+        totalWagered: Number(row.total_wagered),
+      };
+
+      // Stagger start by ~2.5s per market
+      const delay = index * 2500;
+      setTimeout(() => {
+        const interval = setInterval(() => {
+          runSimTrade(marketId, market);
+        }, 15000);
+        simulations.set(marketId, { interval, market });
+      }, delay);
+
+      // Store the market object immediately for reference
+      simulations.set(marketId, { interval: null, market });
+      index++;
+    }
+
+    console.log(`Simulation started for ${rows.length} markets`);
+  } catch (e) {
+    console.error('Failed to start simulations:', e.message);
+  }
+}
+
+function runSimTrade(marketId, market) {
+  const probOver = lmsrPriceOver(market.qOver, market.qUnder, market.b);
+  const contrarianStrength = 0.6;
+  const noise = gaussianRandom() * 0.15;
+  let pBetOver = (1 - probOver) * contrarianStrength + 0.5 * (1 - contrarianStrength) + noise;
+  pBetOver = Math.max(0.05, Math.min(0.95, pBetOver));
+
+  const outcome = Math.random() < pBetOver ? 'over' : 'under';
+  const shareOptions = [1, 2, 3, 5, 8, 10, 15, 20];
+  const weights = [25, 20, 15, 12, 8, 8, 7, 5];
+  const shares = weightedRandom(shareOptions, weights);
+
+  const trade = lmsrBuy(market, outcome, shares, 'auto');
+
+  // Persist in background
+  persistTrade(marketId, trade, shares);
+  updateMarketState(marketId, market);
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -396,4 +502,5 @@ wss.on('connection', (ws, req) => {
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
   console.log(`FairValue server running on http://localhost:${PORT}`);
+  startSimulations();
 });

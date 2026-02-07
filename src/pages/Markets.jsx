@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Search, 
+import {
+  Search,
   ChevronDown,
   X,
   Home,
@@ -25,13 +25,26 @@ const TYPE_MAP = { 'House': 'SINGLE_FAMILY', 'Condo': 'CONDO', 'Multi-Family': '
 const BED_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
 function Markets() {
-  const navigate = useNavigate();
   const { properties, loading } = useProperties();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('price-desc');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [homeType, setHomeType] = useState('All');
   const [minBeds, setMinBeds] = useState('Any');
+  const [chartDataMap, setChartDataMap] = useState({});
+
+  const fetchCharts = useCallback(() => {
+    fetch('/api/markets/charts')
+      .then(r => r.ok ? r.json() : {})
+      .then(data => setChartDataMap(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchCharts();
+    const interval = setInterval(fetchCharts, 30000);
+    return () => clearInterval(interval);
+  }, [fetchCharts]);
 
   const filteredProperties = properties.filter((property) => {
     const q = searchQuery.toLowerCase();
@@ -189,7 +202,11 @@ function Markets() {
       {/* Grid */}
       <section className="markets-grid">
         {sortedProperties.map((property) => (
-          <MarketCard key={property.id} property={property} />
+          <MarketCard
+            key={property.id}
+            property={property}
+            chartData={chartDataMap[property.id]?.map(d => d.prob)}
+          />
         ))}
       </section>
 
