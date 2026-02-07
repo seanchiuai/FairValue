@@ -108,8 +108,6 @@ function Markets() {
           </div>
           <nav className="nav">
             <a href="#" className="nav-link active">Markets</a>
-            <a href="#" className="nav-link">Portfolio</a>
-            <a href="#" className="nav-link">Activity</a>
           </nav>
         </div>
 

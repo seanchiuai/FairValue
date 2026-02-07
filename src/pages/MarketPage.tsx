@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { createChart, IChartApi, ISeriesApi, LineData } from 'lightweight-charts';
 import { mockProperties } from '../data/properties';
-import { initializeMarketGraph, storeLMSRState, searchMarketInsights } from '../services/cogneeService';
+import { initializeMarketGraph, getMarketGraph, storeLMSRState, searchMarketInsights } from '../services/cogneeService';
 import './MarketPage.css';
 
 interface Bet {
@@ -29,16 +29,6 @@ interface Bet {
   amount: number;
   priceAtBet: number;
   timestamp: Date;
-}
-
-// LMSR Market State
-const B_LIQUIDITY = 100.0; // Liquidity parameter
-
-interface LMSRState {
-  qOver: number;  // Shares outstanding for OVER
-  qUnder: number; // Shares outstanding for UNDER
-  totalWagered: number;
-  totalTrades: number;
 }
 
 const MarketPage: React.FC = () => {
@@ -51,19 +41,15 @@ const MarketPage: React.FC = () => {
   const property = mockProperties.find(p => p.id === propertyId) || mockProperties[0];
   const askingPrice = property.currentPrice;
   
-  // LMSR State
-  const [lmsrState, setLmsrState] = useState<LMSRState>({
-    qOver: 0,
-    qUnder: 0,
-    totalWagered: property.volume,
-    totalTrades: property.participantCount
-  });
+  // Simple weighted bet tracking
+  const [totalHigher, setTotalHigher] = useState<number>(0);
+  const [totalLower, setTotalLower] = useState<number>(0);
   
   const [marketData, setMarketData] = useState({
     fairValue: askingPrice,
-    volume: property.volume,
-    participantCount: property.participantCount,
-    trendPrediction: property.marketPrice
+    volume: 0,
+    participantCount: 0,
+    trendPrediction: askingPrice
   });
   
   const [betAmount, setBetAmount] = useState<string>('');
@@ -74,62 +60,91 @@ const MarketPage: React.FC = () => {
   const [searchResults, setSearchResults] = useState<any>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [showAISearch, setShowAISearch] = useState<boolean>(false);
+  
+  // Loading state for Cognee data
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // LMSR Helper Functions
-  const costFunction = useCallback((qOver: number, qUnder: number): number => {
-    return B_LIQUIDITY * Math.log(Math.exp(qOver / B_LIQUIDITY) + Math.exp(qUnder / B_LIQUIDITY));
-  }, []);
-
-  const priceOver = useCallback((qOver: number, qUnder: number): number => {
-    const expOver = Math.exp(qOver / B_LIQUIDITY);
-    const expUnder = Math.exp(qUnder / B_LIQUIDITY);
-    return expOver / (expOver + expUnder);
-  }, []);
-
-  const calculateImpliedPrice = useCallback((probOver: number): number => {
-    // implied_price = asking_price + (prob_over - 0.5) * 2 * asking_price * 0.10
-    return askingPrice + (probOver - 0.5) * 2 * askingPrice * 0.10;
+  // Calculate fair value based on net difference between higher and lower bets
+  const calculateFairValue = useCallback((higherAmount: number, lowerAmount: number): number => {
+    // Base liquidity prevents extreme swings when market is new
+    const BASE_LIQUIDITY = askingPrice * 0.3; // 30% buffer
+    
+    const netDifference = higherAmount - lowerAmount; // Positive = more higher bets
+    const totalVolume = higherAmount + lowerAmount + BASE_LIQUIDITY;
+    
+    // Max price movement: +/- 15% of asking price
+    const maxMovement = askingPrice * 0.15;
+    
+    // Calculate fair value: asking + (netDifference / totalVolume) * maxMovement
+    // If equal bets: netDifference = 0, fairValue = askingPrice
+    // If all higher: netDifference = totalVolume - BASE, fairValue = asking + maxMovement
+    // If all lower: netDifference = -(totalVolume - BASE), fairValue = asking - maxMovement
+    const fairValue = askingPrice + (netDifference / totalVolume) * maxMovement;
+    
+    return fairValue;
   }, [askingPrice]);
 
-  const buyWithBudget = useCallback((outcome: 'over' | 'under', budget: number, currentQOver: number, currentQUnder: number): number => {
-    // Binary search to find shares that cost ~budget dollars
-    let lo = 0.0;
-    let hi = budget * 10;
-    
-    for (let i = 0; i < 100; i++) {
-      const mid = (lo + hi) / 2;
-      let cost: number;
-      
-      if (outcome === 'over') {
-        cost = costFunction(currentQOver + mid, currentQUnder) - costFunction(currentQOver, currentQUnder);
-      } else {
-        cost = costFunction(currentQOver, currentQUnder + mid) - costFunction(currentQOver, currentQUnder);
-      }
-      
-      if (Math.abs(cost - budget) < 0.001) {
-        return mid;
-      }
-      
-      if (cost < budget) {
-        lo = mid;
-      } else {
-        hi = mid;
-      }
-    }
-    
-    return (lo + hi) / 2;
-  }, [costFunction]);
-
-  // Initialize Cognee market graph on mount
+  // Load market state from Cognee cloud storage
   useEffect(() => {
-    const initCognee = async () => {
-      if (propertyId) {
+    const loadMarketState = async () => {
+      if (!propertyId) return;
+      
+      setIsLoading(true);
+      try {
+        // Initialize market graph
         await initializeMarketGraph(propertyId, askingPrice);
-        console.log('Cognee market graph initialized');
+        
+        // Search for latest market state in Cognee
+        const searchResults = await searchMarketInsights(
+          `latest market state for property ${propertyId} totalHigher totalLower`,
+          propertyId,
+          'INSIGHTS'
+        );
+        
+        if (searchResults && searchResults.results && searchResults.results.length > 0) {
+          // Parse the latest state from Cognee
+          const latestState = searchResults.results[0];
+          
+          // Extract values from Cognee response
+          const savedTotalHigher = latestState.totalHigher || latestState.qOver || 0;
+          const savedTotalLower = latestState.totalLower || latestState.qUnder || 0;
+          const savedTrades = latestState.totalTrades || 0;
+          
+          if (savedTotalHigher > 0 || savedTotalLower > 0) {
+            setTotalHigher(savedTotalHigher);
+            setTotalLower(savedTotalLower);
+            
+            // Calculate fair value from saved state
+            const savedFairValue = calculateFairValue(savedTotalHigher, savedTotalLower);
+            
+            setMarketData(prev => ({
+              ...prev,
+              fairValue: savedFairValue,
+              volume: savedTotalHigher + savedTotalLower,
+              participantCount: savedTrades
+            }));
+            
+            console.log('✅ Loaded shared market state from Cognee:', { 
+              savedTotalHigher, 
+              savedTotalLower, 
+              savedFairValue,
+              trades: savedTrades 
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load market state from Cognee:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
-    initCognee();
-  }, [propertyId, askingPrice]);
+    
+    loadMarketState();
+    
+    // Poll for updates every 5 seconds to keep data in sync across users
+    const interval = setInterval(loadMarketState, 5000);
+    return () => clearInterval(interval);
+  }, [propertyId, askingPrice, calculateFairValue]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -166,46 +181,22 @@ const MarketPage: React.FC = () => {
     fairValueSeriesRef.current = fairValueSeries;
     trendSeriesRef.current = trendSeries;
 
-    // Initialize with historical mock data based on LMSR
+    // Start with flat line at asking price
     const initialData: LineData[] = [];
     const trendData: LineData[] = [];
     const now = new Date();
     
-    // Simulate market history starting from asking price
-    let historicalQOver = 0;
-    let historicalQUnder = 0;
-    
+    // Create 30 data points all at asking price (flat line)
     for (let i = 30; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 60000);
       const timestamp = time.getTime() / 1000 as LineData['time'];
       
-      // Simulate some random trades in history
-      if (Math.random() > 0.5) {
-        const shares = Math.random() * 20;
-        if (Math.random() > 0.5) {
-          historicalQOver += shares;
-        } else {
-          historicalQUnder += shares;
-        }
-      }
-      
-      const probOver = priceOver(historicalQOver, historicalQUnder);
-      const fairValue = calculateImpliedPrice(probOver);
-      const trendValue = askingPrice; // Asking price as baseline trend
-      
-      initialData.push({ time: timestamp, value: fairValue });
-      trendData.push({ time: timestamp, value: trendValue });
+      initialData.push({ time: timestamp, value: askingPrice });
+      trendData.push({ time: timestamp, value: askingPrice });
     }
 
     fairValueSeries.setData(initialData);
     trendSeries.setData(trendData);
-
-    // Initialize LMSR state from "history"
-    setLmsrState(prev => ({
-      ...prev,
-      qOver: historicalQOver,
-      qUnder: historicalQUnder
-    }));
 
     const handleResize = () => {
       if (chartContainerRef.current) {
@@ -219,37 +210,7 @@ const MarketPage: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [askingPrice, calculateImpliedPrice, priceOver]);
-
-  // Auto-update chart with current fair value
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (fairValueSeriesRef.current && trendSeriesRef.current) {
-        const now = new Date();
-        const timestamp = now.getTime() / 1000 as LineData['time'];
-        
-        const probOver = priceOver(lmsrState.qOver, lmsrState.qUnder);
-        const currentFairValue = calculateImpliedPrice(probOver);
-        
-        fairValueSeriesRef.current.update({
-          time: timestamp,
-          value: currentFairValue,
-        });
-        
-        trendSeriesRef.current.update({
-          time: timestamp,
-          value: askingPrice,
-        });
-        
-        setMarketData(prev => ({
-          ...prev,
-          fairValue: currentFairValue,
-        }));
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [lmsrState.qOver, lmsrState.qUnder, askingPrice, calculateImpliedPrice, priceOver]);
+  }, [askingPrice]);
 
   const placeBet = (direction: 'higher' | 'lower') => {
     const wager = parseFloat(betAmount);
@@ -258,35 +219,15 @@ const MarketPage: React.FC = () => {
       return;
     }
 
-    // Use LMSR to execute trade
-    const outcome: 'over' | 'under' = direction === 'higher' ? 'over' : 'under';
+    // Update totals
+    const newTotalHigher = direction === 'higher' ? totalHigher + wager : totalHigher;
+    const newTotalLower = direction === 'lower' ? totalLower + wager : totalLower;
     
-    // Convert dollar wager to shares using binary search
-    const shares = buyWithBudget(outcome, wager, lmsrState.qOver, lmsrState.qUnder);
-    
-    // Calculate actual cost
-    const oldCost = costFunction(lmsrState.qOver, lmsrState.qUnder);
-    let newCost: number;
-    
-    if (outcome === 'over') {
-      newCost = costFunction(lmsrState.qOver + shares, lmsrState.qUnder);
-    } else {
-      newCost = costFunction(lmsrState.qOver, lmsrState.qUnder + shares);
-    }
-    
-    const actualCost = newCost - oldCost;
-    // const payout = shares; // Each share pays $1 if correct - stored for potential future use
-    
-    // Update LMSR state
-    const newQOver = outcome === 'over' ? lmsrState.qOver + shares : lmsrState.qOver;
-    const newQUnder = outcome === 'under' ? lmsrState.qUnder + shares : lmsrState.qUnder;
-    
-    setLmsrState(prev => ({
-      qOver: newQOver,
-      qUnder: newQUnder,
-      totalWagered: prev.totalWagered + actualCost,
-      totalTrades: prev.totalTrades + 1
-    }));
+    setTotalHigher(newTotalHigher);
+    setTotalLower(newTotalLower);
+
+    // Calculate new fair value
+    const newFairValue = calculateFairValue(newTotalHigher, newTotalLower);
 
     const newBet: Bet = {
       id: Math.random().toString(36).substr(2, 9),
@@ -299,17 +240,10 @@ const MarketPage: React.FC = () => {
     setBets(prev => [newBet, ...prev]);
     setBetAmount('');
     
-    // Calculate new fair value
-    const newProbOver = priceOver(
-      outcome === 'over' ? lmsrState.qOver + shares : lmsrState.qOver,
-      outcome === 'under' ? lmsrState.qUnder + shares : lmsrState.qUnder
-    );
-    const newFairValue = calculateImpliedPrice(newProbOver);
-    
     setMarketData(prev => ({
       ...prev,
       fairValue: newFairValue,
-      volume: prev.volume + actualCost,
+      volume: prev.volume + wager,
       participantCount: prev.participantCount + 1,
     }));
     
@@ -322,15 +256,15 @@ const MarketPage: React.FC = () => {
         value: newFairValue,
       });
     }
-
-    // Store LMSR state in Cognee
+    
+    // Save market state to Cognee for persistence
     if (propertyId) {
       storeLMSRState(
         {
-          qOver: newQOver,
-          qUnder: newQUnder,
-          totalWagered: lmsrState.totalWagered + actualCost,
-          totalTrades: lmsrState.totalTrades + 1,
+          qOver: newTotalHigher,
+          qUnder: newTotalLower,
+          totalWagered: newTotalHigher + newTotalLower,
+          totalTrades: marketData.participantCount + 1,
           fairValue: newFairValue,
           askingPrice: askingPrice,
           timestamp: new Date().toISOString(),
@@ -343,13 +277,13 @@ const MarketPage: React.FC = () => {
           priceAtBet: newBet.priceAtBet,
           timestamp: newBet.timestamp,
           propertyId: propertyId,
-          shares: shares,
-          actualCost: actualCost
+          shares: wager,
+          actualCost: wager
         }
       ).then(() => {
-        console.log('LMSR state stored in Cognee');
+        console.log('Market state saved to Cognee');
       }).catch((error) => {
-        console.error('Failed to store LMSR state:', error);
+        console.error('Failed to save market state:', error);
       });
     }
   };
@@ -373,20 +307,18 @@ const MarketPage: React.FC = () => {
   const priceDelta = marketData.fairValue - property.currentPrice;
   const priceDeltaPercent = ((priceDelta / property.currentPrice) * 100).toFixed(1);
 
-  // AI Search Handler
+  // AI Search Handler (placeholder)
   const handleSearch = async () => {
     if (!searchQuery.trim() || !propertyId) return;
     
     setIsSearching(true);
-    try {
-      const results = await searchMarketInsights(searchQuery, propertyId, 'GRAPH_COMPLETION');
-      setSearchResults(results);
-    } catch (error) {
-      console.error('Search failed:', error);
-      setSearchResults({ error: 'Search failed. Please try again.' });
-    } finally {
+    // Simulate AI response
+    setTimeout(() => {
+      setSearchResults({
+        answer: `Based on current market activity: ${totalHigher > totalLower ? 'More traders are betting HIGHER, suggesting bullish sentiment.' : totalLower > totalHigher ? 'More traders are betting LOWER, suggesting bearish sentiment.' : 'Market is balanced between HIGHER and LOWER bets.'} Current fair value is ${formatCurrency(marketData.fairValue)}.`,
+      });
       setIsSearching(false);
-    }
+    }, 1000);
   };
 
   return (
