@@ -5,6 +5,7 @@ import { useRoom } from '../hooks/useRoom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
+import CogneeChat from '../components/CogneeChat';
 import {
   Wifi,
   WifiOff,
@@ -346,6 +347,15 @@ export default function HostView() {
               ))}
             </div>
           </div>
+
+          {/* AI Analyst Chat */}
+          <CogneeChat
+            propertyId={roomCode || ''}
+            askingPrice={house.asking_price}
+            market={market}
+            activity={activity}
+            players={players}
+          />
         </div>
       </div>
 
