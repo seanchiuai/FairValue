@@ -50,27 +50,29 @@ function MarketCard({
       onMouseEnter={() => setShowUploader(true)}
       onMouseLeave={() => setShowUploader(false)}
     >
-      <Link to={`/market/${property.id}`} className="market-card">
-        {/* Thumbnail Section */}
-        <div className="card-thumbnail-section">
+      {/* Thumbnail Section - OUTSIDE Link so upload works */}
+      <div className="card-thumbnail-section">
+        <Link to={`/market/${property.id}`} className="thumbnail-link">
           <MarketThumbnail 
             imageUrl={imageUrl} 
             title={property.address}
           />
-          
-          {/* Upload Controls - Show on Hover */}
-          {showUploader && (
-            <div className="thumbnail-overlay">
-              <MarketImageUploader
-                marketId={property.id}
-                imageUrl={imageUrl}
-                onUpload={handleUpload}
-                onRemove={handleRemove}
-              />
-            </div>
-          )}
-        </div>
+        </Link>
+        
+        {/* Upload Controls - Show on Hover */}
+        {showUploader && (
+          <div className="thumbnail-overlay" onClick={(e) => e.stopPropagation()}>
+            <MarketImageUploader
+              marketId={property.id}
+              imageUrl={imageUrl}
+              onUpload={handleUpload}
+              onRemove={handleRemove}
+            />
+          </div>
+        )}
+      </div>
 
+      <Link to={`/market/${property.id}`} className="market-card">
         {/* Card Header */}
         <div className="card-header">
           <div className="property-info">
@@ -98,37 +100,27 @@ function MarketCard({
           </div>
         </div>
 
-        {/* Pricing Section */}
+        {/* Pricing Section - SINGLE LINE */}
         <div className="pricing-section">
-          <div className="price-row">
-            <div className="price-block">
-              <span className="price-label">List Price</span>
+          <div className="price-row-single">
+            <div className="price-comparison">
+              <span className="price-label">List</span>
               <span className="price-value list">{formatCurrency(property.currentPrice)}</span>
             </div>
             
-            <div className="price-arrow">
-              <ArrowRight size={16} />
-            </div>
+            <ArrowRight size={14} className="price-arrow" />
             
-            <div className="price-block">
-              <span className="price-label">Implied Fair Value</span>
+            <div className="price-comparison">
+              <span className="price-label">Fair Value</span>
               <span className={`price-value implied ${isHigher ? 'positive' : 'negative'}`}>
                 {formatCurrency(property.marketPrice)}
               </span>
             </div>
-          </div>
-
-          <div className={`delta-row ${isHigher ? 'positive' : 'negative'}`}>
-            {isHigher ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-            <span className="delta-amount">
-              {isHigher ? '+' : ''}{formatCurrency(Math.abs(priceDiff))}
-            </span>
-            <span className="delta-percent">
-              ({isHigher ? '+' : ''}{priceDiffPercent}%)
-            </span>
-            <span className="delta-label">
-              {isHigher ? 'Above list' : 'Below list'}
-            </span>
+            
+            <div className={`delta-badge ${isHigher ? 'positive' : 'negative'}`}>
+              {isHigher ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              <span>{isHigher ? '+' : ''}{priceDiffPercent}%</span>
+            </div>
           </div>
         </div>
 
@@ -163,30 +155,37 @@ function MarketCard({
         .card-thumbnail-section {
           position: relative;
           margin-bottom: 12px;
+          padding: 0 16px;
+          padding-top: 16px;
+        }
+
+        .thumbnail-link {
+          display: block;
+          text-decoration: none;
         }
 
         .thumbnail-overlay {
           position: absolute;
           bottom: 8px;
-          left: 8px;
-          right: 8px;
+          left: 24px;
+          right: 24px;
           z-index: 10;
-          background: rgba(31, 42, 54, 0.95);
+          background: rgba(31, 42, 54, 0.98);
           border: 1px solid #3A4A5D;
           border-radius: 6px;
           padding: 8px;
-          backdrop-filter: blur(4px);
         }
 
         .market-card {
           display: block;
           background: #2C3A4A;
           border: 1px solid #3A4A5D;
-          border-radius: 10px;
-          padding: 16px;
+          border-radius: 0 0 10px 10px;
+          padding: 0 16px 16px 16px;
           text-decoration: none;
           color: inherit;
           transition: all 0.15s ease;
+          border-top: none;
         }
 
         .market-card:hover {
@@ -272,31 +271,37 @@ function MarketCard({
           margin-bottom: 12px;
         }
 
-        .price-row {
+        /* SINGLE LINE PRICING */
+        .price-row-single {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 8px;
+          gap: 8px;
+          padding: 10px 12px;
+          background: #273445;
+          border: 1px solid #3A4A5D;
+          border-radius: 8px;
         }
 
-        .price-block {
-          flex: 1;
+        .price-comparison {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
         }
 
         .price-label {
-          display: block;
-          font-size: 10px;
+          font-size: 9px;
           color: #7F93A8;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          margin-bottom: 2px;
         }
 
         .price-value {
-          display: block;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 600;
           color: #EAF0F7;
+          white-space: nowrap;
         }
 
         .price-value.list {
@@ -313,43 +318,28 @@ function MarketCard({
 
         .price-arrow {
           color: #7F93A8;
-          padding: 0 6px;
+          flex-shrink: 0;
         }
 
-        .delta-row {
+        .delta-badge {
           display: flex;
           align-items: center;
-          gap: 5px;
-          padding: 6px 10px;
+          gap: 4px;
+          padding: 4px 8px;
           border-radius: 4px;
           font-size: 11px;
-          font-weight: 500;
+          font-weight: 600;
+          flex-shrink: 0;
         }
 
-        .delta-row.positive {
-          background: rgba(59, 167, 118, 0.1);
+        .delta-badge.positive {
+          background: rgba(59, 167, 118, 0.15);
           color: #3BA776;
         }
 
-        .delta-row.negative {
-          background: rgba(192, 86, 86, 0.1);
+        .delta-badge.negative {
+          background: rgba(192, 86, 86, 0.15);
           color: #C05656;
-        }
-
-        .delta-amount {
-          font-weight: 600;
-        }
-
-        .delta-percent {
-          opacity: 0.85;
-        }
-
-        .delta-label {
-          margin-left: auto;
-          opacity: 0.75;
-          font-size: 10px;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
         }
 
         .market-stats {
