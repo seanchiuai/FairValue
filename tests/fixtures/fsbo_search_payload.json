@@ -1,0 +1,113 @@
+{
+  "success": true,
+  "data": {
+    "paging": {
+      "currentItemCount": 5,
+      "currentPage": 1,
+      "itemCountPerPage": 5,
+      "totalItemCount": 8,
+      "totalPageCount": 2
+    },
+    "listings": [
+      {
+        "id": "68635df2b08e0be0500bf344",
+        "sourceKey": "3481740",
+        "listingURL": null,
+        "vendorUrl": "https://www.newhomesource.com/plan/madison-321-at-lennar-bay-area-urban/3481740?refer=fsbo",
+        "listingTitle": null,
+        "fullName": "52 Kirkwood Ave. #225 San Francisco, CA 94124",
+        "address": {
+          "city": "San Francisco",
+          "country": "USA",
+          "county": null,
+          "fullStreetAddress": "52 Kirkwood Ave. #225",
+          "neighborhoods": null,
+          "postalCode": "94124",
+          "stateOrProvince": "CA",
+          "stateName": null,
+          "unitNumber": null
+        },
+        "listPrice": 554000,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "livingArea": null,
+        "propertyType": "Multi-Family",
+        "listingStatus": "Active",
+        "sourceStatus": "For Sale",
+        "center": {
+          "coordinates": [
+            -122.3706,
+            37.7281
+          ],
+          "type": "Point"
+        }
+      },
+      {
+        "id": "68635df247d75c6a720c83e4",
+        "sourceKey": "3010353",
+        "listingURL": null,
+        "vendorUrl": "https://www.newhomesource.com/specdetail/52-kirkwood-ave-321-san-francisco-ca-94124/3010353?refer=fsbo",
+        "listingTitle": null,
+        "fullName": "52 Kirkwood Ave. San Francisco, CA 94124",
+        "address": {
+          "city": "San Francisco",
+          "country": "USA",
+          "county": null,
+          "fullStreetAddress": "52 Kirkwood Ave.",
+          "neighborhoods": null,
+          "postalCode": "94124",
+          "stateOrProvince": "CA",
+          "stateName": null,
+          "unitNumber": "#321"
+        },
+        "listPrice": 584000,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "livingArea": null,
+        "propertyType": "Multi-Family",
+        "listingStatus": "Active",
+        "sourceStatus": "For Sale",
+        "center": {
+          "coordinates": [
+            -122.3701107,
+            37.7271238
+          ],
+          "type": "Point"
+        }
+      },
+      {
+        "id": "67f0abd48f3c23f78b08d6f4",
+        "sourceKey": "3306663",
+        "listingURL": null,
+        "vendorUrl": "https://www.newhomesource.com/plan/madison-416-at-lennar-bay-area-urban/3306663?refer=fsbo",
+        "listingTitle": null,
+        "fullName": "52 Kirkwood Ave. #225 San Francisco, CA 94124",
+        "address": {
+          "city": "San Francisco",
+          "country": "USA",
+          "county": null,
+          "fullStreetAddress": "52 Kirkwood Ave. #225",
+          "neighborhoods": null,
+          "postalCode": "94124",
+          "stateOrProvince": "CA",
+          "stateName": null,
+          "unitNumber": null
+        },
+        "listPrice": 738800,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "livingArea": null,
+        "propertyType": "Multi-Family",
+        "listingStatus": "Active",
+        "sourceStatus": "For Sale",
+        "center": {
+          "coordinates": [
+            -122.3706,
+            37.7281
+          ],
+          "type": "Point"
+        }
+      }
+    ]
+  }
+}

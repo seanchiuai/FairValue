@@ -1,0 +1,100 @@
+[
+  {
+    "url": "https://www.zillow.com/san-francisco-ca/sold/",
+    "totalResults": 6,
+    "properties": [
+      {
+        "zpid": "10000001",
+        "url": "/homedetails/123-Market-St-San-Francisco-CA-94105/10000001_zpid/",
+        "address": "123 Market St, San Francisco, CA 94105",
+        "price": "$1,250,000",
+        "beds": 2,
+        "baths": 2,
+        "sqft": 1100,
+        "latitude": 37.7903,
+        "longitude": -122.3966,
+        "status": "SOLD",
+        "soldDate": "2026-01-20",
+        "homeType": "SINGLE_FAMILY"
+      },
+      {
+        "zpid": "10000002",
+        "url": "/homedetails/999-Nowhere-St-Oakland-CA-94607/10000002_zpid/",
+        "address": "999 Nowhere St, Oakland, CA 94607",
+        "price": "$950,000",
+        "beds": 3,
+        "baths": 2,
+        "sqft": 1400,
+        "latitude": 37.805,
+        "longitude": -122.271,
+        "status": "SOLD",
+        "soldDate": "2026-01-22",
+        "homeType": "SINGLE_FAMILY"
+      },
+      {
+        "zpid": "10000003",
+        "url": "/homedetails/222-Castro-St-San-Francisco-CA-94114/10000003_zpid/",
+        "address": "222 Castro St 3 bed 2 bath 1,450 sqft, San Francisco, CA 94114",
+        "price": "$1,600,000",
+        "beds": null,
+        "baths": null,
+        "sqft": null,
+        "latLong": {
+          "latitude": 37.7608,
+          "longitude": -122.435
+        },
+        "status": "RECENTLY_SOLD",
+        "soldDate": "01/28/2026",
+        "homeType": "SINGLE_FAMILY"
+      },
+      {
+        "zpid": "10000004",
+        "url": "/homedetails/500-Pine-St-San-Francisco-CA-94108/10000004_zpid/",
+        "address": "500 Pine St, San Francisco, CA 94108",
+        "price": "$1,100,000",
+        "beds": 2,
+        "baths": 2,
+        "sqft": 1000,
+        "latLong": {
+          "latitude": 37.7924,
+          "longitude": -122.4068
+        },
+        "status": "SOLD",
+        "soldDate": "2025-12-15",
+        "homeType": "SINGLE_FAMILY"
+      },
+      {
+        "zpid": "10000005",
+        "url": "/homedetails/501-Pine-St-San-Francisco-CA-94108/10000005_zpid/",
+        "address": "501 Pine St, San Francisco, CA 94108",
+        "price": "$1,200,000",
+        "beds": 2,
+        "baths": 2,
+        "sqft": 1050,
+        "latLong": {
+          "latitude": 37.7925,
+          "longitude": -122.4069
+        },
+        "status": "FOR_SALE",
+        "soldDate": "2026-01-30",
+        "homeType": "SINGLE_FAMILY"
+      },
+      {
+        "zpid": "10000006",
+        "url": "/homedetails/700-Post-St-San-Francisco-CA-94109/10000006_zpid/",
+        "address": "700 Post St, San Francisco, CA 94109",
+        "price": "$980,000",
+        "beds": 1,
+        "baths": 1,
+        "sqft": 800,
+        "latLong": {
+          "latitude": 37.787,
+          "longitude": -122.412
+        },
+        "status": "SOLD",
+        "soldDate": "2026-01-25",
+        "homeType": "CONDO"
+      }
+    ]
+  }
+]
