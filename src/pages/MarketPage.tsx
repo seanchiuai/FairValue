@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
+import { useMarketChart } from '../hooks/useMarketChart';
+import { calculateImpliedPrice } from '../lib/lmsr';
 import './MarketPage.css';
 
 const MarketPage: React.FC = () => {
@@ -27,6 +29,28 @@ const MarketPage: React.FC = () => {
   const { sessionId } = useSession();
   const [creating, setCreating] = useState(false);
   const property = properties.find(p => p.id === propertyId) || properties[0];
+
+  // Chart with historical data from DB
+  const { loadHistory, setRef: chartRef } = useMarketChart({ height: 260 });
+  const historyFetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!propertyId || !property || historyFetchedRef.current) return;
+    historyFetchedRef.current = true;
+
+    fetch(`/api/markets/by-property/${propertyId}/chart`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: Array<{ prob: number; time: string }>) => {
+        if (data.length > 0) {
+          const points = data.map((d) => ({
+            probOver: d.prob,
+            fairValue: calculateImpliedPrice(d.prob, property.price),
+          }));
+          loadHistory(points);
+        }
+      })
+      .catch(() => {});
+  }, [propertyId, property, loadHistory]);
 
   const handleStartBid = async () => {
     if (!property || creating) return;
@@ -139,6 +163,18 @@ const MarketPage: React.FC = () => {
               <span>Listed by {property.brokerageName}</span>
             </div>
           )}
+        </div>
+
+        {/* Market Chart */}
+        <div className="detail-section">
+          <div className="chart-head">
+            <h2 className="section-title"><TrendingUp size={18} /> Market Activity</h2>
+            <div className="chart-legend">
+              <span className="legend-dot blue" /> Over %
+              <span className="legend-dot green" /> Fair Value
+            </div>
+          </div>
+          <div ref={chartRef} className="chart-container" style={{ width: '100%', height: 260 }} />
         </div>
 
         {/* Financial Highlights */}
