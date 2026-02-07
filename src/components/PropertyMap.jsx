@@ -39,14 +39,14 @@ function createPriceIcon(price, color) {
       font-size: 11px;
       font-weight: 700;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      padding: 4px 8px;
+      padding: 4px 10px;
       border-radius: 8px;
       white-space: nowrap;
       box-shadow: 0 2px 8px rgba(0,0,0,0.25);
       border: 2px solid rgba(255,255,255,0.8);
       text-align: center;
-      transform: translate(-50%, -100%);
       position: relative;
+      display: inline-block;
     "><span>${shortPrice(price)}</span><div style="
       position: absolute;
       bottom: -6px; left: 50%;
@@ -56,8 +56,9 @@ function createPriceIcon(price, color) {
       border-right: 5px solid transparent;
       border-top: 6px solid ${color};
     "></div></div>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
+    iconSize: null,
+    iconAnchor: [30, 32],
+    popupAnchor: [0, -32],
   });
 }
 
