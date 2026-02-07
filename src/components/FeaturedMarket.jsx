@@ -54,6 +54,9 @@ function FeaturedMarket({ property }) {
         .feat-gradient {
           position: absolute; inset: 0;
           background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.05) 50%, transparent 100%);
+          transform: translateZ(0);
+          backface-visibility: hidden;
+          border-radius: inherit;
         }
 
         .feat-badge-float {
