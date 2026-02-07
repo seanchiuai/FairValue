@@ -129,14 +129,16 @@ const MarketPage: React.FC = () => {
     const fairValueSeries = chart.addLineSeries({
       color: '#3BA776',
       lineWidth: 2,
-      title: 'Fair Value',
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
 
     const trendSeries = chart.addLineSeries({
       color: '#4BA3FF',
       lineWidth: 2,
       lineStyle: 2,
-      title: 'Trend Prediction',
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
 
     chartRef.current = chart;
