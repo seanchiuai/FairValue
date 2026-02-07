@@ -91,9 +91,9 @@ function getMarketState(market) {
 
 // ─── Room helpers ───────────────────────────────────────────────────
 
-function createRoom(house) {
-  const code = generateRoomCode();
-  rooms[code] = {
+async function createRoom(house, roomCode) {
+  const code = roomCode || generateRoomCode();
+  const room = {
     code,
     house,
     market: { qOver: 0, qUnder: 0, b: 100, totalTrades: 0, totalWagered: 0 },
@@ -103,8 +103,30 @@ function createRoom(house) {
     aiInterval: null,
     settled: false,
     activity: [],
+    marketId: null,
   };
-  return rooms[code];
+
+  // Persist a new market row + market_state in Neon so trades are saved
+  try {
+    const propertyId = 'room-' + code;
+    const [inserted] = await sql`
+      INSERT INTO markets (address, asking_price, property_id, status)
+      VALUES (${house.address || ''}, ${house.asking_price || 0}, ${propertyId}, 'open')
+      RETURNING id
+    `;
+    room.marketId = inserted.id;
+
+    await sql`
+      INSERT INTO market_state (market_id, q_over, q_under, b, total_trades, total_wagered)
+      VALUES (${room.marketId}, 0, 0, 100, 0, 0)
+    `;
+    console.log(`Room ${code}: created DB market ${room.marketId}`);
+  } catch (e) {
+    console.error(`Room ${code}: failed to create DB market:`, e.message);
+  }
+
+  rooms[code] = room;
+  return room;
 }
 
 function broadcast(room, event) {
@@ -141,10 +163,10 @@ async function updateMarketState(marketId, market) {
 
 // ─── Room API routes ────────────────────────────────────────────────
 
-app.post('/api/rooms', (req, res) => {
+app.post('/api/rooms', async (req, res) => {
   const { address, asking_price } = req.body;
   const house = { address, asking_price };
-  const room = createRoom(house);
+  const room = await createRoom(house);
   res.json({ room_code: room.code, house });
 });
 
