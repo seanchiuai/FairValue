@@ -1,41 +1,26 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Home, 
-  Bed, 
-  Bath, 
-  Maximize, 
+import React from 'react';
+import { useParams, Link } from 'react-router-dom';
+import {
+  ArrowLeft,
+  MapPin,
+  ExternalLink,
+  Building2,
+  Bed,
+  Bath,
+  Maximize,
   Calendar,
+  Home,
+  DollarSign,
+  GraduationCap,
   TrendingUp,
   TrendingDown,
-  DollarSign,
-  Users,
-  Clock,
-  Info,
-  ChevronRight,
-  Search,
-  Brain,
-  Loader2,
-  MapPin,
-  Building2,
-  Gavel,
-  ExternalLink
+  Gavel
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
 import './MarketPage.css';
 
-interface Bet {
-  id: string;
-  direction: 'higher' | 'lower';
-  amount: number;
-  priceAtBet: number;
-  timestamp: Date;
-}
-
 const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
-  const navigate = useNavigate();
   const { properties, loading } = useProperties();
   const property = properties.find(p => p.id === propertyId) || properties[0];
 
@@ -49,16 +34,6 @@ const MarketPage: React.FC = () => {
     return map[t] || t;
   };
 
-  const getConfidence = () => {
-    if (marketData.participantCount < 10) return { text: 'Low (Early Market)', color: 'var(--accent-danger)' };
-    if (marketData.participantCount < 30) return { text: 'Medium', color: 'var(--accent-warning)' };
-    return { text: 'High', color: 'var(--accent-success)' };
-  };
-
-  const confidence = getConfidence();
-  const priceDelta = marketData.fairValue - askingPrice;
-  const priceDeltaPercent = ((priceDelta / askingPrice) * 100).toFixed(1);
-
   const heroImg = property.photos?.find(p => p.width === 1536)?.url
     || property.photos?.find(p => p.width === 960)?.url
     || property.imgSrc;
@@ -67,20 +42,6 @@ const MarketPage: React.FC = () => {
     ? property.zestimate - property.price : null;
   const priceDiffPct = priceDiff !== null && property.price
     ? ((priceDiff / property.price) * 100).toFixed(1) : null;
-
-  // AI Search Handler
-  const handleSearch = async () => {
-    if (!searchQuery.trim() || !propertyId) return;
-    
-    setIsSearching(true);
-    // Simulate AI response
-    setTimeout(() => {
-      setSearchResults({
-        answer: `Based on current market activity: ${totalHigher > totalLower ? 'More traders are betting HIGHER, suggesting bullish sentiment.' : totalLower > totalHigher ? 'More traders are betting LOWER, suggesting bearish sentiment.' : 'Market is balanced between HIGHER and LOWER bets.'} Current fair value is ${formatCurrency(marketData.fairValue)}.`,
-      });
-      setIsSearching(false);
-    }, 1000);
-  };
 
   return (
     <div className="market-page">
@@ -102,19 +63,16 @@ const MarketPage: React.FC = () => {
           <img src={heroImg} alt={property.address} className="detail-hero-img" />
           <div className="detail-hero-badges">
             <span className="badge-type">{typeLabel(property.homeType)}</span>
+            {property.homeStatus === 'RECENTLY_SOLD' && (
+              <span className="badge-sold">Sold {property.dateSoldString || ''}</span>
+            )}
           </div>
         </div>
 
         {/* Price + Specs Header */}
         <div className="detail-header-card">
           <div className="detail-price-row">
-            <div className="detail-price-section">
-              <div className="detail-price-label">Fair Value</div>
-              <div className="detail-price">{formatCurrency(marketData.fairValue)}</div>
-              <div className="original-price-ref">
-                Original Sale: {formatPrice(originalPrice)}
-              </div>
-            </div>
+            <div className="detail-price">{formatPrice(property.price)}</div>
             {property.zestimate && priceDiff !== null && (
               <div className={`detail-zestimate ${priceDiff >= 0 ? 'up' : 'down'}`}>
                 <span className="zest-label">Zestimate</span>
@@ -156,228 +114,97 @@ const MarketPage: React.FC = () => {
           )}
         </div>
 
-        <div className="market-layout">
-          {/* Left Column */}
-          <div className="chart-column">
-            <div className="chart-header">
-              <h2>Price History & Fair Value</h2>
-              <div className="legend">
-                <div className="legend-item">
-                  <span className="dot green" />
-                  <span>Fair Value (AMM)</span>
-                </div>
-                <div className="legend-item">
-                  <span className="dot blue" />
-                  <span>Trend Prediction</span>
-                </div>
-              </div>
+        {/* Financial Highlights */}
+        <div className="detail-section">
+          <h2 className="section-title"><DollarSign size={18} /> Financial Details</h2>
+          <div className="detail-grid">
+            <div className="detail-stat">
+              <span className="stat-label">Sale Price</span>
+              <span className="stat-value">{formatPrice(property.price)}</span>
             </div>
-            
-            <div ref={chartContainerRef} className="chart-container" />
-
-            <div className="stats-row">
-              <div className="stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Fair Value</span>
-                  {priceDelta >= 0 ? <TrendingUp size={16} className="trend-icon up" /> : <TrendingDown size={16} className="trend-icon down" />}
-                </div>
-                <span className="stat-value">{formatCurrency(marketData.fairValue)}</span>
-                <span className={`stat-delta ${priceDelta >= 0 ? 'positive' : 'negative'}`}>
-                  {priceDelta >= 0 ? '+' : ''}{priceDeltaPercent}% vs original
-                </span>
+            {property.zestimate && (
+              <div className="detail-stat">
+                <span className="stat-label">Zestimate</span>
+                <span className="stat-value">{formatPrice(property.zestimate)}</span>
               </div>
-
-              <div className="stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Implied Fair Value</span>
-                </div>
-                <span className="stat-value blue">{formatCurrency(marketData.trendPrediction)}</span>
-                <span className="stat-desc">Based on comparable sales</span>
+            )}
+            {property.rentZestimate && (
+              <div className="detail-stat">
+                <span className="stat-label">Rent Estimate</span>
+                <span className="stat-value">{formatPrice(property.rentZestimate)}/mo</span>
               </div>
-
-              <div className="stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Market Confidence</span>
-                  <Info size={14} className="info-icon" />
-                </div>
-                <span className="stat-value" style={{ color: confidence.color }}>{confidence.text}</span>
-                <span className="stat-desc">{marketData.participantCount} traders</span>
+            )}
+            {property.propertyTaxRate && (
+              <div className="detail-stat">
+                <span className="stat-label">Tax Rate</span>
+                <span className="stat-value">{property.propertyTaxRate}%</span>
               </div>
+            )}
+            {property.rentZestimate && property.price > 0 && (
+              <div className="detail-stat">
+                <span className="stat-label">Gross Yield</span>
+                <span className="stat-value">{((property.rentZestimate * 12 / property.price) * 100).toFixed(1)}%</span>
+              </div>
+            )}
+            {property.daysOnZillow != null && (
+              <div className="detail-stat">
+                <span className="stat-label">Days on Zillow</span>
+                <span className="stat-value">{property.daysOnZillow}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Description */}
+        {property.description && (
+          <div className="detail-section">
+            <h2 className="section-title">About This Property</h2>
+            <p className="detail-description">{property.description}</p>
+          </div>
+        )}
+
+        {/* Price History */}
+        {property.priceHistory.length > 0 && (
+          <div className="detail-section">
+            <h2 className="section-title">Price History</h2>
+            <div className="price-history-table">
+              <div className="ph-header">
+                <span>Date</span>
+                <span>Event</span>
+                <span>Price</span>
+              </div>
+              {property.priceHistory.map((ph, i) => (
+                <div key={i} className="ph-row">
+                  <span className="ph-date">{ph.date ? new Date(ph.date).toLocaleDateString() : '—'}</span>
+                  <span className="ph-event">{ph.event}</span>
+                  <span className="ph-price">{ph.price > 0 ? formatPrice(ph.price) : '—'}</span>
+                </div>
+              ))}
             </div>
+          </div>
+        )}
 
-            {/* AI Search Section */}
-            <div className="ai-search-section">
-              <div className="ai-search-header" onClick={() => setShowAISearch(!showAISearch)}>
-                <div className="ai-search-title">
-                  <Brain size={20} />
-                  <h3>AI Market Insights</h3>
-                </div>
-                <span className="ai-search-toggle">{showAISearch ? '−' : '+'}</span>
-              </div>
-              
-              {showAISearch && (
-                <div className="ai-search-content">
-                  <div className="ai-search-input-group">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                      placeholder="Ask about market trends, betting patterns, or price predictions..."
-                      className="ai-search-input"
-                    />
-                    <button 
-                      className="ai-search-btn" 
-                      onClick={handleSearch}
-                      disabled={isSearching}
-                    >
-                      {isSearching ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
-                      {isSearching ? 'Analyzing...' : 'Search'}
-                    </button>
+        {/* Schools */}
+        {property.schools.length > 0 && (
+          <div className="detail-section">
+            <h2 className="section-title"><GraduationCap size={18} /> Nearby Schools</h2>
+            <div className="schools-list">
+              {property.schools.map((school, i) => (
+                <div key={i} className="school-item">
+                  <div className="school-info">
+                    <span className="school-name">{school.name}</span>
+                    <span className="school-meta">{school.level} · {school.distance} mi</span>
                   </div>
-                  
-                  {searchResults && (
-                    <div className="ai-search-results">
-                      {searchResults.error ? (
-                        <p className="ai-search-error">{searchResults.error}</p>
-                      ) : (
-                        <div className="ai-search-response">
-                          {searchResults.results && searchResults.results.map((result: any, idx: number) => (
-                            <div key={idx} className="ai-result-item">
-                              <p>{result.text || JSON.stringify(result)}</p>
-                            </div>
-                          ))}
-                          {searchResults.answer && (
-                            <div className="ai-answer">
-                              <strong>Answer:</strong>
-                              <p>{searchResults.answer}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                  {school.rating && (
+                    <div className={`school-rating ${school.rating >= 7 ? 'good' : school.rating >= 4 ? 'avg' : 'low'}`}>
+                      {school.rating}/10
                     </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
           </div>
-
-          {/* Right Column */}
-          <div className="trading-column">
-            <div className="trading-panel">
-              <h2>Place Your Trade</h2>
-              
-              <div className="input-group">
-                <label>Trade Size ($)</label>
-                <div className="input-wrapper">
-                  <DollarSign size={16} className="input-icon" />
-                  <input
-                    type="number"
-                    value={betAmount}
-                    onChange={(e) => setBetAmount(e.target.value)}
-                    placeholder="Enter amount..."
-                  />
-                </div>
-              </div>
-
-              <div className="trade-buttons">
-                <button className="trade-btn higher" onClick={() => placeBet('higher')}>
-                  <div className="btn-content">
-                    <TrendingUp size={20} />
-                    <div className="btn-labels">
-                      <span className="btn-title">HIGHER</span>
-                      <span className="btn-desc">Appraisal will be above fair value</span>
-                    </div>
-                  </div>
-                </button>
-                
-                <button className="trade-btn lower" onClick={() => placeBet('lower')}>
-                  <div className="btn-content">
-                    <TrendingDown size={20} />
-                    <div className="btn-labels">
-                      <span className="btn-title">LOWER</span>
-                      <span className="btn-desc">Appraisal will be below fair value</span>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              <p className="trade-hint">
-                <Info size={14} />
-                Your trade moves the market price. Larger positions = bigger impact.
-              </p>
-            </div>
-
-            {bets.length > 0 && (
-              <div className="positions-panel">
-                <h3>Your Positions</h3>
-                <div className="positions-list">
-                  {bets.map((bet) => (
-                    <div key={bet.id} className="position-item">
-                      <div className="position-main">
-                        <div className={`position-direction ${bet.direction}`}>
-                          {bet.direction === 'higher' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                          <span>{bet.direction === 'higher' ? 'LONG' : 'SHORT'}</span>
-                        </div>
-                        <span className="position-size">{formatCurrency(bet.amount)}</span>
-                      </div>
-                      <div className="position-meta">
-                        <span>Entry: {formatCurrency(bet.priceAtBet)}</span>
-                        <span>{bet.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="info-panel">
-              <h4>How It Works</h4>
-              <ul>
-                <li>
-                  <ChevronRight size={14} />
-                  Predict if the home will appraise higher or lower than the current fair value
-                </li>
-                <li>
-                  <ChevronRight size={14} />
-                  Your trade influences the market price in real-time via AMM mechanics
-                </li>
-                <li>
-                  <ChevronRight size={14} />
-                  When the official appraisal is reported, positions settle automatically
-                </li>
-                <li>
-                  <ChevronRight size={14} />
-                  Trade anytime before the settlement deadline
-                </li>
-              </ul>
-            </div>
-
-            <div className="market-meta">
-              <div className="meta-row">
-                <span className="meta-label">
-                  <DollarSign size={14} />
-                  Volume
-                </span>
-                <span className="meta-value">{formatCurrency(marketData.volume)}</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">
-                  <Users size={14} />
-                  Traders
-                </span>
-                <span className="meta-value">{marketData.participantCount.toLocaleString()}</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">
-                  <Clock size={14} />
-                  Ends in
-                </span>
-                <span className="meta-value">14 days</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Start a Bid */}
         <div className="detail-section bid-section">
