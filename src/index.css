@@ -1,0 +1,92 @@
+:root {
+  /* Clean Light Theme — Apple-Inspired */
+  
+  /* Backgrounds */
+  --bg-primary: #F5F5F7;           /* Warm off-white page background */
+  --bg-nav: #FFFFFF;               /* Nav background */
+  --bg-surface: #FFFFFF;           /* Card surface */
+  --bg-surface-hover: #FAFAFA;     /* Card hover state */
+  --bg-input: #F0F0F2;             /* Input/search backgrounds */
+  --bg-elevated: #FFFFFF;          /* Elevated surfaces */
+  
+  /* Borders */
+  --border-subtle: #E8E8ED;        /* Subtle 1px borders */
+  --border-default: #D2D2D7;       /* Default borders */
+  --border-focus: #0071E3;         /* Focus ring blue */
+  
+  /* Text */
+  --text-primary: #1D1D1F;         /* Near-black headings */
+  --text-secondary: #6E6E73;       /* Medium gray body text */
+  --text-muted: #AEAEB2;           /* Muted captions */
+  
+  /* Accents */
+  --accent-primary: #0071E3;       /* Apple blue */
+  --accent-primary-hover: #0077ED; /* Blue hover */
+  --accent-primary-subtle: rgba(0, 113, 227, 0.06); /* Subtle blue tint */
+  
+  /* Status Colors */
+  --accent-success: #34C759;       /* Clean green */
+  --accent-success-subtle: rgba(52, 199, 89, 0.08);
+  --accent-danger: #FF3B30;        /* Clean red */
+  --accent-danger-subtle: rgba(255, 59, 48, 0.06);
+  --accent-warning: #FF9500;       /* Warm amber */
+  --accent-warning-subtle: rgba(255, 149, 0, 0.08);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility Classes */
+.bg-surface { background: var(--bg-surface); }
+.bg-surface-hover:hover { background: var(--bg-surface-hover); }
+.bg-input { background: var(--bg-input); }
+.bg-nav { background: var(--bg-nav); }
+
+.border-subtle { border-color: var(--border-subtle); }
+.border-default { border-color: var(--border-default); }
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+
+/* Focus States */
+*:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+/* Scrollbar - Minimal */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
