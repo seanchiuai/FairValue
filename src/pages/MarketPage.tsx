@@ -361,9 +361,6 @@ const MarketPage: React.FC = () => {
           <img src={heroImg} alt={property.address} className="detail-hero-img" />
           <div className="detail-hero-badges">
             <span className="badge-type">{typeLabel(property.homeType)}</span>
-            {property.homeStatus === 'RECENTLY_SOLD' && (
-              <span className="badge-sold">Sold {property.dateSoldString || ''}</span>
-            )}
           </div>
         </div>
 

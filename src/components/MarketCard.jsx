@@ -19,9 +19,6 @@ function MarketCard({ property }) {
         )}
         <div className="card-badges">
           <span className="card-type-badge">{typeLabel(property.homeType)}</span>
-          {property.homeStatus === 'RECENTLY_SOLD' && (
-            <span className="card-sold-badge">Sold</span>
-          )}
         </div>
       </div>
 
@@ -115,15 +112,6 @@ function MarketCard({ property }) {
           font-weight: 600;
           color: #1D1D1F;
         }
-        .card-sold-badge {
-          padding: 4px 10px;
-          background: rgba(52, 199, 89, 0.9);
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          color: white;
-        }
-
         .card-body {
           padding: 14px 16px 16px;
         }

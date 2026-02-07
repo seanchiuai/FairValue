@@ -81,15 +81,6 @@
   font-weight: 600;
   color: #1D1D1F;
 }
-.badge-sold {
-  padding: 6px 14px;
-  background: rgba(52,199,89,0.9);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: white;
-}
-
 /* Header Card */
 .detail-header-card {
   background: #FFFFFF;
