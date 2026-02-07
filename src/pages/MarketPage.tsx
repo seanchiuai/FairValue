@@ -41,7 +41,13 @@ const MarketPage: React.FC = () => {
   const trendSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   
   const property: Property = properties.find(p => p.id === propertyId) || properties[0];
-  const askingPrice = property.price;
+  
+  // Store original sold price for reference - this never changes
+  const originalPriceRef = useRef<number>(property.price);
+  const originalPrice = originalPriceRef.current;
+  
+  // Use fair value as the current market price for betting
+  const askingPrice = originalPrice;
   
   // Simple weighted bet tracking
   const [totalHigher, setTotalHigher] = useState<number>(0);
@@ -364,7 +370,13 @@ const MarketPage: React.FC = () => {
         {/* Price + Specs Header */}
         <div className="detail-header-card">
           <div className="detail-price-row">
-            <div className="detail-price">{formatPrice(property.price)}</div>
+            <div className="detail-price-section">
+              <div className="detail-price-label">Fair Value</div>
+              <div className="detail-price">{formatCurrency(marketData.fairValue)}</div>
+              <div className="original-price-ref">
+                Original Sale: {formatPrice(originalPrice)}
+              </div>
+            </div>
             {property.zestimate && priceDiff !== null && (
               <div className={`detail-zestimate ${priceDiff >= 0 ? 'up' : 'down'}`}>
                 <span className="zest-label">Zestimate</span>
@@ -433,7 +445,7 @@ const MarketPage: React.FC = () => {
                 </div>
                 <span className="stat-value">{formatCurrency(marketData.fairValue)}</span>
                 <span className={`stat-delta ${priceDelta >= 0 ? 'positive' : 'negative'}`}>
-                  {priceDelta >= 0 ? '+' : ''}{priceDeltaPercent}% vs list
+                  {priceDelta >= 0 ? '+' : ''}{priceDeltaPercent}% vs original
                 </span>
               </div>
 

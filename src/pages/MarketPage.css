@@ -108,11 +108,31 @@
   flex-wrap: wrap;
   gap: 12px;
 }
+.detail-price-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-price-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0071E3;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .detail-price {
   font-size: 36px;
   font-weight: 700;
   letter-spacing: -1px;
   color: #1D1D1F;
+}
+
+.original-price-ref {
+  font-size: 13px;
+  color: #8E8E93;
+  font-weight: 500;
 }
 .detail-zestimate {
   display: flex;
