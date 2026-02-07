@@ -1,36 +1,41 @@
 :root {
-  /* Polymarket-Inspired Slate-Blue Palette */
+  /* Clean Light Theme — Apple-Inspired */
   
   /* Backgrounds */
-  --bg-primary: #1F2A36;           /* Deep slate-blue page background */
-  --bg-nav: #243140;               /* Nav background */
-  --bg-surface: #2C3A4A;           /* Card surface (lighter than bg) */
-  --bg-surface-hover: #314255;     /* Card hover state */
-  --bg-input: #273445;             /* Input/search backgrounds */
-  --bg-elevated: #374658;          /* Elevated surfaces */
+  --bg-primary: #F5F5F7;           /* Warm off-white page background */
+  --bg-nav: #FFFFFF;               /* Nav background */
+  --bg-surface: #FFFFFF;           /* Card surface */
+  --bg-surface-hover: #FAFAFA;     /* Card hover state */
+  --bg-input: #F0F0F2;             /* Input/search backgrounds */
+  --bg-elevated: #FFFFFF;          /* Elevated surfaces */
   
   /* Borders */
-  --border-subtle: #3A4A5D;        /* Subtle 1px borders */
-  --border-default: #455670;       /* Default borders */
-  --border-focus: #4BA3FF;         /* Focus ring blue */
+  --border-subtle: #E8E8ED;        /* Subtle 1px borders */
+  --border-default: #D2D2D7;       /* Default borders */
+  --border-focus: #0071E3;         /* Focus ring blue */
   
   /* Text */
-  --text-primary: #EAF0F7;         /* Strong white headings */
-  --text-secondary: #A9B7C8;       /* Soft gray-blue body text */
-  --text-muted: #7F93A8;           /* Muted captions */
+  --text-primary: #1D1D1F;         /* Near-black headings */
+  --text-secondary: #6E6E73;       /* Medium gray body text */
+  --text-muted: #AEAEB2;           /* Muted captions */
   
   /* Accents */
-  --accent-primary: #4BA3FF;       /* Polymarket-like blue */
-  --accent-primary-hover: #2F8EFF; /* Blue hover */
-  --accent-primary-subtle: rgba(75, 163, 255, 0.12); /* Subtle blue tint */
+  --accent-primary: #0071E3;       /* Apple blue */
+  --accent-primary-hover: #0077ED; /* Blue hover */
+  --accent-primary-subtle: rgba(0, 113, 227, 0.06); /* Subtle blue tint */
   
-  /* Status Colors - Muted */
-  --accent-success: #3BA776;       /* Muted green */
-  --accent-success-subtle: rgba(59, 167, 118, 0.1);
-  --accent-danger: #C05656;        /* Muted red */
-  --accent-danger-subtle: rgba(192, 86, 86, 0.1);
-  --accent-warning: #C8A24A;       /* Muted gold */
-  --accent-warning-subtle: rgba(200, 162, 74, 0.1);
+  /* Status Colors */
+  --accent-success: #34C759;       /* Clean green */
+  --accent-success-subtle: rgba(52, 199, 89, 0.08);
+  --accent-danger: #FF3B30;        /* Clean red */
+  --accent-danger-subtle: rgba(255, 59, 48, 0.06);
+  --accent-warning: #FF9500;       /* Warm amber */
+  --accent-warning-subtle: rgba(255, 149, 0, 0.08);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -40,7 +45,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
@@ -67,21 +72,21 @@ body {
   outline-offset: 1px;
 }
 
-/* Scrollbar - Muted slate */
+/* Scrollbar - Minimal */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
+  background: var(--border-default);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-default);
+  background: var(--text-muted);
 }

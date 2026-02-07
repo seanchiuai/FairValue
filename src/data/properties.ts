@@ -1,109 +1,84 @@
 export interface Property {
   id: string;
+  zpid: number;
   address: string;
   city: string;
   state: string;
   zipCode: string;
-  beds: number;
-  baths: number;
-  sqft: number;
-  currentPrice: number;
-  marketPrice: number;
-  volume: number;
-  participantCount: number;
-  imageUrl?: string;
-  daysOnMarket: number;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  livingArea: number | null;
+  yearBuilt: number | null;
+  price: number;
+  zestimate: number | null;
+  rentZestimate: number | null;
+  homeType: string;
+  homeStatus: string;
+  dateSoldString: string | null;
+  daysOnZillow: number | null;
+  description: string;
+  brokerageName: string | null;
+  imgSrc: string;
+  photos: { url: string; width: number }[];
+  hdpUrl: string;
+  latitude: number;
+  longitude: number;
+  county: string;
+  propertyTaxRate: number | null;
+  schools: { name: string; rating: number | null; distance: number; level: string; link: string }[];
+  priceHistory: { date: string; event: string; price: number; source: string }[];
 }
 
-export const mockProperties: Property[] = [
-  {
-    id: '1',
-    address: '123 Valencia St',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94103',
-    beds: 3,
-    baths: 2,
-    sqft: 1450,
-    currentPrice: 850000,
-    marketPrice: 875000,
-    volume: 125000,
-    participantCount: 47,
-    daysOnMarket: 12,
-  },
-  {
-    id: '2',
-    address: '456 Mission St',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94105',
-    beds: 2,
-    baths: 1,
-    sqft: 980,
-    currentPrice: 720000,
-    marketPrice: 710000,
-    volume: 89000,
-    participantCount: 32,
-    daysOnMarket: 8,
-  },
-  {
-    id: '3',
-    address: '789 Capp St',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94110',
-    beds: 4,
-    baths: 3,
-    sqft: 2100,
-    currentPrice: 1200000,
-    marketPrice: 1185000,
-    volume: 210000,
-    participantCount: 89,
-    daysOnMarket: 5,
-  },
-  {
-    id: '4',
-    address: '321 24th St',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94110',
-    beds: 2,
-    baths: 2,
-    sqft: 1150,
-    currentPrice: 950000,
-    marketPrice: 965000,
-    volume: 156000,
-    participantCount: 61,
-    daysOnMarket: 18,
-  },
-  {
-    id: '5',
-    address: '654 Folsom St',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94107',
-    beds: 1,
-    baths: 1,
-    sqft: 750,
-    currentPrice: 650000,
-    marketPrice: 645000,
-    volume: 67000,
-    participantCount: 24,
-    daysOnMarket: 21,
-  },
-  {
-    id: '6',
-    address: '987 Alabama St',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94110',
-    beds: 3,
-    baths: 2,
-    sqft: 1650,
-    currentPrice: 1100000,
-    marketPrice: 1120000,
-    volume: 189000,
-    participantCount: 73,
-    daysOnMarket: 3,
-  },
-];
+const rawData: any[] = require('./properties.json');
+
+export const properties: Property[] = rawData.map((item, index) => {
+  const addr = item.address || {};
+  const photos = (item.responsivePhotos || []).flatMap((rp: any) => {
+    const jpegs = rp?.mixedSources?.jpeg || [];
+    return jpegs.map((j: any) => ({ url: j.url, width: j.width }));
+  });
+  // Pick the best card-size image (768w) or fallback
+  const bestPhoto = photos.find((p: any) => p.width === 768) || photos.find((p: any) => p.width === 576) || photos[0];
+
+  return {
+    id: String(item.zpid || index + 1),
+    zpid: item.zpid,
+    address: item.streetAddress || addr.streetAddress || '',
+    city: item.city || addr.city || 'San Francisco',
+    state: item.state || addr.state || 'CA',
+    zipCode: item.zipcode || addr.zipcode || '94110',
+    bedrooms: item.bedrooms ?? null,
+    bathrooms: item.bathrooms ?? null,
+    livingArea: item.livingArea ?? null,
+    yearBuilt: item.yearBuilt ?? null,
+    price: item.price || 0,
+    zestimate: item.zestimate ?? null,
+    rentZestimate: item.rentZestimate ?? null,
+    homeType: item.homeType || '',
+    homeStatus: item.homeStatus || '',
+    dateSoldString: item.dateSoldString || null,
+    daysOnZillow: item.daysOnZillow ?? null,
+    description: item.description || '',
+    brokerageName: item.brokerageName || null,
+    imgSrc: bestPhoto?.url || '',
+    photos,
+    hdpUrl: item.hdpUrl ? `https://www.zillow.com${item.hdpUrl}` : '',
+    latitude: item.latitude || 0,
+    longitude: item.longitude || 0,
+    county: item.county || '',
+    propertyTaxRate: item.propertyTaxRate ?? null,
+    schools: (item.schools || []).map((s: any) => ({
+      name: s.name || '',
+      rating: s.rating ?? null,
+      distance: s.distance || 0,
+      level: s.level || '',
+      link: s.link || '',
+    })),
+    priceHistory: (item.priceHistory || []).map((ph: any) => ({
+      date: ph.date || '',
+      event: ph.event || '',
+      price: ph.price || 0,
+      source: ph.source || '',
+    })),
+  };
+});

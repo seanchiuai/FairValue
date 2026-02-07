@@ -31,9 +31,9 @@ export function MarketThumbnail({ imageUrl, title }) {
             position: relative;
             width: 100%;
             aspect-ratio: 16 / 9;
-            background: #273445;
+            background: #F0F0F2;
             overflow: hidden;
-            border-radius: 8px 8px 0 0;
+            border-radius: 12px 12px 0 0;
           }
 
           .thumbnail-image {
@@ -58,9 +58,9 @@ export function MarketThumbnail({ imageUrl, title }) {
           justify-content: center;
           width: 100%;
           aspect-ratio: 16 / 9;
-          background: linear-gradient(135deg, #273445 0%, #314255 100%);
-          border-radius: 8px 8px 0 0;
-          color: #7F93A8;
+          background: linear-gradient(135deg, #F0F0F2 0%, #E8E8ED 100%);
+          border-radius: 12px 12px 0 0;
+          color: #AEAEB2;
         }
       `}</style>
     </div>

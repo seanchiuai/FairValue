@@ -1,388 +1,182 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Bed, 
-  Bath, 
-  Maximize, 
-  TrendingUp, 
-  TrendingDown,
-  DollarSign,
-  Users,
-  Clock,
-  ArrowRight
-} from 'lucide-react';
-import { MarketThumbnail } from './MarketThumbnail';
-import { MarketImageUploader } from './MarketImageUploader';
+import { Bed, Bath, Maximize, MapPin } from 'lucide-react';
 
-function MarketCard({ 
-  property, 
-  imageUrl, 
-  onImageUpload, 
-  onImageRemove 
-}) {
-  const [showUploader, setShowUploader] = useState(false);
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  const priceDiff = property.marketPrice - property.currentPrice;
-  const priceDiffPercent = ((priceDiff / property.currentPrice) * 100).toFixed(1);
-  const isHigher = priceDiff > 0;
-  const daysLeft = Math.max(1, 30 - property.daysOnMarket);
-
-  const handleUpload = async (file) => {
-    await onImageUpload(property.id, file);
-  };
-
-  const handleRemove = async () => {
-    await onImageRemove(property.id);
+function MarketCard({ property }) {
+  const formatPrice = (n) => n ? `$${n.toLocaleString()}` : '—';
+  const typeLabel = (t) => {
+    const map = { SINGLE_FAMILY: 'House', CONDO: 'Condo', MULTI_FAMILY: 'Multi-Family', APARTMENT: 'Apartment', LOT: 'Lot' };
+    return map[t] || t;
   };
 
   return (
-    <div 
-      className="market-card-wrapper"
-      onMouseEnter={() => setShowUploader(true)}
-      onMouseLeave={() => setShowUploader(false)}
-    >
-      {/* Thumbnail Section - OUTSIDE Link so upload works */}
-      <div className="card-thumbnail-section">
-        <Link to={`/market/${property.id}`} className="thumbnail-link">
-          <MarketThumbnail 
-            imageUrl={imageUrl} 
-            title={property.address}
-          />
-        </Link>
-        
-        {/* Upload Controls - Only show on hover when NO image exists */}
-        {showUploader && !imageUrl && (
-          <div className="thumbnail-overlay" onClick={(e) => e.stopPropagation()}>
-            <MarketImageUploader
-              marketId={property.id}
-              imageUrl={imageUrl}
-              onUpload={handleUpload}
-              onRemove={handleRemove}
-            />
+    <Link to={`/market/${property.id}`} className="market-card-wrapper">
+      <div className="card-image">
+        {property.imgSrc ? (
+          <img src={property.imgSrc} alt={property.address} loading="lazy" />
+        ) : (
+          <div className="card-image-placeholder" />
+        )}
+        <div className="card-badges">
+          <span className="card-type-badge">{typeLabel(property.homeType)}</span>
+          {property.homeStatus === 'RECENTLY_SOLD' && (
+            <span className="card-sold-badge">Sold</span>
+          )}
+        </div>
+      </div>
+
+      <div className="card-body">
+        <div className="card-price">{formatPrice(property.price)}</div>
+
+        <div className="card-specs">
+          {property.bedrooms != null && (
+            <span className="card-spec"><Bed size={13} /> {property.bedrooms} bd</span>
+          )}
+          {property.bathrooms != null && (
+            <span className="card-spec"><Bath size={13} /> {property.bathrooms} ba</span>
+          )}
+          {property.livingArea != null && (
+            <span className="card-spec"><Maximize size={13} /> {property.livingArea.toLocaleString()} sqft</span>
+          )}
+        </div>
+
+        <h3 className="card-address">{property.address}</h3>
+        <div className="card-location">
+          <MapPin size={11} />
+          <span>{property.city}, {property.state} {property.zipCode}</span>
+        </div>
+
+        {property.zestimate && (
+          <div className="card-zestimate">
+            Zestimate: {formatPrice(property.zestimate)}
+            {property.price > 0 && property.zestimate > 0 && (
+              <span className={property.zestimate > property.price ? 'zest-up' : 'zest-down'}>
+                {' '}({property.zestimate > property.price ? '+' : ''}{(((property.zestimate - property.price) / property.price) * 100).toFixed(1)}%)
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      <Link to={`/market/${property.id}`} className="market-card">
-        {/* Card Header */}
-        <div className="card-header">
-          <div className="property-info">
-            <h3 className="property-address">{property.address}</h3>
-            <div className="property-location">
-              <span className="neighborhood-tag">Mission District</span>
-              <span className="location-text">{property.city}, {property.state} {property.zipCode}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Property Specs */}
-        <div className="property-specs">
-          <div className="spec-item">
-            <Bed size={14} />
-            <span>{property.beds} <span className="spec-label">beds</span></span>
-          </div>
-          <div className="spec-item">
-            <Bath size={14} />
-            <span>{property.baths} <span className="spec-label">baths</span></span>
-          </div>
-          <div className="spec-item">
-            <Maximize size={14} />
-            <span>{property.sqft.toLocaleString()} <span className="spec-label">sqft</span></span>
-          </div>
-        </div>
-
-        {/* Pricing Section - SINGLE LINE */}
-        <div className="pricing-section">
-          <div className="price-row-single">
-            <div className="price-comparison">
-              <span className="price-label">List</span>
-              <span className="price-value list">{formatCurrency(property.currentPrice)}</span>
-            </div>
-            
-            <ArrowRight size={14} className="price-arrow" />
-            
-            <div className="price-comparison">
-              <span className="price-label">Fair Value</span>
-              <span className={`price-value implied ${isHigher ? 'positive' : 'negative'}`}>
-                {formatCurrency(property.marketPrice)}
-              </span>
-            </div>
-            
-            <div className={`delta-badge ${isHigher ? 'positive' : 'negative'}`}>
-              {isHigher ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              <span>{isHigher ? '+' : ''}{priceDiffPercent}%</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Market Stats */}
-        <div className="market-stats">
-          <div className="stat-item">
-            <DollarSign size={14} />
-            <span className="stat-value">${(property.volume / 1000).toFixed(0)}k vol</span>
-          </div>
-          <div className="stat-item">
-            <Users size={14} />
-            <span className="stat-value">{property.participantCount.toLocaleString()}</span>
-          </div>
-          <div className="stat-item">
-            <Clock size={14} />
-            <span className="stat-value">{daysLeft}d left</span>
-          </div>
-        </div>
-
-        {/* Card Action */}
-        <div className="card-action">
-          <span className="action-text">View Market</span>
-          <ArrowRight size={16} />
-        </div>
-      </Link>
-
       <style>{`
         .market-card-wrapper {
-          position: relative;
-          background: #2C3A4A;
-          border: 1px solid #3A4A5D;
-          border-radius: 10px;
-          overflow: hidden;
-          transition: all 0.15s ease;
-        }
-
-        .market-card-wrapper:hover {
-          border-color: #455670;
-          background: #314255;
-        }
-
-        .card-thumbnail-section {
-          position: relative;
-          margin: 0;
-          padding: 0;
-          width: 100%;
-        }
-
-        .thumbnail-link {
           display: block;
-          text-decoration: none;
-        }
-
-        .thumbnail-overlay {
-          position: absolute;
-          bottom: 12px;
-          left: 12px;
-          right: 12px;
-          z-index: 10;
-          background: rgba(31, 42, 54, 0.98);
-          border: 1px solid #3A4A5D;
-          border-radius: 6px;
-          padding: 8px;
-        }
-
-        .market-card {
-          display: block;
-          padding: 14px 16px 16px 16px;
           text-decoration: none;
           color: inherit;
-        }
-
-        .card-header {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        .property-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .property-address {
-          margin: 0 0 4px 0;
-          font-size: 15px;
-          font-weight: 600;
-          color: #EAF0F7;
-          letter-spacing: -0.2px;
-          white-space: nowrap;
+          background: #FFFFFF;
+          border: 1px solid #E8E8ED;
+          border-radius: 16px;
           overflow: hidden;
-          text-overflow: ellipsis;
+          transition: all 0.25s ease;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .market-card-wrapper:hover {
+          border-color: #D2D2D7;
+          box-shadow: 0 8px 28px rgba(0,0,0,0.1);
+          transform: translateY(-3px);
         }
 
-        .property-location {
+        .card-image {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 16 / 10;
+          overflow: hidden;
+          background: #F0F0F2;
+        }
+        .card-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          transition: transform 0.4s ease;
+        }
+        .market-card-wrapper:hover .card-image img {
+          transform: scale(1.04);
+        }
+        .card-image-placeholder {
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, #F0F0F2 0%, #E8E8ED 100%);
+        }
+
+        .card-badges {
+          position: absolute;
+          top: 10px;
+          left: 10px;
           display: flex;
-          align-items: center;
           gap: 6px;
-          flex-wrap: wrap;
         }
-
-        .neighborhood-tag {
-          display: inline-flex;
-          padding: 2px 6px;
-          background: #273445;
-          border: 1px solid #3A4A5D;
-          border-radius: 4px;
-          color: #4BA3FF;
-          font-size: 9px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .location-text {
-          color: #7F93A8;
+        .card-type-badge {
+          padding: 4px 10px;
+          background: rgba(255,255,255,0.92);
+          backdrop-filter: blur(8px);
+          border-radius: 6px;
           font-size: 11px;
+          font-weight: 600;
+          color: #1D1D1F;
+        }
+        .card-sold-badge {
+          padding: 4px 10px;
+          background: rgba(52, 199, 89, 0.9);
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 600;
+          color: white;
         }
 
-        .property-specs {
+        .card-body {
+          padding: 14px 16px 16px;
+        }
+
+        .card-price {
+          font-size: 22px;
+          font-weight: 700;
+          color: #1D1D1F;
+          letter-spacing: -0.5px;
+          margin-bottom: 6px;
+        }
+
+        .card-specs {
           display: flex;
           gap: 12px;
-          margin-bottom: 12px;
-          padding: 10px 0;
-          border-top: 1px solid #3A4A5D;
-          border-bottom: 1px solid #3A4A5D;
+          margin-bottom: 8px;
         }
-
-        .spec-item {
-          display: flex;
+        .card-spec {
+          display: inline-flex;
           align-items: center;
           gap: 4px;
-          color: #A9B7C8;
-          font-size: 12px;
-          font-weight: 500;
-        }
-
-        .spec-item svg {
-          color: #7F93A8;
-        }
-
-        .spec-label {
-          color: #7F93A8;
-          font-weight: 400;
-        }
-
-        .pricing-section {
-          margin-bottom: 12px;
-        }
-
-        /* SINGLE LINE PRICING */
-        .price-row-single {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          padding: 10px 12px;
-          background: #273445;
-          border: 1px solid #3A4A5D;
-          border-radius: 8px;
-        }
-
-        .price-comparison {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-          min-width: 0;
-        }
-
-        .price-label {
-          font-size: 9px;
-          color: #7F93A8;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .price-value {
           font-size: 13px;
-          font-weight: 600;
-          color: #EAF0F7;
-          white-space: nowrap;
-        }
-
-        .price-value.list {
-          color: #A9B7C8;
-        }
-
-        .price-value.implied.positive {
-          color: #3BA776;
-        }
-
-        .price-value.implied.negative {
-          color: #C05656;
-        }
-
-        .price-arrow {
-          color: #7F93A8;
-          flex-shrink: 0;
-        }
-
-        .delta-badge {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: 600;
-          flex-shrink: 0;
-        }
-
-        .delta-badge.positive {
-          background: rgba(59, 167, 118, 0.15);
-          color: #3BA776;
-        }
-
-        .delta-badge.negative {
-          background: rgba(192, 86, 86, 0.15);
-          color: #C05656;
-        }
-
-        .market-stats {
-          display: flex;
-          gap: 14px;
-          margin-bottom: 12px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid #3A4A5D;
-        }
-
-        .market-stats .stat-item {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          color: #7F93A8;
-          font-size: 11px;
-        }
-
-        .market-stats .stat-item svg {
-          color: #7F93A8;
-        }
-
-        .market-stats .stat-value {
+          color: #6E6E73;
           font-weight: 500;
-          color: #A9B7C8;
         }
 
-        .card-action {
+        .card-address {
+          margin: 0 0 2px 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1D1D1F;
+          letter-spacing: -0.2px;
+        }
+
+        .card-location {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 6px 0;
-          color: #7F93A8;
+          gap: 3px;
+          color: #AEAEB2;
           font-size: 12px;
-          font-weight: 500;
-          transition: color 0.15s ease;
+          margin-bottom: 8px;
         }
 
-        .market-card:hover .card-action {
-          color: #4BA3FF;
+        .card-zestimate {
+          font-size: 12px;
+          color: #8E8E93;
+          padding-top: 8px;
+          border-top: 1px solid #F0F0F2;
         }
+        .zest-up { color: #34C759; font-weight: 600; }
+        .zest-down { color: #FF3B30; font-weight: 600; }
       `}</style>
-    </div>
+    </Link>
   );
 }
 

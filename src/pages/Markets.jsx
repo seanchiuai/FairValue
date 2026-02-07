@@ -1,101 +1,67 @@
 import React, { useState } from 'react';
 import { 
   Search, 
-  Filter, 
-  TrendingUp, 
-  Users, 
-  Clock, 
-  DollarSign,
   ChevronDown,
   X,
-  Wallet,
-  User,
   Home
 } from 'lucide-react';
-import { useMarketImages } from '../hooks/useMarketImages';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
-import { mockProperties } from '../data/properties';
+import { properties } from '../data/properties';
 
 const SORT_OPTIONS = [
-  { value: 'trending', label: 'Trending' },
-  { value: 'volume', label: 'Highest Volume' },
-  { value: 'ending', label: 'Ending Soon' },
-  { value: 'newest', label: 'Newest' },
-  { value: 'mispricing', label: 'Biggest Mispricing' },
+  { value: 'price-desc', label: 'Price: High to Low' },
+  { value: 'price-asc', label: 'Price: Low to High' },
+  { value: 'newest', label: 'Recently Sold' },
+  { value: 'sqft', label: 'Largest' },
+  { value: 'address', label: 'Address A-Z' },
 ];
 
-const NEIGHBORHOODS = ['All', 'Mission District', 'SoMa', 'Castro', 'Noe Valley'];
+const HOME_TYPES = ['All', 'House', 'Condo', 'Multi-Family', 'Apartment', 'Lot'];
+const TYPE_MAP = { 'House': 'SINGLE_FAMILY', 'Condo': 'CONDO', 'Multi-Family': 'MULTI_FAMILY', 'Apartment': 'APARTMENT', 'Lot': 'LOT' };
+
+const BED_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
 function Markets() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeNeighborhood, setActiveNeighborhood] = useState('All');
-  const [activeFilters, setActiveFilters] = useState([]);
-  const [sortBy, setSortBy] = useState('trending');
+  const [sortBy, setSortBy] = useState('price-desc');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [homeType, setHomeType] = useState('All');
+  const [minBeds, setMinBeds] = useState('Any');
 
-  // Get all market IDs for the hook
-  const marketIds = mockProperties.map(p => p.id);
-  
-  // Use the market images hook
-  const { 
-    ready, 
-    getImageUrl, 
-    setImageFile, 
-    removeImage 
-  } = useMarketImages(marketIds);
-
-  const toggleFilter = (filter) => {
-    setActiveFilters(prev => 
-      prev.includes(filter) 
-        ? prev.filter(f => f !== filter)
-        : [...prev, filter]
-    );
-  };
-
-  const clearFilters = () => {
-    setActiveFilters([]);
-    setActiveNeighborhood('All');
-  };
-
-  const filteredProperties = mockProperties.filter((property) => {
-    const matchesSearch = 
-      property.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      property.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      property.zipCode.includes(searchQuery);
+  const filteredProperties = properties.filter((property) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q ||
+      property.address.toLowerCase().includes(q) ||
+      property.city.toLowerCase().includes(q) ||
+      property.zipCode.includes(q) ||
+      (property.brokerageName || '').toLowerCase().includes(q);
 
     if (!matchesSearch) return false;
 
-    if (activeNeighborhood !== 'All') {
-      if (activeNeighborhood === 'Mission District' && property.zipCode !== '94103' && property.zipCode !== '94110') {
-        return false;
-      }
+    if (homeType !== 'All' && property.homeType !== TYPE_MAP[homeType]) return false;
+
+    if (minBeds !== 'Any') {
+      const min = parseInt(minBeds);
+      if ((property.bedrooms || 0) < min) return false;
     }
 
     return true;
   });
 
-  const featuredProperty = mockProperties[2];
-
-  // Handle image upload
-  const handleImageUpload = async (marketId, file) => {
-    try {
-      await setImageFile(marketId, file);
-    } catch (error) {
-      console.error('Upload failed:', error);
-      throw error;
+  const sortedProperties = [...filteredProperties].sort((a, b) => {
+    switch (sortBy) {
+      case 'price-desc': return (b.price || 0) - (a.price || 0);
+      case 'price-asc': return (a.price || 0) - (b.price || 0);
+      case 'newest': return (b.dateSoldString || '').localeCompare(a.dateSoldString || '');
+      case 'sqft': return (b.livingArea || 0) - (a.livingArea || 0);
+      case 'address': return a.address.localeCompare(b.address);
+      default: return 0;
     }
-  };
+  });
 
-  // Handle image remove
-  const handleImageRemove = async (marketId) => {
-    try {
-      await removeImage(marketId);
-    } catch (error) {
-      console.error('Remove failed:', error);
-      throw error;
-    }
-  };
+  const hasFilters = homeType !== 'All' || minBeds !== 'Any' || searchQuery;
+  const featuredProperty = properties.reduce((best, p) => (p.price > (best?.price || 0) ? p : best), properties[0]);
 
   return (
     <div className="markets-page">
@@ -106,9 +72,6 @@ function Markets() {
             <Home className="logo-icon" size={24} strokeWidth={1.5} />
             <span className="logo-text">FairValue</span>
           </div>
-          <nav className="nav">
-            <a href="#" className="nav-link active">Markets</a>
-          </nav>
         </div>
 
         <div className="header-center">
@@ -116,103 +79,84 @@ function Markets() {
             <Search className="search-icon" size={18} />
             <input
               type="text"
-              placeholder="Search address or neighborhood..."
+              placeholder="Search by address, city, or brokerage..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
             />
+            {searchQuery && (
+              <button className="search-clear" onClick={() => setSearchQuery('')}>
+                <X size={14} />
+              </button>
+            )}
           </div>
         </div>
 
         <div className="header-right">
-          <div className="balance">
-            <Wallet size={16} />
-            <span>$0.00</span>
-          </div>
-          <button className="btn-connect">
-            <User size={18} />
-            <span>Connect</span>
-          </button>
+          <span className="header-count">{properties.length} Properties</span>
         </div>
       </header>
 
-      {/* Featured Market */}
-      <FeaturedMarket
-        property={featuredProperty}
-        imageUrl={ready ? getImageUrl(featuredProperty.id) : null}
-        onImageUpload={handleImageUpload}
-        onImageRemove={handleImageRemove}
-      />
+      {/* Featured */}
+      <FeaturedMarket property={featuredProperty} />
 
       {/* Filters Bar */}
       <section className="filters-bar">
         <div className="filters-left">
-          <div className="neighborhood-tabs">
-            {NEIGHBORHOODS.map((hood) => (
+          {/* Home Type Tabs */}
+          <div className="filter-tabs">
+            {HOME_TYPES.map((type) => (
               <button
-                key={hood}
-                className={`tab ${activeNeighborhood === hood ? 'active' : ''}`}
-                onClick={() => setActiveNeighborhood(hood)}
+                key={type}
+                className={`tab ${homeType === type ? 'active' : ''}`}
+                onClick={() => setHomeType(type)}
               >
-                {hood}
+                {type}
               </button>
             ))}
           </div>
 
           <div className="filter-divider" />
 
-          <div className="filter-chips">
-            <button 
-              className={`filter-chip ${activeFilters.includes('under800') ? 'active' : ''}`}
-              onClick={() => toggleFilter('under800')}
-            >
-              <Filter size={14} />
-              Under $800k
-            </button>
-            <button 
-              className={`filter-chip ${activeFilters.includes('over1m') ? 'active' : ''}`}
-              onClick={() => toggleFilter('over1m')}
-            >
-              <Filter size={14} />
-              Over $1M
-            </button>
-            <button 
-              className={`filter-chip ${activeFilters.includes('high-volume') ? 'active' : ''}`}
-              onClick={() => toggleFilter('high-volume')}
-            >
-              <TrendingUp size={14} />
-              High Volume
-            </button>
-            {(activeFilters.length > 0 || activeNeighborhood !== 'All') && (
-              <button className="filter-chip clear" onClick={clearFilters}>
-                <X size={14} />
-                Clear
+          {/* Bedrooms */}
+          <div className="filter-tabs">
+            {BED_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                className={`tab ${minBeds === opt ? 'active' : ''}`}
+                onClick={() => setMinBeds(opt)}
+              >
+                {opt === 'Any' ? 'Any Beds' : `${opt} Beds`}
               </button>
-            )}
+            ))}
           </div>
+
+          {hasFilters && (
+            <button className="clear-btn" onClick={() => { setHomeType('All'); setMinBeds('Any'); setSearchQuery(''); }}>
+              <X size={13} />
+              Clear
+            </button>
+          )}
         </div>
 
         <div className="filters-right">
           <div className="sort-dropdown">
-            <span className="sort-label">Sort by</span>
-            <button 
+            <span className="sort-label">Sort</span>
+            <button
               className="sort-trigger"
               onClick={() => setShowSortDropdown(!showSortDropdown)}
             >
               {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
               <ChevronDown size={14} className={showSortDropdown ? 'open' : ''} />
             </button>
-            
+
             {showSortDropdown && (
               <div className="sort-menu">
                 {SORT_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     className={`sort-option ${sortBy === option.value ? 'active' : ''}`}
-                    onClick={() => {
-                      setSortBy(option.value);
-                      setShowSortDropdown(false);
-                    }}
+                    onClick={() => { setSortBy(option.value); setShowSortDropdown(false); }}
                   >
                     {option.label}
                     {sortBy === option.value && <span className="check">✓</span>}
@@ -223,460 +167,179 @@ function Markets() {
           </div>
 
           <div className="results-count">
-            {filteredProperties.length} markets
+            {sortedProperties.length} of {properties.length}
           </div>
         </div>
       </section>
 
-      {/* Market Grid */}
+      {/* Grid */}
       <section className="markets-grid">
-        {filteredProperties.map((property) => (
-          <MarketCard 
-            key={property.id} 
-            property={property}
-            imageUrl={ready ? getImageUrl(property.id) : null}
-            onImageUpload={handleImageUpload}
-            onImageRemove={handleImageRemove}
-          />
+        {sortedProperties.map((property) => (
+          <MarketCard key={property.id} property={property} />
         ))}
       </section>
 
-      {/* Empty State */}
-      {filteredProperties.length === 0 && (
+      {sortedProperties.length === 0 && (
         <div className="empty-state">
           <Search size={48} className="empty-icon" />
-          <h3>No markets found</h3>
+          <h3>No properties found</h3>
           <p>Try adjusting your search or filters</p>
         </div>
       )}
 
-      {/* Footer */}
       <footer className="footer">
-        <p>© 2024 FairValue. Predict real estate appraisal outcomes.</p>
+        <p>© 2026 FairValue · {properties.length} properties in San Francisco 94110</p>
       </footer>
 
       <style>{`
         .markets-page {
           min-height: 100vh;
-          background: #1F2A36;
-          color: #EAF0F7;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+          background: #F5F5F7;
+          color: #1D1D1F;
+          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
         }
 
-        /* Header */
         .header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 24px;
-          height: 60px;
-          background: #243140;
-          border-bottom: 1px solid #3A4A5D;
+          padding: 0 32px;
+          height: 56px;
+          background: rgba(255,255,255,0.8);
+          backdrop-filter: saturate(180%) blur(20px);
+          -webkit-backdrop-filter: saturate(180%) blur(20px);
+          border-bottom: 1px solid #E8E8ED;
           position: sticky;
           top: 0;
           z-index: 100;
         }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 32px;
-        }
-
-        .logo {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: #EAF0F7;
-        }
-
-        .logo-icon {
-          color: #4BA3FF;
-        }
-
-        .logo-text {
-          font-size: 20px;
-          font-weight: 700;
-          letter-spacing: -0.3px;
-        }
-
-        .nav {
-          display: flex;
-          gap: 2px;
-        }
-
-        .nav-link {
-          padding: 6px 12px;
-          color: #A9B7C8;
-          text-decoration: none;
-          font-size: 14px;
-          font-weight: 500;
-          border-radius: 6px;
-          transition: all 0.15s ease;
-        }
-
-        .nav-link:hover {
-          color: #EAF0F7;
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .nav-link.active {
-          color: #EAF0F7;
-          background: rgba(255, 255, 255, 0.08);
-        }
-
-        .header-center {
-          flex: 1;
-          max-width: 420px;
-          margin: 0 24px;
-        }
-
-        .search-container {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .search-icon {
-          position: absolute;
-          left: 12px;
-          color: #7F93A8;
-        }
-
+        .header-left { display: flex; align-items: center; gap: 32px; }
+        .logo { display: flex; align-items: center; gap: 8px; color: #1D1D1F; }
+        .logo-icon { color: #0071E3; }
+        .logo-text { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+        .header-center { flex: 1; max-width: 420px; margin: 0 32px; }
+        .search-container { position: relative; display: flex; align-items: center; }
+        .search-icon { position: absolute; left: 12px; color: #AEAEB2; }
         .search-input {
           width: 100%;
-          padding: 8px 12px 8px 36px;
-          background: #273445;
+          padding: 8px 32px 8px 36px;
+          background: #F0F0F2;
           border: 1px solid transparent;
-          border-radius: 6px;
-          color: #EAF0F7;
+          border-radius: 10px;
+          color: #1D1D1F;
           font-size: 14px;
           outline: none;
-          transition: all 0.15s ease;
+          transition: all 0.2s ease;
         }
-
-        .search-input::placeholder {
-          color: #7F93A8;
-        }
-
-        .search-input:focus {
-          border-color: #455670;
-          background: #2C3A4A;
-        }
-
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .balance {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 12px;
-          background: #273445;
-          border: 1px solid #3A4A5D;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 600;
-          color: #A9B7C8;
-        }
-
-        .btn-connect {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
-          background: #4BA3FF;
+        .search-input::placeholder { color: #AEAEB2; }
+        .search-input:focus { background: #FFF; border-color: #D2D2D7; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
+        .search-clear {
+          position: absolute;
+          right: 8px;
+          background: none;
           border: none;
-          border-radius: 6px;
-          color: white;
-          font-size: 13px;
-          font-weight: 600;
+          color: #AEAEB2;
           cursor: pointer;
-          transition: background 0.15s ease;
+          padding: 4px;
+          display: flex;
+          border-radius: 50%;
         }
+        .search-clear:hover { background: #E8E8ED; color: #1D1D1F; }
+        .header-right { display: flex; align-items: center; }
+        .header-count { font-size: 13px; color: #8E8E93; font-weight: 500; }
 
-        .btn-connect:hover {
-          background: #2F8EFF;
-        }
-
-        /* Filters Bar */
         .filters-bar {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px 24px;
-          border-bottom: 1px solid #3A4A5D;
+          padding: 12px 32px;
           gap: 16px;
-        }
-
-        .filters-left {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex: 1;
           overflow-x: auto;
-          scrollbar-width: none;
         }
-
-        .filters-left::-webkit-scrollbar {
-          display: none;
-        }
-
-        .neighborhood-tabs {
-          display: flex;
-          gap: 2px;
-          flex-shrink: 0;
-        }
-
+        .filters-left { display: flex; align-items: center; gap: 8px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+        .filters-left::-webkit-scrollbar { display: none; }
+        .filter-tabs { display: flex; gap: 2px; flex-shrink: 0; }
         .tab {
-          padding: 6px 14px;
-          background: transparent;
-          border: 1px solid transparent;
-          border-radius: 6px;
-          color: #A9B7C8;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          white-space: nowrap;
-        }
-
-        .tab:hover {
-          color: #EAF0F7;
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .tab.active {
-          color: #EAF0F7;
-          background: rgba(255, 255, 255, 0.1);
-          border-color: #3A4A5D;
-        }
-
-        .filter-divider {
-          width: 1px;
-          height: 20px;
-          background: #3A4A5D;
-          flex-shrink: 0;
-        }
-
-        .filter-chips {
-          display: flex;
-          gap: 6px;
-          flex-shrink: 0;
-        }
-
-        .filter-chip {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          padding: 5px 10px;
-          background: #273445;
-          border: 1px solid #3A4A5D;
-          border-radius: 6px;
-          color: #A9B7C8;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          white-space: nowrap;
-        }
-
-        .filter-chip:hover {
-          border-color: #455670;
-          color: #EAF0F7;
-        }
-
-        .filter-chip.active {
-          background: rgba(75, 163, 255, 0.12);
-          border-color: #4BA3FF;
-          color: #4BA3FF;
-        }
-
-        .filter-chip.clear {
-          background: transparent;
-          border-color: #3A4A5D;
-        }
-
-        .filter-chip.clear:hover {
-          background: rgba(192, 86, 86, 0.1);
-          border-color: #C05656;
-          color: #C05656;
-        }
-
-        .filters-right {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-shrink: 0;
-        }
-
-        .sort-dropdown {
-          position: relative;
-        }
-
-        .sort-label {
-          color: #7F93A8;
-          font-size: 12px;
-          margin-right: 6px;
-        }
-
-        .sort-trigger {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 12px;
-          background: #273445;
-          border: 1px solid #3A4A5D;
-          border-radius: 6px;
-          color: #EAF0F7;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .sort-trigger:hover {
-          border-color: #455670;
-        }
-
-        .sort-trigger svg {
-          transition: transform 0.2s ease;
-          color: #7F93A8;
-        }
-
-        .sort-trigger svg.open {
-          transform: rotate(180deg);
-        }
-
-        .sort-menu {
-          position: absolute;
-          top: 100%;
-          right: 0;
-          margin-top: 6px;
-          min-width: 160px;
-          background: #2C3A4A;
-          border: 1px solid #455670;
-          border-radius: 8px;
-          padding: 4px;
-          z-index: 50;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-        }
-
-        .sort-option {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          width: 100%;
-          padding: 8px 10px;
+          padding: 5px 12px;
           background: transparent;
           border: none;
-          border-radius: 4px;
-          color: #A9B7C8;
+          border-radius: 980px;
+          color: #6E6E73;
           font-size: 12px;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.15s ease;
-          text-align: left;
+          transition: all 0.2s ease;
+          white-space: nowrap;
         }
-
-        .sort-option:hover {
-          background: #273445;
-          color: #EAF0F7;
-        }
-
-        .sort-option.active {
-          color: #4BA3FF;
-        }
-
-        .sort-option .check {
-          color: #4BA3FF;
-          font-weight: 600;
-        }
-
-        .results-count {
-          color: #7F93A8;
+        .tab:hover { color: #1D1D1F; background: rgba(0,0,0,0.04); }
+        .tab.active { color: #1D1D1F; background: #FFF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-weight: 600; }
+        .filter-divider { width: 1px; height: 18px; background: #D2D2D7; flex-shrink: 0; }
+        .clear-btn {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 5px 12px;
+          background: transparent;
+          border: 1px solid #E8E8ED;
+          border-radius: 980px;
+          color: #8E8E93;
           font-size: 12px;
           font-weight: 500;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.2s ease;
         }
+        .clear-btn:hover { background: rgba(255,59,48,0.06); border-color: rgba(255,59,48,0.3); color: #FF3B30; }
 
-        /* Markets Grid */
+        .filters-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .sort-dropdown { position: relative; }
+        .sort-label { color: #AEAEB2; font-size: 12px; margin-right: 6px; }
+        .sort-trigger {
+          display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+          background: #FFF; border: 1px solid #E8E8ED; border-radius: 8px;
+          color: #1D1D1F; font-size: 12px; font-weight: 500; cursor: pointer;
+        }
+        .sort-trigger:hover { border-color: #D2D2D7; }
+        .sort-trigger svg { transition: transform 0.2s ease; color: #AEAEB2; }
+        .sort-trigger svg.open { transform: rotate(180deg); }
+        .sort-menu {
+          position: absolute; top: 100%; right: 0; margin-top: 6px; min-width: 180px;
+          background: #FFF; border: 1px solid #E8E8ED; border-radius: 12px; padding: 4px;
+          z-index: 50; box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+        }
+        .sort-option {
+          display: flex; align-items: center; justify-content: space-between; width: 100%;
+          padding: 8px 10px; background: transparent; border: none; border-radius: 8px;
+          color: #6E6E73; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left;
+        }
+        .sort-option:hover { background: #F5F5F7; color: #1D1D1F; }
+        .sort-option.active { color: #0071E3; }
+        .sort-option .check { color: #0071E3; font-weight: 600; }
+        .results-count { color: #AEAEB2; font-size: 12px; font-weight: 500; }
+
         .markets-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
           gap: 16px;
-          padding: 20px 24px;
+          padding: 4px 32px 40px;
         }
 
-        /* Empty State */
         .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 80px 24px;
-          color: #7F93A8;
-          text-align: center;
+          display: flex; flex-direction: column; align-items: center;
+          padding: 80px 24px; color: #AEAEB2; text-align: center;
         }
+        .empty-icon { color: #D2D2D7; margin-bottom: 16px; }
+        .empty-state h3 { font-size: 17px; color: #1D1D1F; margin-bottom: 6px; font-weight: 600; }
+        .empty-state p { font-size: 14px; }
 
-        .empty-icon {
-          color: #455670;
-          margin-bottom: 16px;
-        }
-
-        .empty-state h3 {
-          font-size: 16px;
-          color: #EAF0F7;
-          margin-bottom: 6px;
-          font-weight: 600;
-        }
-
-        .empty-state p {
-          font-size: 14px;
-        }
-
-        /* Footer */
-        .footer {
-          padding: 24px;
-          text-align: center;
-          color: #7F93A8;
-          font-size: 12px;
-          border-top: 1px solid #3A4A5D;
-        }
+        .footer { padding: 32px; text-align: center; color: #AEAEB2; font-size: 12px; }
 
         @media (max-width: 768px) {
-          .header {
-            padding: 0 16px;
-            height: 56px;
-          }
-
-          .header-center {
-            display: none;
-          }
-
-          .nav {
-            display: none;
-          }
-
-          .filters-bar {
-            padding: 12px 16px;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-          }
-
-          .filters-right {
-            width: 100%;
-            justify-content: space-between;
-          }
-
-          .markets-grid {
-            grid-template-columns: 1fr;
-            padding: 16px;
-            gap: 12px;
-          }
+          .header { padding: 0 16px; height: 52px; }
+          .header-center { display: none; }
+          .filters-bar { padding: 10px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
+          .filters-right { width: 100%; justify-content: space-between; }
+          .markets-grid { grid-template-columns: 1fr; padding: 12px 16px 32px; gap: 12px; }
         }
       `}</style>
     </div>

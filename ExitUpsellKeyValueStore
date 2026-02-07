@@ -1,0 +1,1786 @@
+[{
+  "imgSrc": "https://photos.zillowstatic.com/fp/22963d34ea60bfad4667b1c196c5429e-p_e.jpg",
+  "address": "3004 26th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3004-26th-St-San-Francisco-CA-94110/440298192_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/231a6443ff3544f8057acc1ec5f8ecaf-p_e.jpg",
+  "address": "3000 26th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3000-26th-St-San-Francisco-CA-94110/2061812083_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d21da481bdcb441691df52a7bfdfda06-p_e.jpg",
+  "address": "2758 23rd St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2758-23rd-St-San-Francisco-CA-94110/2098960305_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Ascend Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/922aba5f9983ee173da4464322466cb0-p_e.jpg",
+  "address": "45 Bartlett St Unit 417, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/45-Bartlett-St-UNIT-417-San-Francisco-CA-94110/184817623_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/769f7aa5e30b7f423dc0ba8dc2d07822-p_e.jpg",
+  "address": "2926 25th St #2926, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2926-25th-St-2926-San-Francisco-CA-94110/457974758_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Pellego, Inc."
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/01e91f9a3c3c56ec0c81bbb92d8ce57e-p_e.jpg",
+  "address": "3002 26th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3002-26th-St-San-Francisco-CA-94110/2061100130_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/7201ded3cd5085e9fa220deb278e29d3-p_e.jpg",
+  "address": "350 San Jose Ave #6, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/350-San-Jose-Ave-6-San-Francisco-CA-94110/449336880_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.737606048583984,-122.41361999511719&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=3x-bvjKPgx4qczoljKq4utPGdsI=",
+  "address": "3954 Folsom St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3954-Folsom-St-San-Francisco-CA-94110/15163207_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/117b40ddf251f0b4c1c1bebb50a8c190-p_e.jpg",
+  "address": "108 Cortland Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/108-Cortland-Ave-San-Francisco-CA-94110/15162713_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/da429ef0fb22fb8c3aa96d005ddc09e9-p_e.jpg",
+  "address": "3310 Mission St #2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3310-Mission-St-2-San-Francisco-CA-94110/338980483_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74161911010742,-122.4216079711914&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=Pfny5ZXxehjhHk5knuxvAyz1hWk=",
+  "address": "139-141 Kingston St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/139-141-Kingston-St-San-Francisco-CA-94110/331633000_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/5ad8cb73a8f8fcc722727c1019551e71-p_e.jpg",
+  "address": "3452 A 18th St #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3452-A-18th-St-A-San-Francisco-CA-94110/82785799_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/3b615d9899cf39aa6a1d5e59c77086c5-p_e.jpg",
+  "address": "3452 18th St #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3452-18th-St-A-San-Francisco-CA-94110/2075615777_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/83141a2edd0350576584468eb87c51a9-p_e.jpg",
+  "address": "2125 Bryant St APT 403, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2125-Bryant-St-APT-403-San-Francisco-CA-94110/111711170_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Ascend Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/329645d8d744fee3a7041ff10903cc40-p_e.jpg",
+  "address": "2922 25th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2922-25th-St-San-Francisco-CA-94110/457350880_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Pellego, Inc."
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a38993981a72750e97c05821f25e6557-p_e.jpg",
+  "address": "150 San Carlos St #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/150-San-Carlos-St-A-San-Francisco-CA-94110/456539638_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Corcoran Icon Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a79977457b91404e44c60a6f422d85b1-p_e.jpg",
+  "address": "88 Hoff St APT 108, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/88-Hoff-St-APT-108-San-Francisco-CA-94110/53153433_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "BarbCo"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/b84e42c6a1ced6ef59589e45264e1bd1-p_e.jpg",
+  "address": "2130 Harrison St APT 10, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2130-Harrison-St-APT-10-San-Francisco-CA-94110/59700399_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Sotheby's International Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/9d26fa1eff6d629b337168792c661602-p_e.jpg",
+  "address": "350 San Jose Ave #12, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/350-San-Jose-Ave-12-San-Francisco-CA-94110/456520495_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/cb3ba202a698b87fd6ce936e2d5e0fe4-p_e.jpg",
+  "address": "3118 18th St APT 6, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3118-18th-St-APT-6-San-Francisco-CA-94110/80733268_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/04ca96f816798df25641c99bcb52f848-p_e.jpg",
+  "address": "2101 Bryant St APT 107, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2101-Bryant-St-APT-107-San-Francisco-CA-94110/111711177_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a06bb97e120f2d41f34119805576d9a0-p_e.jpg",
+  "address": "2360 Folsom St #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2360-Folsom-St-A-San-Francisco-CA-94110/2119365480_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Corcoran Icon Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/70ad6c613ac0f76d0ab301fd3e8d400e-p_e.jpg",
+  "address": "2677 Harrison St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2677-Harrison-St-San-Francisco-CA-94110/249664599_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.742305755615234,-122.42086791992188&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=M_RZaTC2IwGdoXHZfgANNz0Jazc=",
+  "address": "250-256 Coleridge St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/250-256-Coleridge-St-San-Francisco-CA-94110/460272086_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/78055d174917da676b3136918bf00864-p_e.jpg",
+  "address": "2946 22nd St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2946-22nd-St-San-Francisco-CA-94110/2112151784_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74982833862305,-122.41006469726562&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=aWoZWdjL-nsp9ZTEd0S-dxkuDhQ=",
+  "address": "1384-1386 Florida St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1384-1386-Florida-St-San-Francisco-CA-94110/332861212_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.745216369628906,-122.42489624023438&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=l6MckOh0QjgE-Ln0s3piFZofPdk=",
+  "address": "1506 Dolores St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1506-Dolores-St-San-Francisco-CA-94110/125243058_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.751136779785156,-122.41254425048828&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=7T-ba6pgG0YZFC52Wo7eT0r9tVQ=",
+  "address": "3130-3132 25th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3130-3132-25th-St-San-Francisco-CA-94110/332862604_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/304f172cf9f843e74a9c32ba890ec7a5-p_e.jpg",
+  "address": "2169 Folsom St APT A100, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2169-Folsom-St-APT-A100-San-Francisco-CA-94110/2101945516_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/8b5c812a5dfcc81aaaa1396fd7a3eada-p_e.jpg",
+  "address": "1222 York St Unit C, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1222-York-St-UNIT-C-San-Francisco-CA-94110/456802482_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Harper Real Estate"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76093673706055,-122.42024993896484&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=87MGsheq8fXDWGk8MurVpFcssg8=",
+  "address": "150-152A San Carlos St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/150-152A-San-Carlos-St-San-Francisco-CA-94110/332859532_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/895c0606b4314342393fa5023e320e66-p_e.jpg",
+  "address": "2920 25th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2920-25th-St-San-Francisco-CA-94110/2077537713_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Pellego, Inc."
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/69c5a78755141c0f979e5a0b90581cd8-p_e.jpg",
+  "address": "150 San Carlos St #150, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/150-San-Carlos-St-150-San-Francisco-CA-94110/2078456186_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/0f298547e3b95b1d334387b1b1d57a3b-p_e.jpg",
+  "address": "14-16 Lucky St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/14-16-Lucky-St-San-Francisco-CA-94110/332862615_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.75214767456055,-122.40840148925781&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=1J0tFHr_NH7R1raylcrsjY6eghU=",
+  "address": "1222 York St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1222-York-St-San-Francisco-CA-94110/15152431_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/449709bb5de19afbb05675687419263b-p_e.jpg",
+  "address": "1222 York St Unit A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1222-York-St-UNIT-A-San-Francisco-CA-94110/2057324581_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Harper Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/c846360f6a3ff5fe2d91a52894ea34cc-p_e.jpg",
+  "address": "3470 20th St #2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3470-20th-St-2-San-Francisco-CA-94110/82785812_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "City Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/379ddf76645e1c9555b5297f0d03e840-p_e.jpg",
+  "address": "340 San Jose Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/340-San-Jose-Ave-San-Francisco-CA-94110/184818106_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Sotheby's International Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d8c42a6255948531cda3926fe7d1a14a-p_e.jpg",
+  "address": "255 Bocana St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/255-Bocana-St-San-Francisco-CA-94110/15162476_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Sotheby's International Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/79b7df9943503fdfb9e7861bf0de3ba6-p_e.jpg",
+  "address": "49 Liberty St APT 2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/49-Liberty-St-APT-2-San-Francisco-CA-94110/119685079_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76369094848633,-122.41779327392578&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=hYYrM_Qg0YUVP1K1VX96z0DOeCo=",
+  "address": "3214 17th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3214-17th-St-San-Francisco-CA-94110/325728762_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/3a18b9173b165d0100f7e280f8450c99-p_e.jpg",
+  "address": "3214-3216 17th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3214-3216-17th-St-San-Francisco-CA-94110/456708045_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.75249481201172,-122.41780853271484&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=_q3Mzge6XGVCfA7jrg316YkhdL4=",
+  "address": "3266-3270 24th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3266-3270-24th-St-San-Francisco-CA-94110/241586805_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.734031677246094,-122.41275787353516&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=qPuANGv_m9VeOE2RRYwuToWr9_g=",
+  "address": "334 Alemany Blvd, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/334-Alemany-Blvd-San-Francisco-CA-94110/332862103_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d0fccad87e1ef11f081fad43dced7355-p_e.jpg",
+  "address": "334 Alemany Blvd APT 3, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/334-Alemany-Blvd-APT-3-San-Francisco-CA-94110/2122855931_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Herman, Irene C."
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/59c13eed41a74a0752830c434d85ae69-p_e.jpg",
+  "address": "2553A Folsom St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2553A-Folsom-St-San-Francisco-CA-94110/96012978_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/42ad4e7768110115e539f87d82c361db-p_e.jpg",
+  "address": "250 Coleridge St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/250-Coleridge-St-San-Francisco-CA-94110/456762370_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "KW Advisors"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/195fc10620d2de2efd14514252b2c2e6-p_e.jpg",
+  "address": "23 Richland Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/23-Richland-Ave-San-Francisco-CA-94110/119684784_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Corcoran Icon Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.738563537597656,-122.41704559326172&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=fB2LCYFNnUCOUuYht7Rxqynd420=",
+  "address": "129 Ellert St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/129-Ellert-St-San-Francisco-CA-94110/305155225_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/985107a465ac312a09e98b1132770cab-p_e.jpg",
+  "address": "129 Ellert St #1/2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/129-Ellert-St-1-2-San-Francisco-CA-94110/457189125_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/4ec70d38c1af376bac7db6fb05deebcf-p_e.jpg",
+  "address": "3017 20th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3017-20th-St-San-Francisco-CA-94110/332860642_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Coldwell Banker Commercial Rea"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/6bd845700aeb7349ad054b082dfa7ccb-p_e.jpg",
+  "address": "3390 Cesar Chavez St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3390-Cesar-Chavez-St-San-Francisco-CA-94110/184795796_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass Commercial"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/2fc896d17ef38f4265b4509228828fd1-p_e.jpg",
+  "address": "1188 Valencia St #312, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1188-Valencia-St-312-San-Francisco-CA-94110/303806945_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/71d411eca0f74d8b308b5b295c8e8b8c-p_e.jpg",
+  "address": "95 Putnam St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/95-Putnam-St-San-Francisco-CA-94110/15162959_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/2155ba9019ee94adc365116f7eaf35d4-p_e.jpg",
+  "address": "350 San Jose Ave Unit 4, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/350-San-Jose-Ave-UNIT-4-San-Francisco-CA-94110/443326407_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.73379135131836,-122.41777801513672&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=SvHIDNKp2_BH6QxBKfMIEg6f7q8=",
+  "address": "104A Bache St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/104A-Bache-St-San-Francisco-CA-94110/458502646_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/79ec2b23493c038279126da3644095f1-p_e.jpg",
+  "address": "104 Bache St #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/104-Bache-St-A-San-Francisco-CA-94110/2073926362_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/eef3575677f99421e53bebef21a03848-p_e.jpg",
+  "address": "666 Peralta Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/666-Peralta-Ave-San-Francisco-CA-94110/125272292_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.73758316040039,-122.42466735839844&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ILqPLbWHmWMitduSZoDDqzgclfg=",
+  "address": "29-31 Highland Ave #31A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/29-31-Highland-Ave-31A-San-Francisco-CA-94110/332863230_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/344d3ec29db80f67ad55f064ecb86a2d-p_e.jpg",
+  "address": "656 Banks St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/656-Banks-St-San-Francisco-CA-94110/15164077_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Harper Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/e292c71bffb00310ab445f0547deb045-p_e.jpg",
+  "address": "151 Putnam Street, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/151-Putnam-St-San-Francisco-CA-94110/15163103_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74034881591797,-122.42159271240234&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=D2xhWJeEWx7O8OLfAqi1ffD8_4g=",
+  "address": "66 Cortland Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/66-Cortland-Ave-San-Francisco-CA-94110/15162684_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d73defd8b2edb45e4f40ef3221e15807-p_e.jpg",
+  "address": "309 Rutledge St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/309-Rutledge-St-San-Francisco-CA-94110/15160626_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/e23403ade68ce75642ea29667502da9f-p_e.jpg",
+  "address": "823 Hampshire St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/823-Hampshire-St-San-Francisco-CA-94110/2071262374_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a62fa23836d84d3549104eb2faddc72d-p_e.jpg",
+  "address": "2977-2979 24th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2977-2979-24th-St-San-Francisco-CA-94110/241587021_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Jeremy Falk Blatteis, Broker"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74959945678711,-122.41087341308594&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=Ee9MxcsBUd1RDQbogm67ccvrk4I=",
+  "address": "1394-1396 Alabama St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1394-1396-Alabama-St-San-Francisco-CA-94110/332861200_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/7559e698b1bb7c552319bdd9d6993c59-p_e.jpg",
+  "address": "1394-96 Alabama St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1394-96-Alabama-St-San-Francisco-CA-94110/2056091919_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d933282a78da5bd558b308ab6a168f75-p_e.jpg",
+  "address": "2930 25th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2930-25th-St-San-Francisco-CA-94110/345327759_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Pellego, Inc."
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/7267f04252ca5ba4fc03b4ab49d84564-p_e.jpg",
+  "address": "566 S Van Ness Ave APT 31, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/566-S-Van-Ness-Ave-APT-31-San-Francisco-CA-94110/82785797_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d76356fa432216e17534828eb9ddd831-p_e.jpg",
+  "address": "350 San Jose Ave #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/350-San-Jose-Ave-A-San-Francisco-CA-94110/440586117_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.73379135131836,-122.41645812988281&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=PY4_sSf5ldyzPP75iYh8ijJR5wA=",
+  "address": "860 Moultrie St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/860-Moultrie-St-San-Francisco-CA-94110/15164584_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/42f07b82ef957c9cf21e5e43e9862ebf-p_e.jpg",
+  "address": "586 Alabama St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/586-Alabama-St-San-Francisco-CA-94110/15149193_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/4dd6c2d22c51d02bdb98f3ba227ba273-p_e.jpg",
+  "address": "2711 18th St APT 34, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2711-18th-St-APT-34-San-Francisco-CA-94110/80755024_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/7c410b22bf44cd8be3da911affc40e3e-p_e.jpg",
+  "address": "1483 Guerrero St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1483-Guerrero-St-San-Francisco-CA-94110/184816994_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/f8698f96ad2555f13787c89d09d14182-p_e.jpg",
+  "address": "3555 17th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3555-17th-St-San-Francisco-CA-94110/184817498_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/f3e0fe7bd66acbe1345111e3fc3d8558-p_e.jpg",
+  "address": "1181 Alabama St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1181-Alabama-St-San-Francisco-CA-94110/15151800_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/1093bb8dd8faa799a54a9604c02cacb8-p_e.jpg",
+  "address": "2985 Mission St #302, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2985-Mission-St-302-San-Francisco-CA-94110/15180666_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/c14cb7f6e8e74c5fa3f6870ae64df4f1-p_e.jpg",
+  "address": "3118 18th St APT 2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3118-18th-St-APT-2-San-Francisco-CA-94110/80743467_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Coldwell Banker Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/11cb909fae1fb3edc38ae0ab5595694c-p_e.jpg",
+  "address": "4107 Folsom St, San Francisco, CA 94110",
+  "addressCity": "San francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/4107-Folsom-St-San-Francisco-CA-94110/69819360_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/5694b382dde730d7912f36546dd9b68d-p_e.jpg",
+  "address": "4107 Folsom St #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/4107-Folsom-St-A-San-Francisco-CA-94110/2087821743_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/2922b5d56621fd2b5d3ab880e1f5c51f-p_e.jpg",
+  "address": "1800 Bryant St APT 314, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1800-Bryant-St-APT-314-San-Francisco-CA-94110/54896258_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/8e4e8a25143fba698f0f12c4a2803ebb-p_e.jpg",
+  "address": "45 Bartlett St #412, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/45-Bartlett-St-412-San-Francisco-CA-94110/184817618_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Sotheby's International Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/5b61ae38c2e7c4a86901b3fa4e67c004-p_e.jpg",
+  "address": "550 S Van Ness Ave APT 306, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/550-S-Van-Ness-Ave-APT-306-San-Francisco-CA-94110/15143934_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Sotheby's International Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/4edbf1db9e023fee9dc6ff3efdaf8c3f-p_e.jpg",
+  "address": "2773-2777 Bryant St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2773-2777-Bryant-St-San-Francisco-CA-94110/331563130_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Coldwell Banker Commercial Rea"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/2be651c4ba63f1981e901082b650227e-p_e.jpg",
+  "address": "3511 23rd St #2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3511-23rd-St-2-San-Francisco-CA-94110/455074785_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/41e6c7443413824ded4804eb5e421ee7-p_e.jpg",
+  "address": "1299 Bush St #404, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1299-Bush-St-404-San-Francisco-CA-94110/96031959_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/08b12decce202b11792f8c517be89bf8-p_e.jpg",
+  "address": "3511 23rd St #3, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3511-23rd-St-3-San-Francisco-CA-94110/454944154_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/87b7857e36277e85ef94de661862258b-p_e.jpg",
+  "address": "2219 Bryant St #B, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2219-Bryant-St-B-San-Francisco-CA-94110/446165850_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Fifty Hills Real Estate"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.7588996887207,-122.41080474853516&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=cQB7NBlejetdh3FDGaR8iKNhbdw=",
+  "address": "3001-3005 20th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3001-3005-20th-St-San-Francisco-CA-94110/332860653_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/03c159fc985d6b669f404cbd635bffca-p_e.jpg",
+  "address": "3005 20th Street, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3005-20th-St-San-Francisco-CA-94110/454881041_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Princeton Pacific Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a1dc92f2ba7edb1e1b78b765b41e4bef-p_e.jpg",
+  "address": "2130 Harrison St APT 2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2130-Harrison-St-APT-2-San-Francisco-CA-94110/59700391_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Makras Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/df55025b313150af158c78adcf71b7d9-p_e.jpg",
+  "address": "1800 Bryant St Suite 211, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1800-Bryant-St-SUITE-211-San-Francisco-CA-94110/59700608_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/ecee3cb5488fd4074d50bcf9c54984f5-p_e.jpg",
+  "address": "3338 17th St APT 107, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-107-San-Francisco-CA-94110/59779684_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/81b99016580bfe12123428ad104ee5c7-p_e.jpg",
+  "address": "3338 17th St APT 204, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-204-San-Francisco-CA-94110/59779685_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76359558105469,-122.42070007324219&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ufE2yjgEm0O4b3eMbjyfsRcoFlw=",
+  "address": "3338 17th St APT 101, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-101-San-Francisco-CA-94110/64969132_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/00bd86fd9654bc95704392d38034170d-p_e.jpg",
+  "address": "3338 17th St APT 102, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-102-San-Francisco-CA-94110/64969133_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76359558105469,-122.42070007324219&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ufE2yjgEm0O4b3eMbjyfsRcoFlw=",
+  "address": "3338 17th St APT 103, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-103-San-Francisco-CA-94110/64969134_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d42b81c1662147f4a5b879314205da18-p_e.jpg",
+  "address": "3338 17th St APT 104, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-104-San-Francisco-CA-94110/64969135_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/b66c5dfc18c122acc4aa56b5eb17b12d-p_e.jpg",
+  "address": "3338 17th St APT 105, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-105-San-Francisco-CA-94110/64969136_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/9ee2e29483f2d996825759430a058beb-p_e.jpg",
+  "address": "3338 17th St APT 106, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-106-San-Francisco-CA-94110/64969137_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/b25bfc96799c41188fefa4852f2bb6f6-p_e.jpg",
+  "address": "3338 17th St APT 108, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-108-San-Francisco-CA-94110/64969138_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/13fe397f3f3edd34339a3e79e879e658-p_e.jpg",
+  "address": "3338 17th St APT 109, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-109-San-Francisco-CA-94110/64969139_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/81b99016580bfe12123428ad104ee5c7-p_e.jpg",
+  "address": "3338 17th St APT 110, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-110-San-Francisco-CA-94110/64969140_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/81c17aeccdea3afe828f877125e8f3cb-p_e.jpg",
+  "address": "3338 17th St APT 201, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-201-San-Francisco-CA-94110/64969141_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76359558105469,-122.42070007324219&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ufE2yjgEm0O4b3eMbjyfsRcoFlw=",
+  "address": "3338 17th St APT 202, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-202-San-Francisco-CA-94110/64969142_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76359558105469,-122.42070007324219&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ufE2yjgEm0O4b3eMbjyfsRcoFlw=",
+  "address": "3338 17th St APT 203, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-203-San-Francisco-CA-94110/64969143_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76359558105469,-122.42070007324219&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ufE2yjgEm0O4b3eMbjyfsRcoFlw=",
+  "address": "3338 17th St APT 205, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-205-San-Francisco-CA-94110/64969144_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76359558105469,-122.42070007324219&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ufE2yjgEm0O4b3eMbjyfsRcoFlw=",
+  "address": "3338 17th St APT 206, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-206-San-Francisco-CA-94110/64969145_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.76359558105469,-122.42070007324219&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=ufE2yjgEm0O4b3eMbjyfsRcoFlw=",
+  "address": "3338 17th St APT 207, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-207-San-Francisco-CA-94110/64969146_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a2f8f78c3804df92a2b311c7d5107596-p_e.jpg",
+  "address": "3338 17th St APT 208, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-208-San-Francisco-CA-94110/64969147_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/07673dfbc2b015ba69b7e805eb6d072c-p_e.jpg",
+  "address": "3338 17th St APT 209, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-209-San-Francisco-CA-94110/64969148_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/653e3b0b329382b93a034a0c119c408c-p_e.jpg",
+  "address": "3338 17th St APT 210, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3338-17th-St-APT-210-San-Francisco-CA-94110/64969149_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/03398ca7a40ad58effac631af080e4af-p_e.jpg",
+  "address": "376 San Carlos St Unit B, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/376-San-Carlos-St-UNIT-B-San-Francisco-CA-94110/335654234_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d15e85e7b90ac2f026c15915306218aa-p_e.jpg",
+  "address": "51 Ellsworth St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/51-Ellsworth-St-San-Francisco-CA-94110/15161498_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Berkshire Hathaway-Franciscan"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/26dbd4340d64636cf29212839b259a99-p_e.jpg",
+  "address": "114 Eugenia Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/114-Eugenia-Ave-San-Francisco-CA-94110/451025834_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "City Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/7df56d178fb2065ddab49289e137d5cd-p_e.jpg",
+  "address": "730 Florida St APT 8, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/730-Florida-St-APT-8-San-Francisco-CA-94110/111933815_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "KW Advisors"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/806a60b34e46523912f077b92cf0e93b-p_e.jpg",
+  "address": "300 Ivy St APT 401, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/300-Ivy-St-APT-401-San-Francisco-CA-94110/123174876_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.747344970703125,-122.4082260131836&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=6HoNLU1JwfPXxk4gSLk7JmWOm7c=",
+  "address": "148 Peralta Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/148-Peralta-Ave-San-Francisco-CA-94110/332861595_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a3fc61abd5f712da0d570ca32ee525a5-p_e.jpg",
+  "address": "148 Peralta Ave #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/148-Peralta-Ave-A-San-Francisco-CA-94110/2093305961_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/3681aa6c5938b3dbc55602baf695b828-p_e.jpg",
+  "address": "550 S Van Ness Ave APT 104, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/550-S-Van-Ness-Ave-APT-104-San-Francisco-CA-94110/15143915_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Christie's Int'l Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/8503addd200b95b5c1d19b5c787e8eaf-p_e.jpg",
+  "address": "3265 Cesar Chavez St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3265-Cesar-Chavez-St-San-Francisco-CA-94110/332861548_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Coldwell Banker Realty"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.75367736816406,-122.4085464477539&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=nXFhpwKM8S47kxigJH9FLENhctw=",
+  "address": "1142-1146 York St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1142-1146-York-St-San-Francisco-CA-94110/332861032_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/1daa3db2f3cbd7e20ef05c99fb264ab3-p_e.jpg",
+  "address": "3443 20th St #B, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3443-20th-St-B-San-Francisco-CA-94110/443152051_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/44a7b6832e02b74cca226dcf24cd726a-p_e.jpg",
+  "address": "1144 York St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1144-York-St-San-Francisco-CA-94110/2101945345_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/8d12328fe6529f6951ae00d5816e0dd8-p_e.jpg",
+  "address": "3321 17th St APT 14, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3321-17th-St-APT-14-San-Francisco-CA-94110/15144038_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/10a70d1c58b728ee663c72b21dde6830-p_e.jpg",
+  "address": "56A Patton St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/56A-Patton-St-San-Francisco-CA-94110/15163487_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/b130b0a716f2a18546f5335e331166c7-p_e.jpg",
+  "address": "2125 Bryant St APT 6, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2125-Bryant-St-APT-6-San-Francisco-CA-94110/111711125_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/4e6f8e4cb798b4f8e5d625041158af54-p_e.jpg",
+  "address": "350 San Jose Ave Suite 2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/350-San-Jose-Ave-SUITE-2-San-Francisco-CA-94110/443326133_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74882125854492,-122.42436981201172&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=T5E6ERpShNEd4XkVglnV3wwSLO8=",
+  "address": "3782-3784 26th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3782-3784-26th-St-San-Francisco-CA-94110/331585276_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.75484085083008,-122.4250259399414&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=fu0Iw3_y_gmyFkCJ_dzdkTDshR8=",
+  "address": "907-911 Dolores St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/907-911-Dolores-St-San-Francisco-CA-94110/332860043_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/4edfd3b32af0d6f2608dea2c5ec6008e-p_e.jpg",
+  "address": "3421 25th St APT 4, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3421-25th-St-APT-4-San-Francisco-CA-94110/15180688_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vantage Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/0b8876d423aabd1f143fa66a0ecbb668-p_e.jpg",
+  "address": "45 Bartlett St Unit 603, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/45-Bartlett-St-UNIT-603-San-Francisco-CA-94110/184817645_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Corcoran Icon Properties"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.75707244873047,-122.42239379882812&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=sdHe3O6PUBoSQLFC6aXP9-7tBtg=",
+  "address": "3356-3358 21st St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3356-3358-21st-St-San-Francisco-CA-94110/332859752_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/2ff808609487c0686ccea8ca173160be-p_e.jpg",
+  "address": "612 Moultrie St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/612-Moultrie-St-San-Francisco-CA-94110/15163770_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Panorama Properties SFBA, Inc."
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/74a2fe33db16adb2f4f304793c222098-p_e.jpg",
+  "address": "584 Alabama St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/584-Alabama-St-San-Francisco-CA-94110/15149192_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Corcoran Icon Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/89d4d1f35008b7a275fdfd00e622f5e5-p_e.jpg",
+  "address": "112 Eugenia Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/112-Eugenia-Ave-San-Francisco-CA-94110/2103760715_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "City Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/211dd858588846972e4638f523d68018-p_e.jpg",
+  "address": "1086 Capp St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1086-Capp-St-San-Francisco-CA-94110/184818100_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/68d2708e9d4ed71f277374d97512f96b-p_e.jpg",
+  "address": "167 Coleridge St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/167-Coleridge-St-San-Francisco-CA-94110/15161257_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Helm Real Estate"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.73739242553711,-122.40989685058594&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=c0YL6e6KBFdJae7qc_ROiDhgH0k=",
+  "address": "354 Bradford St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/354-Bradford-St-San-Francisco-CA-94110/15163062_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/3c2669944b18550172a52155cac62e8c-p_e.jpg",
+  "address": "32 Richland Ave #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/32-Richland-Ave-A-San-Francisco-CA-94110/450651048_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a11b15264bdeeee91e22a2d731a412f8-p_e.jpg",
+  "address": "2875 21st St APT 10, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2875-21st-St-APT-10-San-Francisco-CA-94110/80749815_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.747215270996094,-122.42443084716797&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=WurGUkI2jLywzQ0UfJOfNNa_SCI=",
+  "address": "194-196 27th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/194-196-27th-St-San-Francisco-CA-94110/331640241_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/b69d9df6e3074cc018f39e5b3d71da0f-p_e.jpg",
+  "address": "1020 Alabama St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1020-Alabama-St-San-Francisco-CA-94110/332860867_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/1a2da85be4040af846b57b7cd7a8e621-p_e.jpg",
+  "address": "3351 Cesar Chavez St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3351-Cesar-Chavez-St-San-Francisco-CA-94110/447279480_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Coldwell Banker Commercial Rea"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/fd954551e7189d7ce18c2d1bc3fc31a0-p_e.jpg",
+  "address": "986 S Van Ness Ave #402, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/986-S-Van-Ness-Ave-402-San-Francisco-CA-94110/448843106_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/40dba7f5ab2f70a6f896ac8d4c2e9cff-p_e.jpg",
+  "address": "61 Prospect Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/61-Prospect-Ave-San-Francisco-CA-94110/2094191421_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "eXp Realty of California, Inc"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/ca489ec0252768a4ef02793259c94cab-p_e.jpg",
+  "address": "199 Tiffany Ave APT 211, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/199-Tiffany-Ave-APT-211-San-Francisco-CA-94110/79844593_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Corcoran Icon Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/38a72c22666b9ebde5f4aca64e466b5b-p_e.jpg",
+  "address": "730 Florida St APT 4, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/730-Florida-St-APT-4-San-Francisco-CA-94110/111928436_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/140b04ebbb6668c3299cd526d254980a-p_e.jpg",
+  "address": "72 Park St #74, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/72-Park-St-74-San-Francisco-CA-94110/2067672073_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Corcoran Icon Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/4afccd17d5368ff5e400d0b315a3d444-p_e.jpg",
+  "address": "400 Alemany Blvd APT 13, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/400-Alemany-Blvd-APT-13-San-Francisco-CA-94110/61325455_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/79489a3bf34a2aebfe628cee8abe90e4-p_e.jpg",
+  "address": "3422 19th St Unit 3422, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3422-19th-St-UNIT-3422-San-Francisco-CA-94110/448359524_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a6759215e2613c0f6e8c5bc0c8dc4065-p_e.jpg",
+  "address": "1800 Bryant St Suite 208, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1800-Bryant-St-SUITE-208-San-Francisco-CA-94110/59700607_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Keller Willams Realty"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74921417236328,-122.40726470947266&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=3Q_B5TaEgGvY8KzJtE_vSwT-eSI=",
+  "address": "2817 26th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2817-26th-St-San-Francisco-CA-94110/15152897_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/0528a65e48e19ee4c778aa8e81c2de1b-p_e.jpg",
+  "address": "587 Banks St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/587-Banks-St-San-Francisco-CA-94110/15163947_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/0361e3a4a81480975662689984477e46-p_e.jpg",
+  "address": "2130 Harrison St APT 9, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2130-Harrison-St-APT-9-San-Francisco-CA-94110/59700398_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/82dc206687623a9b9b35a158875c8b45-p_e.jpg",
+  "address": "2662A 22nd St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2662A-22nd-St-San-Francisco-CA-94110/111924762_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a0273fd6d63e0fcc43999071e3c15050-p_e.jpg",
+  "address": "2662 22nd St #A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2662-22nd-St-A-San-Francisco-CA-94110/2077839582_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.740230560302734,-122.4229736328125&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=EOZGNIzu0OUn6slcNDDNg1qagGk=",
+  "address": "3535 Mission St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3535-Mission-St-San-Francisco-CA-94110/332861968_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/59ef4885b69a5deec98280be0b6a655f-p_e.jpg",
+  "address": "172 Linda St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/172-Linda-St-San-Francisco-CA-94110/443892430_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/308b550172cdca278a4ab7b1d95a069c-p_e.jpg",
+  "address": "986 S Van Ness Ave Unit 301, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/986-S-Van-Ness-Ave-UNIT-301-San-Francisco-CA-94110/447313131_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/564db74b7c040b4b959b72e8f65bb5d9-p_e.jpg",
+  "address": "3535 Mission St Unit A, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3535-Mission-St-UNIT-A-San-Francisco-CA-94110/447566248_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "KW Advisors"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/6bdbff39702651ea21f618b10432514e-p_e.jpg",
+  "address": "555 Bartlett St APT 204, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/555-Bartlett-St-APT-204-San-Francisco-CA-94110/111711298_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Andersen, Jung & Co."
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/02f0feae37a23ab62e2282ab0155c2df-p_e.jpg",
+  "address": "3535 Mission St Unit B, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3535-Mission-St-UNIT-B-San-Francisco-CA-94110/444584054_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "KW Advisors"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/fd954551e7189d7ce18c2d1bc3fc31a0-p_e.jpg",
+  "address": "986 S Van Ness Ave #502, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/986-S-Van-Ness-Ave-502-San-Francisco-CA-94110/447313445_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/fae84d11137a432e744cbcc0a495fbb1-p_e.jpg",
+  "address": "3431 Mission St APT 4, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3431-Mission-St-APT-4-San-Francisco-CA-94110/114316973_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Ascend Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/ebc951d4167aac15a16bcd8d3f9c1c8b-p_e.jpg",
+  "address": "31 Camp St #B, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/31-Camp-St-B-San-Francisco-CA-94110/440618223_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Coldwell Banker Realty"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/597828675390db924a410d1282d09c8c-p_e.jpg",
+  "address": "2889 24th St APT 1, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/2889-24th-St-APT-1-San-Francisco-CA-94110/82786421_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/6f368cab45e1ee5d5512f7ef667739ca-p_e.jpg",
+  "address": "803 Shotwell St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/803-Shotwell-St-San-Francisco-CA-94110/121338954_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Premier Agent Network"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/286055a2ab60a13c421118125acf529d-p_e.jpg",
+  "address": "3418 26th St #7, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3418-26th-St-7-San-Francisco-CA-94110/124906283_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Ascend Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/8bdfbc78d5836b5dc567ba3c42bd1af4-p_e.jpg",
+  "address": "290 Holladay Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/290-Holladay-Ave-San-Francisco-CA-94110/15160439_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/2150e9901bd1e8e53c77f7fdf3d375f4-p_e.jpg",
+  "address": "174 Linda St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/174-Linda-St-San-Francisco-CA-94110/440003318_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/ab0a53c4e1302cd0ac85c90e9e7ff443-p_e.jpg",
+  "address": "3667 18th St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3667-18th-St-San-Francisco-CA-94110/375774186_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "KW Advisors"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/a6869cdea9439a8e1995e26138326f75-p_e.jpg",
+  "address": "986 S Van Ness Ave Unit 403, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/986-S-Van-Ness-Ave-UNIT-403-San-Francisco-CA-94110/443916858_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/b9d20e3cd36869fce8d24e8e8057cafb-p_e.jpg",
+  "address": "986 S Van Ness Ave Unit 203, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/986-S-Van-Ness-Ave-UNIT-203-San-Francisco-CA-94110/446841722_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74356460571289,-122.42308044433594&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=4HVuwOJxsbo5bV-kjDkyjNFXSK0=",
+  "address": "720 San Jose Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/720-San-Jose-Ave-San-Francisco-CA-94110/15183458_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/308b550172cdca278a4ab7b1d95a069c-p_e.jpg",
+  "address": "986 S Van Ness Ave #401, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/986-S-Van-Ness-Ave-401-San-Francisco-CA-94110/446398261_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/d76356fa432216e17534828eb9ddd831-p_e.jpg",
+  "address": "350 San Jose Ave APT 1, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/350-San-Jose-Ave-APT-1-San-Francisco-CA-94110/443257613_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Vanguard Properties"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/308b550172cdca278a4ab7b1d95a069c-p_e.jpg",
+  "address": "986 S Van Ness Ave #501, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/986-S-Van-Ness-Ave-501-San-Francisco-CA-94110/443917169_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/4106e55981ababd9f873bf69018761fe-p_e.jpg",
+  "address": "69 Montcalm Street, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/69-Montcalm-St-San-Francisco-CA-94110/15160412_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Premier Realty Associates"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/82647f85c41c69b99c70d4f7f94bce34-p_e.jpg",
+  "address": "3345 17th St APT 5, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/3345-17th-St-APT-5-San-Francisco-CA-94110/63197193_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Brava Real Estate"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/3d0bcb4dc31e8cba1da800469be50998-p_e.jpg",
+  "address": "555 Bartlett St APT 413, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/555-Bartlett-St-APT-413-San-Francisco-CA-94110/111711321_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/e054029e4a5a1253bc8a9489651e8cf2-p_e.jpg",
+  "address": "125 Highland Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/125-Highland-Ave-San-Francisco-CA-94110/111928373_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Helm Real Estate"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74934387207031,-122.41958618164062&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=f4DsUQPQCoUt-4y9Om7RH3F8koE=",
+  "address": "476-478 Bartlett St, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/476-478-Bartlett-St-San-Francisco-CA-94110/331644693_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://photos.zillowstatic.com/fp/1baa6b236ec321b26470b9b1a5fc2492-p_e.jpg",
+  "address": "550 S Van Ness Ave APT 409, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/550-S-Van-Ness-Ave-APT-409-San-Francisco-CA-94110/15143946_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold",
+  "brokerName": "Compass"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.75265884399414,-122.42481994628906&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=C7mptqND217W4nBh4F8Uq4kOwW0=",
+  "address": "1049 Dolores St APT 2, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/1049-Dolores-St-APT-2-San-Francisco-CA-94110/89237444_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+},
+{
+  "imgSrc": "https://maps.googleapis.com/maps/api/staticmap?mobile=false&sensor=true&maptype=satellite&size=575x242&zoom=17&center=37.74514389038086,-122.42153930664062&key=AIzaSyBWYJWCA8FNMQvSe_k3LKfDGJaEgdKwsco&signature=2z7UTNs2OrlENIfJYapC7daArPI=",
+  "address": "116-118 Tiffany Ave, San Francisco, CA 94110",
+  "addressCity": "San Francisco",
+  "addressState": "CA",
+  "detailUrl": "https://www.zillow.com/homedetails/116-118-Tiffany-Ave-San-Francisco-CA-94110/332862992_zpid/",
+  "statusType": "SOLD",
+  "statusText": "Sold"
+}]
