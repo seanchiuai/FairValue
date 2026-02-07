@@ -10,7 +10,6 @@ function FeaturedMarket({ property }) {
     <div className="feat-wrap">
       <Link to={`/market/${property.id}`} className="feat-hero">
         <img src={heroImg} alt={property.address} className="feat-img" />
-        <div className="feat-gradient" />
 
         {/* Glass info panel */}
         <div className="feat-glass-panel">
@@ -50,14 +49,6 @@ function FeaturedMarket({ property }) {
           transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
         }
         .feat-hero:hover .feat-img { transform: scale(1.03); }
-
-        .feat-gradient {
-          position: absolute; inset: 0;
-          background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.05) 50%, transparent 100%);
-          transform: translateZ(0);
-          backface-visibility: hidden;
-          border-radius: inherit;
-        }
 
         .feat-badge-float {
           position: absolute; top: 20px; left: 20px;
