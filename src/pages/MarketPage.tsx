@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   MapPin,
@@ -13,13 +13,15 @@ import {
   DollarSign,
   GraduationCap,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Gavel
 } from 'lucide-react';
 import { properties } from '../data/properties';
 import './MarketPage.css';
 
 const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
+  const navigate = useNavigate();
   const property = properties.find(p => p.id === propertyId) || properties[0];
 
   const formatPrice = (n: number) => n ? `$${n.toLocaleString()}` : '—';
@@ -45,7 +47,10 @@ const MarketPage: React.FC = () => {
           <span>Back</span>
         </Link>
         <div className="nav-title">{property.address}</div>
-        <div className="nav-spacer" />
+        <Link to="/join" className="nav-bid-link">
+          <Gavel size={14} />
+          <span>Host a Bid</span>
+        </Link>
       </nav>
 
       <div className="market-content">
@@ -196,6 +201,19 @@ const MarketPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Start a Bid */}
+        <div className="detail-section bid-section">
+          <div className="bid-section-inner">
+            <div className="bid-text">
+              <h2 className="section-title"><Gavel size={18} /> Prediction Market</h2>
+              <p className="bid-desc">Think you know the fair value? Host a live bidding game with friends and test your instincts.</p>
+            </div>
+            <Link to="/join" className="bid-cta-btn">
+              Start a Bid
+            </Link>
+          </div>
+        </div>
 
         {/* Zillow Link */}
         <div className="detail-cta">
