@@ -3,6 +3,7 @@ import { createChart, IChartApi, ISeriesApi, LineData, Time } from 'lightweight-
 
 interface ChartHandle {
   addPoint: (data: { probOver: number; fairValue: number }) => void;
+  loadHistory: (points: Array<{ probOver: number; fairValue: number }>) => void;
   setRef: (el: HTMLDivElement | null) => void;
 }
 
@@ -85,13 +86,15 @@ export function useMarketChart({
     probSeriesRef.current = probSeries;
     fairValueSeriesRef.current = fvSeries;
 
-    // If we already have buffered data, render it immediately
-    const latest = latestRef.current;
-    if (latest) {
+    // If we already have buffered data (from loadHistory or addPoint), render it
+    if (probDataRef.current.length > 0) {
+      probSeries.setData(probDataRef.current);
+      fvSeries.setData(fvDataRef.current);
+    } else if (latestRef.current) {
       timeCounterRef.current += 1;
       const time = timeCounterRef.current as Time;
-      const probPoint: LineData = { time, value: latest.probOver * 100 };
-      const fvPoint: LineData = { time, value: latest.fairValue };
+      const probPoint: LineData = { time, value: latestRef.current.probOver * 100 };
+      const fvPoint: LineData = { time, value: latestRef.current.fairValue };
       probDataRef.current.push(probPoint);
       fvDataRef.current.push(fvPoint);
       probSeries.setData(probDataRef.current);
@@ -157,5 +160,27 @@ export function useMarketChart({
     fairValueSeriesRef.current.setData(fvDataRef.current);
   }, []);
 
-  return { addPoint, setRef };
+  const loadHistory = useCallback((points: Array<{ probOver: number; fairValue: number }>) => {
+    if (points.length === 0) return;
+
+    probDataRef.current = [];
+    fvDataRef.current = [];
+    timeCounterRef.current = 0;
+
+    for (const pt of points) {
+      timeCounterRef.current += 1;
+      const time = timeCounterRef.current as Time;
+      probDataRef.current.push({ time, value: pt.probOver * 100 });
+      fvDataRef.current.push({ time, value: pt.fairValue });
+    }
+
+    latestRef.current = points[points.length - 1];
+
+    if (probSeriesRef.current && fairValueSeriesRef.current) {
+      probSeriesRef.current.setData(probDataRef.current);
+      fairValueSeriesRef.current.setData(fvDataRef.current);
+    }
+  }, []);
+
+  return { addPoint, loadHistory, setRef };
 }

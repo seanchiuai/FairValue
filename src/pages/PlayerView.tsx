@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
@@ -22,10 +22,32 @@ export default function PlayerView() {
   } = useRoom(roomCode || '', sessionId);
 
   // Chart
-  const { addPoint, setRef: chartRef } = useMarketChart({ height: 200 });
+  const { addPoint, loadHistory, setRef: chartRef } = useMarketChart({ height: 200 });
+  const historyLoadedRef = useRef(false);
+
+  // Fetch chart history on mount
+  useEffect(() => {
+    if (!roomCode || !house) return;
+    fetch(`/api/markets/by-property/room-${roomCode}/chart`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: Array<{ prob: number; time: string }>) => {
+        if (data.length > 0) {
+          const points = data.map((d) => ({
+            probOver: d.prob,
+            fairValue: calculateImpliedPrice(d.prob, house.asking_price),
+          }));
+          loadHistory(points);
+        }
+        historyLoadedRef.current = true;
+      })
+      .catch(() => {
+        historyLoadedRef.current = true;
+      });
+  }, [roomCode, house, loadHistory]);
 
   useEffect(() => {
     if (!market || !house) return;
+    if (!historyLoadedRef.current) return;
     addPoint({
       probOver: market.prob_over,
       fairValue: calculateImpliedPrice(market.prob_over, house.asking_price),
