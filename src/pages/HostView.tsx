@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
 import { QRCodeSVG } from 'qrcode.react';
-import { createChart, IChartApi, ISeriesApi, LineData, Time } from 'lightweight-charts';
+import { useMarketChart } from '../hooks/useMarketChart';
+import { calculateImpliedPrice } from '../lib/lmsr';
 import {
   Wifi,
   WifiOff,
@@ -41,88 +42,16 @@ export default function HostView() {
 
   // Chart
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const dataPointsRef = useRef<LineData[]>([]);
-  const timeCounterRef = useRef(0);
+  const { addPoint } = useMarketChart({ containerRef: chartContainerRef, height: 300 });
 
+  // Push a chart point whenever market or house state changes
   useEffect(() => {
-    if (!chartContainerRef.current) return;
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { color: 'transparent' },
-        textColor: '#A9B7C8',
-      },
-      grid: {
-        vertLines: { color: 'rgba(58, 74, 93, 0.3)' },
-        horzLines: { color: 'rgba(58, 74, 93, 0.3)' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 300,
-      rightPriceScale: {
-        scaleMargins: { top: 0.1, bottom: 0.1 },
-      },
-      timeScale: {
-        visible: false,
-      },
+    if (!market || !house) return;
+    addPoint({
+      probOver: market.prob_over,
+      fairValue: calculateImpliedPrice(market.prob_over, house.asking_price),
     });
-
-    const series = chart.addLineSeries({
-      color: '#4BA3FF',
-      lineWidth: 2,
-      priceFormat: {
-        type: 'custom',
-        formatter: (price: number) => `${Math.round(price)}%`,
-      },
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = series;
-
-    const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
-    };
-  }, [loading]);
-
-  // Keep latest market in a ref so the periodic tick always reads fresh values
-  const marketRef = useRef(market);
-  useEffect(() => { marketRef.current = market; }, [market]);
-
-  // Add a chart point whenever market state changes (initial load + bets via WebSocket)
-  useEffect(() => {
-    if (!market || !seriesRef.current) return;
-    timeCounterRef.current += 1;
-    const point: LineData = {
-      time: timeCounterRef.current as Time,
-      value: market.prob_over * 100,
-    };
-    dataPointsRef.current.push(point);
-    seriesRef.current.setData(dataPointsRef.current);
-  }, [market]);
-
-  // Periodic tick: extend the line every 2s so the chart looks "live" between bets
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const m = marketRef.current;
-      if (!seriesRef.current || !m) return;
-      timeCounterRef.current += 1;
-      const point: LineData = {
-        time: timeCounterRef.current as Time,
-        value: m.prob_over * 100,
-      };
-      dataPointsRef.current.push(point);
-      seriesRef.current.setData(dataPointsRef.current);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [market, house, addPoint]);
 
   const handleToggleAI = useCallback(async () => {
     if (!roomCode) return;
@@ -256,6 +185,7 @@ export default function HostView() {
               <span style={s.chartTitle}>Market Probability</span>
               <div style={s.legend}>
                 <span style={s.legendDot} /> OVER probability
+                <span style={{ ...s.legendDot, background: '#3BA776', marginLeft: 12 }} /> Fair value ($)
               </div>
             </div>
             <div ref={chartContainerRef} style={{ width: '100%', height: 300 }} />
