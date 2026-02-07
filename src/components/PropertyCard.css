@@ -1,0 +1,279 @@
+.market-card {
+  display: block;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 16px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.market-card:hover {
+  border-color: var(--border-default);
+  background: var(--bg-surface-hover);
+}
+
+/* Card Header */
+.card-header {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.property-tile {
+  width: 44px;
+  height: 44px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.property-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.property-address {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.property-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Subtle pill badge style */
+.neighborhood-tag {
+  display: inline-flex;
+  padding: 2px 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--accent-primary);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.location-text {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Property Specs */
+.property-specs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.spec-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.spec-item svg {
+  color: var(--text-muted);
+  width: 14px;
+  height: 14px;
+}
+
+.spec-label {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Pricing Section */
+.pricing-section {
+  margin-bottom: 12px;
+}
+
+.price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.price-block {
+  flex: 1;
+}
+
+.price-label {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.price-value {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.price-value.list {
+  color: var(--text-secondary);
+}
+
+.price-value.implied.positive {
+  color: var(--accent-success);
+}
+
+.price-value.implied.negative {
+  color: var(--accent-danger);
+}
+
+.price-arrow {
+  color: var(--text-muted);
+  padding: 0 6px;
+}
+
+/* Delta Row - Minimal styling */
+.delta-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.delta-row.positive {
+  background: var(--accent-success-subtle);
+  color: var(--accent-success);
+}
+
+.delta-row.negative {
+  background: var(--accent-danger-subtle);
+  color: var(--accent-danger);
+}
+
+.delta-amount {
+  font-weight: 600;
+}
+
+.delta-percent {
+  opacity: 0.85;
+}
+
+.delta-label {
+  margin-left: auto;
+  opacity: 0.75;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Market Stats */
+.market-stats {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.market-stats .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.market-stats .stat-item svg {
+  color: var(--text-muted);
+  width: 13px;
+  height: 13px;
+}
+
+.market-stats .stat-value {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Card Action */
+.card-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.action-text {
+  transition: color 0.15s ease;
+}
+
+.market-card:hover .card-action {
+  color: var(--accent-primary);
+}
+
+.market-card:hover .action-text {
+  color: var(--accent-primary);
+}
+
+/* Focus states */
+.market-card:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .market-card {
+    padding: 14px;
+  }
+
+  .property-address {
+    font-size: 14px;
+  }
+
+  .price-value {
+    font-size: 13px;
+  }
+
+  .property-specs {
+    gap: 10px;
+  }
+
+  .spec-item {
+    font-size: 11px;
+  }
+
+  .market-stats {
+    gap: 10px;
+  }
+}

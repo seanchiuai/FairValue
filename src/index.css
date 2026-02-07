@@ -1,0 +1,87 @@
+:root {
+  /* Polymarket-Inspired Slate-Blue Palette */
+  
+  /* Backgrounds */
+  --bg-primary: #1F2A36;           /* Deep slate-blue page background */
+  --bg-nav: #243140;               /* Nav background */
+  --bg-surface: #2C3A4A;           /* Card surface (lighter than bg) */
+  --bg-surface-hover: #314255;     /* Card hover state */
+  --bg-input: #273445;             /* Input/search backgrounds */
+  --bg-elevated: #374658;          /* Elevated surfaces */
+  
+  /* Borders */
+  --border-subtle: #3A4A5D;        /* Subtle 1px borders */
+  --border-default: #455670;       /* Default borders */
+  --border-focus: #4BA3FF;         /* Focus ring blue */
+  
+  /* Text */
+  --text-primary: #EAF0F7;         /* Strong white headings */
+  --text-secondary: #A9B7C8;       /* Soft gray-blue body text */
+  --text-muted: #7F93A8;           /* Muted captions */
+  
+  /* Accents */
+  --accent-primary: #4BA3FF;       /* Polymarket-like blue */
+  --accent-primary-hover: #2F8EFF; /* Blue hover */
+  --accent-primary-subtle: rgba(75, 163, 255, 0.12); /* Subtle blue tint */
+  
+  /* Status Colors - Muted */
+  --accent-success: #3BA776;       /* Muted green */
+  --accent-success-subtle: rgba(59, 167, 118, 0.1);
+  --accent-danger: #C05656;        /* Muted red */
+  --accent-danger-subtle: rgba(192, 86, 86, 0.1);
+  --accent-warning: #C8A24A;       /* Muted gold */
+  --accent-warning-subtle: rgba(200, 162, 74, 0.1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility Classes */
+.bg-surface { background: var(--bg-surface); }
+.bg-surface-hover:hover { background: var(--bg-surface-hover); }
+.bg-input { background: var(--bg-input); }
+.bg-nav { background: var(--bg-nav); }
+
+.border-subtle { border-color: var(--border-subtle); }
+.border-default { border-color: var(--border-default); }
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+
+/* Focus States */
+*:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+/* Scrollbar - Muted slate */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-default);
+}
