@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  Search, 
-  Filter, 
-  TrendingUp, 
-  Users, 
-  Clock, 
-  DollarSign,
+  Search,
+  Filter,
+  TrendingUp,
   ChevronDown,
   X,
   Wallet,
@@ -107,9 +104,9 @@ function Markets() {
             <span className="logo-text">FairValue</span>
           </div>
           <nav className="nav">
-            <a href="#" className="nav-link active">Markets</a>
-            <a href="#" className="nav-link">Portfolio</a>
-            <a href="#" className="nav-link">Activity</a>
+            <button className="nav-link active">Markets</button>
+            <button className="nav-link">Portfolio</button>
+            <button className="nav-link">Activity</button>
           </nav>
         </div>
 
@@ -315,6 +312,9 @@ function Markets() {
           font-weight: 500;
           border-radius: 6px;
           transition: all 0.15s ease;
+          background: none;
+          border: none;
+          cursor: pointer;
         }
 
         .nav-link:hover {

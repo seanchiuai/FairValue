@@ -15,15 +15,6 @@ function FeaturedMarket({
   onImageUpload, 
   onImageRemove 
 }) {
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
   const priceDelta = property.marketPrice - property.currentPrice;
   const priceDeltaPercent = ((priceDelta / property.currentPrice) * 100).toFixed(1);
 

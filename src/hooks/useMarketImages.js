@@ -42,9 +42,11 @@ export function useMarketImages(marketIds) {
 
     // Cleanup object URLs on unmount
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       objectUrlsRef.current.clear();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load images for all market IDs

@@ -646,6 +646,13 @@
   }
 }
 
+/* Mobile touch optimization */
+.trade-btn,
+.input-wrapper input {
+  touch-action: manipulation;
+  min-height: 48px;
+}
+
 @media (max-width: 768px) {
   .market-nav {
     padding: 0 16px;
@@ -675,5 +682,9 @@
   .legend {
     flex-direction: column;
     gap: 6px;
+  }
+
+  .trading-column {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
