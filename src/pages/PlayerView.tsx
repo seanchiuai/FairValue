@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
+import { createChart, IChartApi, ISeriesApi, LineData, Time } from 'lightweight-charts';
 import { Wifi, WifiOff, TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
 
 export default function PlayerView() {
@@ -25,6 +26,101 @@ export default function PlayerView() {
   const [joinName, setJoinName] = useState(savedNickname);
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
+
+  // Chart refs
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const dataPointsRef = useRef<LineData[]>([]);
+  const timeCounterRef = useRef(0);
+
+  // Create chart once player has joined
+  useEffect(() => {
+    if (!myPlayer || !chartContainerRef.current) return;
+    if (chartRef.current) return; // already created
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: 'transparent' },
+        textColor: '#A9B7C8',
+      },
+      grid: {
+        vertLines: { color: 'rgba(58, 74, 93, 0.3)' },
+        horzLines: { color: 'rgba(58, 74, 93, 0.3)' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 160,
+      rightPriceScale: {
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+      },
+      timeScale: { visible: false },
+      handleScroll: false,
+      handleScale: false,
+    });
+
+    const series = chart.addLineSeries({
+      color: '#4BA3FF',
+      lineWidth: 2,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `${Math.round(price)}%`,
+      },
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = series;
+
+    // Seed with initial point
+    if (market) {
+      timeCounterRef.current += 1;
+      const point: LineData = { time: timeCounterRef.current as Time, value: market.prob_over * 100 };
+      dataPointsRef.current.push(point);
+      series.setData(dataPointsRef.current);
+    }
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [myPlayer, market]);
+
+  // Update chart when market changes (bets from any player via WebSocket)
+  const prevMarketRef = useRef<typeof market>(null);
+  useEffect(() => {
+    if (!market || !seriesRef.current) return;
+    if (prevMarketRef.current === null) {
+      prevMarketRef.current = market;
+      return;
+    }
+    if (prevMarketRef.current === market) return;
+    prevMarketRef.current = market;
+
+    timeCounterRef.current += 1;
+    const point: LineData = { time: timeCounterRef.current as Time, value: market.prob_over * 100 };
+    dataPointsRef.current.push(point);
+    seriesRef.current.setData(dataPointsRef.current);
+  }, [market]);
+
+  // Periodic tick to keep the chart line extending
+  useEffect(() => {
+    if (!market || !myPlayer) return;
+    const interval = setInterval(() => {
+      if (!seriesRef.current || !market) return;
+      timeCounterRef.current += 1;
+      const point: LineData = { time: timeCounterRef.current as Time, value: market.prob_over * 100 };
+      dataPointsRef.current.push(point);
+      seriesRef.current.setData(dataPointsRef.current);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [market, myPlayer]);
 
   const handleBet = async (outcome: 'over' | 'under') => {
     if (betting || !wager || wager <= 0) return;
@@ -197,6 +293,15 @@ export default function PlayerView() {
             </div>
           </div>
 
+          {/* Live probability chart */}
+          <div style={s.chartCard}>
+            <div style={s.chartHeader}>
+              <span style={s.chartLabel}>Live Market</span>
+              <span style={s.chartLegend}><span style={s.chartDot} /> OVER %</span>
+            </div>
+            <div ref={chartContainerRef} style={{ width: '100%', height: 160 }} />
+          </div>
+
           {/* Positions */}
           {myPlayer && myPlayer.bets.length > 0 && (
             <div style={s.positionsCard}>
@@ -364,6 +469,40 @@ const s: Record<string, React.CSSProperties> = {
   probLabels: {
     display: 'flex',
     justifyContent: 'space-between',
+  },
+  chartCard: {
+    margin: '0 16px 12px',
+    padding: '12px 14px',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 10,
+  },
+  chartHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chartLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  chartLegend: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 11,
+    color: 'var(--text-muted)',
+  },
+  chartDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: '#4BA3FF',
+    display: 'inline-block',
   },
   positionsCard: {
     margin: '0 16px 12px',
