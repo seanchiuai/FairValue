@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
@@ -41,8 +41,7 @@ export default function HostView() {
   );
 
   // Chart
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const { addPoint } = useMarketChart({ containerRef: chartContainerRef, height: 300 });
+  const { addPoint, setRef: chartRef } = useMarketChart({ height: 300 });
 
   // Push a chart point whenever market or house state changes
   useEffect(() => {
@@ -196,7 +195,7 @@ export default function HostView() {
                 <span style={{ ...s.legendDot, background: '#3BA776', marginLeft: 12 }} /> Fair value ($)
               </div>
             </div>
-            <div ref={chartContainerRef} style={{ width: '100%', height: 300 }} />
+            <div ref={chartRef} style={{ width: '100%', height: 300 }} />
             <div style={s.statsRow}>
               <div style={s.statBox}>
                 <span style={s.statLabel}>Total Trades</span>

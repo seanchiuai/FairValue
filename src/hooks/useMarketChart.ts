@@ -1,21 +1,16 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { createChart, IChartApi, ISeriesApi, LineData, Time } from 'lightweight-charts';
-
-interface UseMarketChartOptions {
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  height?: number;
-  tickIntervalMs?: number;
-}
 
 interface ChartHandle {
   addPoint: (data: { probOver: number; fairValue: number }) => void;
+  setRef: (el: HTMLDivElement | null) => void;
 }
 
 export function useMarketChart({
-  containerRef,
   height = 300,
   tickIntervalMs = 2000,
-}: UseMarketChartOptions): ChartHandle {
+}: { height?: number; tickIntervalMs?: number } = {}): ChartHandle {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const probSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const fairValueSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -24,11 +19,16 @@ export function useMarketChart({
   const timeCounterRef = useRef(0);
   const latestRef = useRef<{ probOver: number; fairValue: number } | null>(null);
 
-  // Create chart once
-  useEffect(() => {
-    if (!containerRef.current) return;
+  // Callback ref — triggers state change when DOM element appears
+  const setRef = useCallback((el: HTMLDivElement | null) => {
+    setContainer(el);
+  }, []);
 
-    const chart = createChart(containerRef.current, {
+  // Create chart when container appears in DOM
+  useEffect(() => {
+    if (!container) return;
+
+    const chart = createChart(container, {
       layout: {
         background: { color: 'transparent' },
         textColor: '#A9B7C8',
@@ -37,7 +37,7 @@ export function useMarketChart({
         vertLines: { color: 'rgba(58, 74, 93, 0.3)' },
         horzLines: { color: 'rgba(58, 74, 93, 0.3)' },
       },
-      width: containerRef.current.clientWidth,
+      width: container.clientWidth,
       height,
       rightPriceScale: {
         scaleMargins: { top: 0.1, bottom: 0.1 },
@@ -85,9 +85,22 @@ export function useMarketChart({
     probSeriesRef.current = probSeries;
     fairValueSeriesRef.current = fvSeries;
 
+    // If we already have buffered data, render it immediately
+    const latest = latestRef.current;
+    if (latest) {
+      timeCounterRef.current += 1;
+      const time = timeCounterRef.current as Time;
+      const probPoint: LineData = { time, value: latest.probOver * 100 };
+      const fvPoint: LineData = { time, value: latest.fairValue };
+      probDataRef.current.push(probPoint);
+      fvDataRef.current.push(fvPoint);
+      probSeries.setData(probDataRef.current);
+      fvSeries.setData(fvDataRef.current);
+    }
+
     const handleResize = () => {
-      if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
+      if (container) {
+        chart.applyOptions({ width: container.clientWidth });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -102,7 +115,7 @@ export function useMarketChart({
       fvDataRef.current = [];
       timeCounterRef.current = 0;
     };
-  }, [containerRef, height]);
+  }, [container, height]);
 
   // Periodic tick: extend both lines so the chart looks "live"
   useEffect(() => {
@@ -144,5 +157,5 @@ export function useMarketChart({
     fairValueSeriesRef.current.setData(fvDataRef.current);
   }, []);
 
-  return { addPoint };
+  return { addPoint, setRef };
 }
