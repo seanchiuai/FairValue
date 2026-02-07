@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { MarketThumbnail } from './MarketThumbnail';
 import { MarketImageUploader } from './MarketImageUploader';
-import './MarketCard.css';
 
 function MarketCard({ 
   property, 
