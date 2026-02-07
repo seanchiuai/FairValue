@@ -10,10 +10,10 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<JoinPage />} />
+        <Route path="/" element={<Markets />} />
+        <Route path="/join" element={<JoinPage />} />
         <Route path="/host/:roomCode" element={<HostView />} />
         <Route path="/play/:roomCode" element={<PlayerView />} />
-        <Route path="/markets" element={<Markets />} />
         <Route path="/market/:propertyId" element={<MarketPage />} />
       </Routes>
     </Router>

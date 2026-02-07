@@ -1,15 +1,14 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import JoinPage from './pages/JoinPage';
+import Markets from './pages/Markets';
 
-test('renders JoinPage with create and join options', () => {
+test('renders Markets page with FairValue branding', () => {
   render(
     <MemoryRouter>
-      <JoinPage />
+      <Markets />
     </MemoryRouter>
   );
   expect(screen.getByText('FairValue')).toBeInTheDocument();
-  expect(screen.getByText('Create Room')).toBeInTheDocument();
-  expect(screen.getByText('Join Room')).toBeInTheDocument();
+  expect(screen.getByText('Host a Bid')).toBeInTheDocument();
 });

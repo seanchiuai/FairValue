@@ -189,7 +189,7 @@ export default function JoinPage() {
       </div>
 
       <div style={styles.footer}>
-        <button style={styles.footerLink} onClick={() => navigate('/markets')}>
+        <button style={styles.footerLink} onClick={() => navigate('/')}>
           <Users size={14} /> Browse Markets
         </button>
       </div>

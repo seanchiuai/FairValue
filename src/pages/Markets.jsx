@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { 
+import { useNavigate } from 'react-router-dom';
+import {
   Search,
   Filter,
   TrendingUp,
@@ -7,7 +8,8 @@ import {
   X,
   Wallet,
   User,
-  Home
+  Home,
+  Plus
 } from 'lucide-react';
 import { useMarketImages } from '../hooks/useMarketImages';
 import MarketCard from '../components/MarketCard';
@@ -25,6 +27,7 @@ const SORT_OPTIONS = [
 const NEIGHBORHOODS = ['All', 'Mission District', 'SoMa', 'Castro', 'Noe Valley'];
 
 function Markets() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeNeighborhood, setActiveNeighborhood] = useState('All');
   const [activeFilters, setActiveFilters] = useState([]);
@@ -124,6 +127,10 @@ function Markets() {
         </div>
 
         <div className="header-right">
+          <button className="btn-host" onClick={() => navigate('/join')}>
+            <Plus size={16} />
+            <span>Host a Bid</span>
+          </button>
           <div className="balance">
             <Wallet size={16} />
             <span>$0.00</span>
@@ -402,6 +409,26 @@ function Markets() {
 
         .btn-connect:hover {
           background: #2F8EFF;
+        }
+
+        .btn-host {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          background: rgba(59, 167, 118, 0.15);
+          border: 1px solid #3BA776;
+          border-radius: 6px;
+          color: #3BA776;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .btn-host:hover {
+          background: rgba(59, 167, 118, 0.25);
+          color: #4FBF8A;
         }
 
         /* Filters Bar */
