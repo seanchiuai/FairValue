@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
-  Home, 
   Bed, 
   Bath, 
   Maximize, 
@@ -10,21 +9,21 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  Users,
   Clock,
-  Info,
-  ChevronRight,
   Search,
   Brain,
   Loader2,
   MapPin,
   Building2,
   Gavel,
-  ExternalLink
+  ExternalLink,
+  Wifi,
+  WifiOff,
+  Users
 } from 'lucide-react';
 import { createChart, IChartApi, ISeriesApi, LineData } from 'lightweight-charts';
 import { properties, Property } from '../data/properties';
-import { initializeMarketGraph, storeLMSRState, searchMarketInsights } from '../services/cogneeService';
+import PhotoGallery from '../components/PhotoGallery';
 import './MarketPage.css';
 
 interface Bet {
@@ -41,28 +40,21 @@ const MarketPage: React.FC = () => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const fairValueSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const trendSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   
   const property: Property = properties.find(p => p.id === propertyId) || properties[0];
+  const originalPrice = property.price;
+
+  // Room state
+  const [roomCode, setRoomCode] = useState<string>('');
+  const [sessionId] = useState(() => localStorage.getItem('fv_session') || (() => { const id = Math.random().toString(36).slice(2, 10); localStorage.setItem('fv_session', id); return id; })());
+  const [nickname] = useState(() => localStorage.getItem('fv_nickname') || `Trader${Math.floor(Math.random() * 999)}`);
+  const [connected, setConnected] = useState(false);
+  const [traders, setTraders] = useState(0);
+  const wsRef = useRef<WebSocket | null>(null);
   
-  // Store original sold price for reference - this never changes
-  const originalPriceRef = useRef<number>(property.price);
-  const originalPrice = originalPriceRef.current;
-  
-  // Use fair value as the current market price for betting
-  const askingPrice = originalPrice;
-  
-  // Simple weighted bet tracking
-  const [totalHigher, setTotalHigher] = useState<number>(0);
-  const [totalLower, setTotalLower] = useState<number>(0);
-  
-  const [marketData, setMarketData] = useState({
-    fairValue: askingPrice,
-    volume: 0,
-    participantCount: 0,
-    trendPrediction: askingPrice
-  });
-  
+  // Market state
+  const [fairValue, setFairValue] = useState(originalPrice);
+  const [volume, setVolume] = useState(0);
   const [betAmount, setBetAmount] = useState<string>('');
   const [bets, setBets] = useState<Bet[]>([]);
 
@@ -71,278 +63,202 @@ const MarketPage: React.FC = () => {
   const [searchResults, setSearchResults] = useState<any>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [showAISearch, setShowAISearch] = useState<boolean>(false);
-  
-  // Loading state for Cognee data
-  const [, setIsLoading] = useState<boolean>(true);
 
-  // Calculate fair value based on net difference between higher and lower bets
-  const calculateFairValue = useCallback((higherAmount: number, lowerAmount: number): number => {
-    // Base liquidity prevents extreme swings when market is new
-    const BASE_LIQUIDITY = askingPrice * 0.3; // 30% buffer
-    
-    const netDifference = higherAmount - lowerAmount; // Positive = more higher bets
-    const totalVolume = higherAmount + lowerAmount + BASE_LIQUIDITY;
-    
-    // Max price movement: +/- 15% of asking price
-    const maxMovement = askingPrice * 0.15;
-    
-    // Calculate fair value: asking + (netDifference / totalVolume) * maxMovement
-    const fairValue = askingPrice + (netDifference / totalVolume) * maxMovement;
-    
-    return fairValue;
-  }, [askingPrice]);
-
-  // Load market state from Cognee cloud storage
+  // Auto-create room for this property and connect WebSocket
   useEffect(() => {
-    const loadMarketState = async () => {
-      if (!propertyId) return;
-      
-      setIsLoading(true);
+    if (!propertyId) return;
+    let cancelled = false;
+
+    const setupRoom = async () => {
       try {
-        // Initialize market graph
-        await initializeMarketGraph(propertyId, askingPrice);
-        
-        // Search for latest market state in Cognee
-        const searchResults = await searchMarketInsights(
-          `latest market state for property ${propertyId} totalHigher totalLower`,
-          propertyId,
-          'INSIGHTS'
-        );
-        
-        if (searchResults && searchResults.results && searchResults.results.length > 0) {
-          // Parse the latest state from Cognee
-          const latestState = searchResults.results[0];
-          
-          // Extract values from Cognee response
-          const savedTotalHigher = latestState.totalHigher || latestState.qOver || 0;
-          const savedTotalLower = latestState.totalLower || latestState.qUnder || 0;
-          const savedTrades = latestState.totalTrades || 0;
-          
-          if (savedTotalHigher > 0 || savedTotalLower > 0) {
-            setTotalHigher(savedTotalHigher);
-            setTotalLower(savedTotalLower);
-            
-            // Calculate fair value from saved state
-            const savedFairValue = calculateFairValue(savedTotalHigher, savedTotalLower);
-            
-            setMarketData(prev => ({
-              ...prev,
-              fairValue: savedFairValue,
-              volume: savedTotalHigher + savedTotalLower,
-              participantCount: savedTrades
-            }));
-            
-            console.log('Loaded shared market state from Cognee:', { 
-              savedTotalHigher, 
-              savedTotalLower, 
-              savedFairValue,
-              trades: savedTrades 
-            });
-          }
+        // Create room for this property
+        const createRes = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: property.address, asking_price: originalPrice }),
+        });
+        const createData = await createRes.json();
+        if (cancelled) return;
+        const code = createData.room_code;
+        setRoomCode(code);
+
+        // Join the room
+        await fetch(`/api/rooms/${code}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId, nickname }),
+        });
+
+        // Connect WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws/${code}`);
+        wsRef.current = ws;
+        ws.onopen = () => setConnected(true);
+        ws.onclose = () => setConnected(false);
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'bet' || data.type === 'ai_trade') {
+              if (data.market) {
+                const m = data.market;
+                const fv = originalPrice * (1 + (m.prob_over - 0.5) * 0.3);
+                setFairValue(fv);
+                setVolume(m.total_wagered || 0);
+                setTraders(m.total_trades || 0);
+                // Update chart
+                if (fairValueSeriesRef.current) {
+                  const ts = Date.now() / 1000 as LineData['time'];
+                  fairValueSeriesRef.current.update({ time: ts, value: fv });
+                }
+              }
+            }
+            if (data.type === 'join') {
+              setTraders(t => t + 1);
+            }
+          } catch {}
+        };
+
+        // Fetch initial state
+        const stateRes = await fetch(`/api/rooms/${code}/state`);
+        const stateData = await stateRes.json();
+        if (!cancelled && stateData.market) {
+          const m = stateData.market;
+          const fv = originalPrice * (1 + (m.prob_over - 0.5) * 0.3);
+          setFairValue(fv);
+          setVolume(m.total_wagered || 0);
+          setTraders(m.total_trades || 0);
         }
-      } catch (error) {
-        console.error('Failed to load market state from Cognee:', error);
-      } finally {
-        setIsLoading(false);
+      } catch (err) {
+        console.log('Backend not available, using local trading');
       }
     };
-    
-    loadMarketState();
-    
-    // Poll for updates every 5 seconds to keep data in sync across users
-    const interval = setInterval(loadMarketState, 5000);
-    return () => clearInterval(interval);
-  }, [propertyId, askingPrice, calculateFairValue]);
 
-  // Initialize chart
+    setupRoom();
+    return () => {
+      cancelled = true;
+      wsRef.current?.close();
+    };
+  }, [propertyId, property.address, originalPrice, sessionId, nickname]);
+
+  // Keep WebSocket alive
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send('ping');
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Initialize chart with glass-matching colors
   useEffect(() => {
     if (!chartContainerRef.current) return;
-
     const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { color: '#2C3A4A' },
-        textColor: '#7F93A8',
-      },
-      grid: {
-        vertLines: { color: '#3A4A5D' },
-        horzLines: { color: '#3A4A5D' },
-      },
+      layout: { background: { color: 'transparent' }, textColor: '#8E8E93' },
+      grid: { vertLines: { color: 'rgba(0,0,0,0.04)' }, horzLines: { color: 'rgba(0,0,0,0.04)' } },
       width: chartContainerRef.current.clientWidth,
-      height: 300,
+      height: 260,
+      rightPriceScale: { borderColor: 'rgba(0,0,0,0.05)' },
+      timeScale: { borderColor: 'rgba(0,0,0,0.05)' },
     });
 
-    const fairValueSeries = chart.addLineSeries({
-      color: '#3BA776',
-      lineWidth: 2,
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
-
-    const trendSeries = chart.addLineSeries({
-      color: '#4BA3FF',
-      lineWidth: 2,
-      lineStyle: 2,
-      lastValueVisible: false,
-      priceLineVisible: false,
+    const series = chart.addLineSeries({
+      color: '#34C759', lineWidth: 2,
+      lastValueVisible: true, priceLineVisible: false,
     });
 
     chartRef.current = chart;
-    fairValueSeriesRef.current = fairValueSeries;
-    trendSeriesRef.current = trendSeries;
+    fairValueSeriesRef.current = series;
 
-    // Start with flat line at asking price
     const initialData: LineData[] = [];
-    const trendData: LineData[] = [];
-    const now = new Date();
-    
-    // Create 30 data points all at asking price (flat line)
-    for (let i = 30; i >= 0; i--) {
-      const time = new Date(now.getTime() - i * 60000);
-      const timestamp = time.getTime() / 1000 as LineData['time'];
-      
-      initialData.push({ time: timestamp, value: askingPrice });
-      trendData.push({ time: timestamp, value: askingPrice });
+    const now = Date.now();
+    for (let i = 20; i >= 0; i--) {
+      const ts = (now - i * 60000) / 1000 as LineData['time'];
+      initialData.push({ time: ts, value: originalPrice });
     }
-
-    fairValueSeries.setData(initialData);
-    trendSeries.setData(trendData);
+    series.setData(initialData);
 
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
+      if (chartContainerRef.current) chart.applyOptions({ width: chartContainerRef.current.clientWidth });
     };
-
     window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); chart.remove(); };
+  }, [originalPrice]);
 
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
-    };
-  }, [askingPrice]);
-
-  const placeBet = (direction: 'higher' | 'lower') => {
+  const placeBet = async (direction: 'higher' | 'lower') => {
     const wager = parseFloat(betAmount);
-    if (!wager || wager <= 0) {
-      alert('Please enter a valid bet amount');
-      return;
+    if (!wager || wager <= 0) return;
+
+    const outcome = direction === 'higher' ? 'over' : 'under';
+
+    // Try backend first
+    if (roomCode) {
+      try {
+        const res = await fetch(`/api/rooms/${roomCode}/bet`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId, outcome, wager }),
+        });
+        const data = await res.json();
+        if (!data.error && data.market) {
+          const m = data.market;
+          const fv = originalPrice * (1 + (m.prob_over - 0.5) * 0.3);
+          setFairValue(fv);
+          setVolume(m.total_wagered || 0);
+          setTraders(m.total_trades || 0);
+          
+          const newBet: Bet = { id: Math.random().toString(36).slice(2), direction, amount: wager, priceAtBet: fairValue, timestamp: new Date() };
+          setBets(prev => [newBet, ...prev]);
+          setBetAmount('');
+          
+          if (fairValueSeriesRef.current) {
+            fairValueSeriesRef.current.update({ time: Date.now() / 1000 as LineData['time'], value: fv });
+          }
+          return;
+        }
+      } catch {}
     }
 
-    // Update totals
-    const newTotalHigher = direction === 'higher' ? totalHigher + wager : totalHigher;
-    const newTotalLower = direction === 'lower' ? totalLower + wager : totalLower;
-    
-    setTotalHigher(newTotalHigher);
-    setTotalLower(newTotalLower);
-
-    // Calculate new fair value
-    const newFairValue = calculateFairValue(newTotalHigher, newTotalLower);
-
-    const newBet: Bet = {
-      id: Math.random().toString(36).substr(2, 9),
-      direction,
-      amount: wager,
-      priceAtBet: marketData.fairValue,
-      timestamp: new Date(),
-    };
-
+    // Fallback: local trading
+    const delta = direction === 'higher' ? wager * 0.001 : -wager * 0.001;
+    const newFV = fairValue * (1 + delta);
+    setFairValue(newFV);
+    setVolume(v => v + wager);
+    setTraders(t => t + 1);
+    const newBet: Bet = { id: Math.random().toString(36).slice(2), direction, amount: wager, priceAtBet: fairValue, timestamp: new Date() };
     setBets(prev => [newBet, ...prev]);
     setBetAmount('');
-    
-    setMarketData(prev => ({
-      ...prev,
-      fairValue: newFairValue,
-      volume: prev.volume + wager,
-      participantCount: prev.participantCount + 1,
-    }));
-    
-    // Update chart immediately
     if (fairValueSeriesRef.current) {
-      const now = new Date();
-      const timestamp = now.getTime() / 1000 as LineData['time'];
-      fairValueSeriesRef.current.update({
-        time: timestamp,
-        value: newFairValue,
-      });
-    }
-    
-    // Save market state to Cognee for persistence
-    if (propertyId) {
-      storeLMSRState(
-        {
-          qOver: newTotalHigher,
-          qUnder: newTotalLower,
-          totalWagered: newTotalHigher + newTotalLower,
-          totalTrades: marketData.participantCount + 1,
-          fairValue: newFairValue,
-          askingPrice: askingPrice,
-          timestamp: new Date().toISOString(),
-          propertyId: propertyId
-        },
-        {
-          id: newBet.id,
-          direction: newBet.direction,
-          amount: wager,
-          priceAtBet: newBet.priceAtBet,
-          timestamp: newBet.timestamp,
-          propertyId: propertyId,
-          shares: wager,
-          actualCost: wager
-        }
-      ).then(() => {
-        console.log('Market state saved to Cognee');
-      }).catch((error) => {
-        console.error('Failed to save market state:', error);
-      });
+      fairValueSeriesRef.current.update({ time: Date.now() / 1000 as LineData['time'], value: newFV });
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
+  const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
   const formatPrice = (n: number) => n ? `$${n.toLocaleString()}` : '—';
   const typeLabel = (t: string) => {
     const map: Record<string, string> = { SINGLE_FAMILY: 'Single Family', CONDO: 'Condo', MULTI_FAMILY: 'Multi-Family', APARTMENT: 'Apartment', LOT: 'Lot' };
     return map[t] || t;
   };
 
-  const getConfidence = () => {
-    if (marketData.participantCount < 10) return { text: 'Low (Early Market)', color: 'var(--accent-danger)' };
-    if (marketData.participantCount < 30) return { text: 'Medium', color: 'var(--accent-warning)' };
-    return { text: 'High', color: 'var(--accent-success)' };
-  };
-
-  const confidence = getConfidence();
-  const priceDelta = marketData.fairValue - askingPrice;
-  const priceDeltaPercent = ((priceDelta / askingPrice) * 100).toFixed(1);
+  const priceDelta = fairValue - originalPrice;
+  const priceDeltaPercent = ((priceDelta / originalPrice) * 100).toFixed(1);
 
   const heroImg = property.photos?.find(p => p.width === 1536)?.url
     || property.photos?.find(p => p.width === 960)?.url
     || property.imgSrc;
 
-  const priceDiff = property.zestimate && property.price
-    ? property.zestimate - property.price : null;
-  const priceDiffPct = priceDiff !== null && property.price
-    ? ((priceDiff / property.price) * 100).toFixed(1) : null;
+  const priceDiff = property.zestimate && property.price ? property.zestimate - property.price : null;
+  const priceDiffPct = priceDiff !== null && property.price ? ((priceDiff / property.price) * 100).toFixed(1) : null;
 
-  // AI Search Handler
   const handleSearch = async () => {
-    if (!searchQuery.trim() || !propertyId) return;
-    
+    if (!searchQuery.trim()) return;
     setIsSearching(true);
-    // Simulate AI response
     setTimeout(() => {
       setSearchResults({
-        answer: `Based on current market activity: ${totalHigher > totalLower ? 'More traders are betting HIGHER, suggesting bullish sentiment.' : totalLower > totalHigher ? 'More traders are betting LOWER, suggesting bearish sentiment.' : 'Market is balanced between HIGHER and LOWER bets.'} Current fair value is ${formatCurrency(marketData.fairValue)}.`,
+        answer: `Fair value is currently ${formatCurrency(fairValue)} (${priceDelta >= 0 ? '+' : ''}${priceDeltaPercent}% from sale price). ${traders} traders have placed ${formatCurrency(volume)} in total volume. ${priceDelta > 0 ? 'Bullish sentiment suggests the market thinks this property is undervalued.' : priceDelta < 0 ? 'Bearish sentiment suggests the market thinks this property was overvalued.' : 'The market is neutral on this property.'}`
       });
       setIsSearching(false);
-    }, 1000);
+    }, 800);
   };
 
   return (
@@ -350,7 +266,7 @@ const MarketPage: React.FC = () => {
       <nav className="market-nav">
         <Link to="/" className="back-link">
           <ArrowLeft size={18} />
-          <span>Back to Markets</span>
+          <span>Back</span>
         </Link>
         <div className="nav-title">{property.address}</div>
         <Link to="/join" className="nav-bid-link">
@@ -368,15 +284,17 @@ const MarketPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Photo Gallery */}
+        {property.photos && property.photos.length > 1 && (
+          <PhotoGallery photos={property.photos} />
+        )}
+
         {/* Price + Specs Header */}
         <div className="detail-header-card">
           <div className="detail-price-row">
             <div className="detail-price-section">
-              <div className="detail-price-label">Fair Value</div>
-              <div className="detail-price">{formatCurrency(marketData.fairValue)}</div>
-              <div className="original-price-ref">
-                Original Sale: {formatPrice(originalPrice)}
-              </div>
+              <div className="detail-price-label">Sale Price</div>
+              <div className="detail-price">{formatPrice(originalPrice)}</div>
             </div>
             {property.zestimate && priceDiff !== null && (
               <div className={`detail-zestimate ${priceDiff >= 0 ? 'up' : 'down'}`}>
@@ -403,7 +321,6 @@ const MarketPage: React.FC = () => {
             {property.yearBuilt && (
               <div className="spec"><Calendar size={16} /><span>Built <strong>{property.yearBuilt}</strong></span></div>
             )}
-            <div className="spec"><Home size={16} /><span>{typeLabel(property.homeType)}</span></div>
           </div>
 
           <div className="detail-address-line">
@@ -419,247 +336,178 @@ const MarketPage: React.FC = () => {
           )}
         </div>
 
-        <div className="market-layout">
-          {/* Left Column */}
-          <div className="chart-column">
-            <div className="chart-header">
-              <h2>Price History & Fair Value</h2>
-              <div className="legend">
-                <div className="legend-item">
-                  <span className="dot green" />
-                  <span>Fair Value (AMM)</span>
-                </div>
-                <div className="legend-item">
-                  <span className="dot blue" />
-                  <span>Trend Prediction</span>
-                </div>
-              </div>
+        {/* Trading Card */}
+        <div className="detail-section glass-trade">
+          <div className="trade-header">
+            <h2 className="section-title"><TrendingUp size={18} /> Live Trading</h2>
+            <span className={`live-badge ${connected ? 'on' : 'off'}`}>
+              {connected ? <Wifi size={12} /> : <WifiOff size={12} />}
+              {connected ? 'Live' : 'Local'}
+            </span>
+          </div>
+
+          <div className="stats-row">
+            <div className="stat-pill">
+              <span className="stat-pill-label">Fair Value</span>
+              <span className="stat-pill-value">{formatCurrency(fairValue)}</span>
+              <span className={`stat-pill-delta ${priceDelta >= 0 ? 'positive' : 'negative'}`}>
+                {priceDelta >= 0 ? '+' : ''}{priceDeltaPercent}%
+              </span>
             </div>
-            
-            <div ref={chartContainerRef} className="chart-container" />
-
-            <div className="stats-row">
-              <div className="stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Fair Value</span>
-                  {priceDelta >= 0 ? <TrendingUp size={16} className="trend-icon up" /> : <TrendingDown size={16} className="trend-icon down" />}
-                </div>
-                <span className="stat-value">{formatCurrency(marketData.fairValue)}</span>
-                <span className={`stat-delta ${priceDelta >= 0 ? 'positive' : 'negative'}`}>
-                  {priceDelta >= 0 ? '+' : ''}{priceDeltaPercent}% vs original
-                </span>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Implied Fair Value</span>
-                </div>
-                <span className="stat-value blue">{formatCurrency(marketData.trendPrediction)}</span>
-                <span className="stat-desc">Based on comparable sales</span>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-header">
-                  <span className="stat-label">Market Confidence</span>
-                  <Info size={14} className="info-icon" />
-                </div>
-                <span className="stat-value" style={{ color: confidence.color }}>{confidence.text}</span>
-                <span className="stat-desc">{marketData.participantCount} traders</span>
-              </div>
+            <div className="stat-pill">
+              <span className="stat-pill-label">Volume</span>
+              <span className="stat-pill-value">{formatCurrency(volume)}</span>
             </div>
-
-            {/* AI Search Section */}
-            <div className="ai-search-section">
-              <div className="ai-search-header" onClick={() => setShowAISearch(!showAISearch)}>
-                <div className="ai-search-title">
-                  <Brain size={20} />
-                  <h3>AI Market Insights</h3>
-                </div>
-                <span className="ai-search-toggle">{showAISearch ? '−' : '+'}</span>
-              </div>
-              
-              {showAISearch && (
-                <div className="ai-search-content">
-                  <div className="ai-search-input-group">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                      placeholder="Ask about market trends, betting patterns, or price predictions..."
-                      className="ai-search-input"
-                    />
-                    <button 
-                      className="ai-search-btn" 
-                      onClick={handleSearch}
-                      disabled={isSearching}
-                    >
-                      {isSearching ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
-                      {isSearching ? 'Analyzing...' : 'Search'}
-                    </button>
-                  </div>
-                  
-                  {searchResults && (
-                    <div className="ai-search-results">
-                      {searchResults.error ? (
-                        <p className="ai-search-error">{searchResults.error}</p>
-                      ) : (
-                        <div className="ai-search-response">
-                          {searchResults.results && searchResults.results.map((result: any, idx: number) => (
-                            <div key={idx} className="ai-result-item">
-                              <p>{result.text || JSON.stringify(result)}</p>
-                            </div>
-                          ))}
-                          {searchResults.answer && (
-                            <div className="ai-answer">
-                              <strong>Answer:</strong>
-                              <p>{searchResults.answer}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+            <div className="stat-pill">
+              <span className="stat-pill-label"><Users size={11} /> Traders</span>
+              <span className="stat-pill-value">{traders}</span>
             </div>
           </div>
 
-          {/* Right Column */}
-          <div className="trading-column">
-            <div className="trading-panel">
-              <h2>Place Your Trade</h2>
-              
-              <div className="input-group">
-                <label>Trade Size ($)</label>
-                <div className="input-wrapper">
-                  <DollarSign size={16} className="input-icon" />
-                  <input
-                    type="number"
-                    value={betAmount}
-                    onChange={(e) => setBetAmount(e.target.value)}
-                    placeholder="Enter amount..."
-                  />
-                </div>
-              </div>
-
-              <div className="trade-buttons">
-                <button className="trade-btn higher" onClick={() => placeBet('higher')}>
-                  <div className="btn-content">
-                    <TrendingUp size={20} />
-                    <div className="btn-labels">
-                      <span className="btn-title">HIGHER</span>
-                      <span className="btn-desc">Appraisal will be above fair value</span>
-                    </div>
-                  </div>
-                </button>
-                
-                <button className="trade-btn lower" onClick={() => placeBet('lower')}>
-                  <div className="btn-content">
-                    <TrendingDown size={20} />
-                    <div className="btn-labels">
-                      <span className="btn-title">LOWER</span>
-                      <span className="btn-desc">Appraisal will be below fair value</span>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              <p className="trade-hint">
-                <Info size={14} />
-                Your trade moves the market price. Larger positions = bigger impact.
-              </p>
+          <div className="trade-input-row">
+            <div className="trade-input-wrap">
+              <DollarSign size={15} className="trade-input-icon" />
+              <input
+                type="number"
+                value={betAmount}
+                onChange={(e) => setBetAmount(e.target.value)}
+                placeholder="Amount"
+                className="trade-input"
+              />
             </div>
-
-            {bets.length > 0 && (
-              <div className="positions-panel">
-                <h3>Your Positions</h3>
-                <div className="positions-list">
-                  {bets.map((bet) => (
-                    <div key={bet.id} className="position-item">
-                      <div className="position-main">
-                        <div className={`position-direction ${bet.direction}`}>
-                          {bet.direction === 'higher' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                          <span>{bet.direction === 'higher' ? 'LONG' : 'SHORT'}</span>
-                        </div>
-                        <span className="position-size">{formatCurrency(bet.amount)}</span>
-                      </div>
-                      <div className="position-meta">
-                        <span>Entry: {formatCurrency(bet.priceAtBet)}</span>
-                        <span>{bet.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="info-panel">
-              <h4>How It Works</h4>
-              <ul>
-                <li>
-                  <ChevronRight size={14} />
-                  Predict if the home will appraise higher or lower than the current fair value
-                </li>
-                <li>
-                  <ChevronRight size={14} />
-                  Your trade influences the market price in real-time via AMM mechanics
-                </li>
-                <li>
-                  <ChevronRight size={14} />
-                  When the official appraisal is reported, positions settle automatically
-                </li>
-                <li>
-                  <ChevronRight size={14} />
-                  Trade anytime before the settlement deadline
-                </li>
-              </ul>
-            </div>
-
-            <div className="market-meta">
-              <div className="meta-row">
-                <span className="meta-label">
-                  <DollarSign size={14} />
-                  Volume
-                </span>
-                <span className="meta-value">{formatCurrency(marketData.volume)}</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">
-                  <Users size={14} />
-                  Traders
-                </span>
-                <span className="meta-value">{marketData.participantCount.toLocaleString()}</span>
-              </div>
-              <div className="meta-row">
-                <span className="meta-label">
-                  <Clock size={14} />
-                  Ends in
-                </span>
-                <span className="meta-value">14 days</span>
-              </div>
-            </div>
+            <button className="trade-btn higher" onClick={() => placeBet('higher')}>
+              <TrendingUp size={16} /> Higher
+            </button>
+            <button className="trade-btn lower" onClick={() => placeBet('lower')}>
+              <TrendingDown size={16} /> Lower
+            </button>
           </div>
         </div>
 
-        {/* Start a Bid */}
+        {/* Chart */}
+        <div className="detail-section">
+          <div className="chart-head">
+            <h2 className="section-title">Price Chart</h2>
+            <div className="chart-legend">
+              <span className="legend-dot green" /> Fair Value
+              <span className="legend-dot blue" /> Trend
+            </div>
+          </div>
+          <div ref={chartContainerRef} className="chart-container" />
+        </div>
+
+        {/* Positions */}
+        {bets.length > 0 && (
+          <div className="detail-section">
+            <h2 className="section-title">Your Positions</h2>
+            <div className="positions-list">
+              {bets.map((bet) => (
+                <div key={bet.id} className="position-item">
+                  <div className={`position-tag ${bet.direction}`}>
+                    {bet.direction === 'higher' ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                    {bet.direction === 'higher' ? 'LONG' : 'SHORT'}
+                  </div>
+                  <span className="position-amount">{formatCurrency(bet.amount)}</span>
+                  <span className="position-entry">@ {formatCurrency(bet.priceAtBet)}</span>
+                  <span className="position-time">{bet.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Description */}
+        {property.description && (
+          <div className="detail-section">
+            <h2 className="section-title">About this Home</h2>
+            <p className="detail-description">{property.description}</p>
+          </div>
+        )}
+
+        {/* Price History */}
+        {property.priceHistory && property.priceHistory.length > 0 && (
+          <div className="detail-section">
+            <h2 className="section-title"><Clock size={16} /> Price History</h2>
+            <div className="price-history-table">
+              <div className="ph-header">
+                <span>Date</span><span>Event</span><span>Price</span>
+              </div>
+              {property.priceHistory.slice(0, 8).map((h: any, i: number) => (
+                <div key={i} className="ph-row">
+                  <span className="ph-date">{h.date ? new Date(h.date).toLocaleDateString() : '—'}</span>
+                  <span className="ph-event">{h.event || '—'}</span>
+                  <span className="ph-price">{h.price ? formatPrice(h.price) : '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Schools */}
+        {property.schools && property.schools.length > 0 && (
+          <div className="detail-section">
+            <h2 className="section-title">Nearby Schools</h2>
+            <div className="schools-list">
+              {property.schools.map((s: any, i: number) => (
+                <div key={i} className="school-item">
+                  <div className="school-info">
+                    <span className="school-name">{s.name}</span>
+                    <span className="school-meta">{s.level} · {s.distance}</span>
+                  </div>
+                  {s.rating != null && (
+                    <span className={`school-rating ${s.rating >= 7 ? 'good' : s.rating >= 4 ? 'avg' : 'low'}`}>
+                      {s.rating}/10
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Insights */}
+        <div className="detail-section">
+          <div className="ai-toggle" onClick={() => setShowAISearch(!showAISearch)}>
+            <div className="ai-toggle-left"><Brain size={18} /> <span>AI Market Insights</span></div>
+            <span className="ai-chevron">{showAISearch ? '−' : '+'}</span>
+          </div>
+          {showAISearch && (
+            <div className="ai-body">
+              <div className="ai-input-row">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  placeholder="Ask about this property..."
+                  className="ai-input"
+                />
+                <button className="ai-btn" onClick={handleSearch} disabled={isSearching}>
+                  {isSearching ? <Loader2 size={15} className="spin" /> : <Search size={15} />}
+                </button>
+              </div>
+              {searchResults?.answer && (
+                <div className="ai-answer">{searchResults.answer}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Bid CTA */}
         <div className="detail-section bid-section">
           <div className="bid-section-inner">
             <div className="bid-text">
               <h2 className="section-title"><Gavel size={18} /> Multiplayer Mode</h2>
-              <p className="bid-desc">Think you know the fair value? Host a live bidding game with friends and test your instincts.</p>
+              <p className="bid-desc">Host a live bidding game with friends and test your instincts.</p>
             </div>
-            <Link to="/join" className="bid-cta-btn">
-              Start a Bid
-            </Link>
+            <Link to="/join" className="bid-cta-btn">Start a Bid</Link>
           </div>
         </div>
 
         {/* Zillow Link */}
         <div className="detail-cta">
           <a href={property.hdpUrl} target="_blank" rel="noopener noreferrer" className="zillow-link">
-            <ExternalLink size={16} />
-            View Full Listing on Zillow
+            <ExternalLink size={16} /> View on Zillow
           </a>
         </div>
       </div>

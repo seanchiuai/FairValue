@@ -5,10 +5,13 @@ import {
   ChevronDown,
   X,
   Home,
-  Gavel
+  Gavel,
+  Map,
+  LayoutGrid
 } from 'lucide-react';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
+import PropertyMap from '../components/PropertyMap';
 import { properties } from '../data/properties';
 
 const SORT_OPTIONS = [
@@ -30,6 +33,7 @@ function Markets() {
   const [homeType, setHomeType] = useState('All');
   const [minBeds, setMinBeds] = useState('Any');
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState('grid');
   const lastScroll = useRef(0);
 
   // iOS 26-style disappearing nav on scroll
@@ -99,6 +103,13 @@ function Markets() {
           </div>
 
           <div className="lg-nav-right">
+            <button
+              className={`lg-view-toggle ${viewMode === 'map' ? 'active' : ''}`}
+              onClick={() => setViewMode(viewMode === 'grid' ? 'map' : 'grid')}
+              title={viewMode === 'grid' ? 'Map View' : 'Grid View'}
+            >
+              {viewMode === 'grid' ? <Map size={16} /> : <LayoutGrid size={16} />}
+            </button>
             <Link to="/join" className="lg-bid-btn">
               <Gavel size={14} />
               <span>Host a Bid</span>
@@ -157,19 +168,25 @@ function Markets() {
         </div>
       </section>
 
-      {/* Grid */}
-      <section className="lg-grid">
-        {sortedProperties.map((p) => (
-          <MarketCard key={p.id} property={p} />
-        ))}
-      </section>
+      {/* Content */}
+      {viewMode === 'map' ? (
+        <PropertyMap properties={sortedProperties} />
+      ) : (
+        <>
+          <section className="lg-grid">
+            {sortedProperties.map((p) => (
+              <MarketCard key={p.id} property={p} />
+            ))}
+          </section>
 
-      {sortedProperties.length === 0 && (
-        <div className="lg-empty">
-          <Search size={40} />
-          <h3>No properties found</h3>
-          <p>Try adjusting your filters</p>
-        </div>
+          {sortedProperties.length === 0 && (
+            <div className="lg-empty">
+              <Search size={40} />
+              <h3>No properties found</h3>
+              <p>Try adjusting your filters</p>
+            </div>
+          )}
+        </>
       )}
 
       <footer className="lg-footer">
@@ -246,6 +263,19 @@ function Markets() {
         }
 
         .lg-nav-right { display: flex; align-items: center; gap: 10px; }
+        .lg-view-toggle {
+          display: flex; align-items: center; justify-content: center;
+          width: 36px; height: 36px;
+          background: rgba(255,255,255,0.5);
+          backdrop-filter: blur(12px);
+          border: 1px solid rgba(255,255,255,0.5);
+          border-radius: 12px;
+          color: var(--text-secondary); cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);
+        }
+        .lg-view-toggle:hover { background: rgba(255,255,255,0.7); }
+        .lg-view-toggle.active { background: rgba(0,122,255,0.12); color: #007AFF; border-color: rgba(0,122,255,0.2); }
         .lg-bid-btn {
           display: flex; align-items: center; gap: 5px;
           padding: 7px 16px;
@@ -362,8 +392,14 @@ function Markets() {
           .lg-nav-inner { padding: 0 12px; height: 50px; border-radius: 0 0 18px 18px; }
           .lg-nav-center { display: none; }
           .lg-filters { margin: 0 16px 8px; }
-          .lg-filters-inner { padding: 6px 8px; border-radius: 16px; }
+          .lg-filters-inner { padding: 6px 8px; border-radius: 16px; flex-wrap: nowrap; }
+          .lg-filter-tabs { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+          .lg-filter-tabs::-webkit-scrollbar { display: none; }
+          .lg-tab { min-height: 36px; white-space: nowrap; }
           .lg-grid { grid-template-columns: 1fr; padding: 8px 16px 32px; gap: 12px; }
+          .lg-bid-btn span { display: none; }
+          .lg-bid-btn { padding: 8px 12px; }
+          .lg-view-toggle { width: 36px; height: 36px; }
         }
       `}</style>
     </div>
