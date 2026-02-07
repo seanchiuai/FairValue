@@ -12,8 +12,10 @@
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
     "clsx": "^2.1.1",
+    "codex": "^0.2.3",
     "lightweight-charts": "^4.2.0",
     "lucide-react": "^0.563.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.0",
@@ -33,6 +35,14 @@
       "react-app",
       "react-app/jest"
     ]
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
+      "^react-router$": "<rootDir>/node_modules/react-router/dist/production/index.js",
+      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/production/dom-export.js",
+      "^react-router/internal$": "<rootDir>/node_modules/react-router/dist/production/index.js"
+    }
   },
   "browserslist": {
     "production": [

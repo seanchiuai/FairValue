@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FairValue — Real Estate Price Discovery</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0b0f;
+            --bg-card: #12141c;
+            --bg-card-hover: #181b26;
+            --bg-input: #1a1d28;
+            --border: #252836;
+            --border-active: #3d4260;
+            --text-primary: #e8eaf0;
+            --text-secondary: #8b8fa3;
+            --text-muted: #585c72;
+            --green: #22c55e;
+            --green-dim: #16a34a;
+            --green-bg: rgba(34, 197, 94, 0.08);
+            --green-border: rgba(34, 197, 94, 0.2);
+            --red: #ef4444;
+            --red-dim: #dc2626;
+            --red-bg: rgba(239, 68, 68, 0.08);
+            --red-border: rgba(239, 68, 68, 0.2);
+            --blue: #3b82f6;
+            --yellow: #eab308;
+            --yellow-bg: rgba(234, 179, 8, 0.08);
+            --yellow-border: rgba(234, 179, 8, 0.25);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            opacity: 0.015;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        /* ─── Header ─── */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 48px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        /* ─── House Card ─── */
+        .house-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .house-image {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            display: block;
+            opacity: 0.85;
+        }
+
+        .house-info {
+            padding: 28px 32px;
+        }
+
+        .house-address {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            margin-bottom: 6px;
+        }
+
+        .house-price {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--green);
+            margin-bottom: 20px;
+        }
+
+        .house-stats {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .house-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .house-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .house-stat-value {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        /* ─── Fair Value Banner ─── */
+        .fair-value-banner {
+            background: var(--bg-card);
+            border: 1px solid var(--yellow-border);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .fair-value-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--yellow);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 8px;
+        }
+
+        .fair-value-sublabel {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .fair-value-price {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 44px;
+            font-weight: 700;
+            color: var(--yellow);
+            margin-bottom: 8px;
+            transition: color 0.3s;
+        }
+
+        .fair-value-detail {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        /* ─── Market Stats Grid ─── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 640px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+        }
+
+        .stat-card-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 8px;
+        }
+
+        .stat-card-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .stat-card-value.over { color: var(--green); }
+        .stat-card-value.under { color: var(--red); }
+        .stat-card-value.neutral { color: var(--text-primary); }
+
+        /* ─── Probability Bar ─── */
+        .prob-bar-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
+
+        .prob-bar-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .prob-bar-side {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .prob-bar-side .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .prob-bar-side .dot.over { background: var(--green); }
+        .prob-bar-side .dot.under { background: var(--red); }
+
+        .prob-bar-side .pct {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .prob-bar-side .pct.over { color: var(--green); }
+        .prob-bar-side .pct.under { color: var(--red); }
+
+        .prob-bar-container {
+            width: 100%;
+            height: 12px;
+            background: var(--red);
+            border-radius: 100px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .prob-bar-fill {
+            height: 100%;
+            background: var(--green);
+            border-radius: 100px;
+            transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .prob-bar-midline {
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 20px;
+            background: var(--yellow);
+            border-radius: 2px;
+            z-index: 2;
+        }
+
+        /* ─── Controls ─── */
+        .controls {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.3px;
+        }
+
+        .control-btn.primary {
+            background: var(--green);
+            color: #000;
+        }
+
+        .control-btn.primary:hover { background: var(--green-dim); }
+
+        .control-btn.stop {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .control-btn.stop:hover { background: var(--red-dim); }
+
+        .control-btn.secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .control-btn.secondary:hover {
+            border-color: var(--border-active);
+            color: var(--text-primary);
+        }
+
+        .speed-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .speed-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .speed-select {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .tick-counter {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .tick-counter strong {
+            color: var(--text-secondary);
+        }
+
+        /* ─── Pulse indicator ─── */
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .pulse-dot.active {
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+        }
+
+        .pulse-dot.stopped { background: var(--text-muted); }
+
+        /* ─── Chart ─── */
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 16px;
+        }
+
+        .chart-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .legend-line {
+            width: 16px;
+            height: 2px;
+            border-radius: 1px;
+        }
+
+        .chart-card {
+            position: relative;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 420px !important;
+            cursor: crosshair;
+        }
+
+        .chart-tooltip {
+            position: absolute;
+            pointer-events: none;
+            background: rgba(18, 20, 28, 0.95);
+            border: 1px solid var(--border-active);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-primary);
+            z-index: 10;
+            white-space: nowrap;
+            display: none;
+            line-height: 1.6;
+        }
+
+        /* ─── Trade Feed ─── */
+        .feed-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+        }
+
+        .feed-header {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 16px;
+        }
+
+        .feed-list {
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .feed-list::-webkit-scrollbar { width: 4px; }
+        .feed-list::-webkit-scrollbar-track { background: transparent; }
+        .feed-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
+
+        .feed-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            animation: feedIn 0.25s ease-out;
+        }
+
+        @keyframes feedIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .feed-item:last-child { border-bottom: none; }
+
+        .feed-outcome {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            min-width: 52px;
+            text-align: center;
+        }
+
+        .feed-outcome.over {
+            color: var(--green);
+            background: var(--green-bg);
+        }
+
+        .feed-outcome.under {
+            color: var(--red);
+            background: var(--red-bg);
+        }
+
+        .feed-details {
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+        }
+
+        .feed-empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 32px 0;
+            font-size: 14px;
+        }
+
+        /* ─── Manual Bet Panel ─── */
+        .manual-bet {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+        }
+
+        .manual-bet-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 4px;
+        }
+
+        .manual-bet-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .guess-row {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .guess-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .guess-input-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .guess-input-wrapper {
+            display: flex;
+            align-items: center;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0 16px;
+            transition: border-color 0.2s;
+        }
+
+        .guess-input-wrapper:focus-within {
+            border-color: var(--border-active);
+        }
+
+        .guess-input-prefix {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-right: 4px;
+        }
+
+        .guess-price-input {
+            background: transparent;
+            border: none;
+            padding: 14px 0;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            outline: none;
+            width: 100%;
+        }
+
+        .guess-quick-btns {
+            display: flex;
+            gap: 6px;
+        }
+
+        .guess-quick-btn {
+            padding: 9px 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .guess-quick-btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-active);
+            color: var(--text-primary);
+        }
+
+        .guess-submit {
+            padding: 14px 32px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .guess-submit.over {
+            background: var(--green);
+            color: #000;
+        }
+
+        .guess-submit.over:hover { background: var(--green-dim); }
+
+        .guess-submit.under {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .guess-submit.under:hover { background: var(--red-dim); }
+
+        .guess-submit.neutral {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            cursor: default;
+        }
+
+        .guess-preview {
+            margin-top: 16px;
+            padding: 14px 16px;
+            background: var(--bg-input);
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .guess-preview-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .guess-preview-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .guess-preview-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* ─── Feed source badges ─── */
+        .feed-source {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .feed-source.manual {
+            color: var(--yellow);
+            background: var(--yellow-bg);
+        }
+
+        .feed-source.auto {
+            color: var(--text-muted);
+            background: var(--bg-input);
+        }
+
+        /* ─── Animations ─── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeUp 0.5s ease-out forwards;
+        }
+
+        .animate-in:nth-child(2) { animation-delay: 0.05s; }
+        .animate-in:nth-child(3) { animation-delay: 0.1s; }
+        .animate-in:nth-child(4) { animation-delay: 0.15s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header animate-in">
+            <div class="logo">
+                <div class="logo-icon">&#9965;</div>
+                <div class="logo-text">FairValue <span>/ price discovery</span></div>
+            </div>
+            <div class="tag">LMSR AMM</div>
+        </div>
+
+        <!-- House Card -->
+        <div class="house-card animate-in" id="houseCard">
+            <img class="house-image" id="houseImage" src="" alt="House">
+            <div class="house-info">
+                <div class="house-address" id="houseAddress">Loading...</div>
+                <div class="house-price" id="housePrice">$---,---</div>
+                <div class="house-stats" id="houseStats"></div>
+            </div>
+        </div>
+
+        <!-- Fair Value Banner -->
+        <div class="fair-value-banner animate-in">
+            <div class="fair-value-label">Market Consensus Fair Value</div>
+            <div class="fair-value-sublabel">The price where OVER and UNDER odds converge to 50%</div>
+            <div class="fair-value-price" id="fairValuePrice">$450,000</div>
+            <div class="fair-value-detail" id="fairValueDetail">Asking: $450,000 &middot; Delta: $0 (0.0%)</div>
+        </div>
+
+        <!-- Probability Bar -->
+        <div class="prob-bar-wrapper animate-in">
+            <div class="prob-bar-header">
+                <div class="prob-bar-side">
+                    <span class="dot over"></span>
+                    Sells Over
+                    <span class="pct over" id="probOver">50.0%</span>
+                </div>
+                <div class="prob-bar-side">
+                    <span class="pct under" id="probUnder">50.0%</span>
+                    Sells At/Under
+                    <span class="dot under"></span>
+                </div>
+            </div>
+            <div class="prob-bar-container">
+                <div class="prob-bar-fill" id="probBar" style="width: 50%"></div>
+                <div class="prob-bar-midline" title="50% Fair Value Line"></div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid animate-in">
+            <div class="stat-card">
+                <div class="stat-card-label">Total Wagered</div>
+                <div class="stat-card-value neutral" id="totalWagered">$0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-label">Avg Bet Size</div>
+                <div class="stat-card-value neutral" id="avgBetSize">$0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-label">Total Trades</div>
+                <div class="stat-card-value neutral" id="tradeCount">0</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls animate-in">
+            <div class="controls-left">
+                <button class="control-btn primary" id="startStopBtn" onclick="toggleSimulation()">
+                    Start Simulation
+                </button>
+                <button class="control-btn secondary" onclick="resetMarket()">Reset</button>
+                <div class="speed-group">
+                    <span class="speed-label">Speed:</span>
+                    <select class="speed-select" id="speedSelect" onchange="updateSpeed()">
+                        <option value="500">Slow</option>
+                        <option value="200" selected>Normal</option>
+                        <option value="80">Fast</option>
+                        <option value="30">Turbo</option>
+                    </select>
+                </div>
+            </div>
+            <div class="tick-counter">
+                <span class="pulse-dot stopped" id="pulseDot"></span>
+                <strong id="tickCount">0</strong> ticks
+            </div>
+        </div>
+
+        <!-- Manual Bet Panel -->
+        <div class="manual-bet animate-in">
+            <div class="manual-bet-title">What do you think it will sell for?</div>
+            <div class="manual-bet-subtitle">Enter your predicted sale price and how much you want to wager.</div>
+            <div class="guess-row" style="margin-bottom: 12px;">
+                <div class="guess-input-group">
+                    <span class="guess-input-label">YOUR PRICE GUESS</span>
+                    <div class="guess-input-wrapper">
+                        <span class="guess-input-prefix">$</span>
+                        <input type="number" class="guess-price-input" id="guessPrice" oninput="updateGuessPreview()" placeholder="450000">
+                    </div>
+                </div>
+                <div class="guess-quick-btns">
+                    <button class="guess-quick-btn" onclick="setGuessOffset(-0.05)">-5%</button>
+                    <button class="guess-quick-btn" onclick="setGuessOffset(-0.02)">-2%</button>
+                    <button class="guess-quick-btn" onclick="setGuessOffset(0)">= Ask</button>
+                    <button class="guess-quick-btn" onclick="setGuessOffset(0.02)">+2%</button>
+                    <button class="guess-quick-btn" onclick="setGuessOffset(0.05)">+5%</button>
+                </div>
+            </div>
+            <div class="guess-row">
+                <div class="guess-input-group">
+                    <span class="guess-input-label">WAGER AMOUNT</span>
+                    <div class="guess-input-wrapper">
+                        <span class="guess-input-prefix">$</span>
+                        <input type="number" class="guess-price-input" id="wagerAmount" oninput="updateGuessPreview()" placeholder="50">
+                    </div>
+                </div>
+                <div class="guess-quick-btns">
+                    <button class="guess-quick-btn" onclick="setWager(10)">$10</button>
+                    <button class="guess-quick-btn" onclick="setWager(25)">$25</button>
+                    <button class="guess-quick-btn" onclick="setWager(50)">$50</button>
+                    <button class="guess-quick-btn" onclick="setWager(100)">$100</button>
+                </div>
+                <button class="guess-submit neutral" id="guessSubmitBtn" onclick="placeGuessBet()">Enter a price</button>
+            </div>
+            <div class="guess-preview" id="guessPreview" style="display: none;">
+                <div class="guess-preview-item">
+                    <span class="guess-preview-label">Direction</span>
+                    <span class="guess-preview-value" id="guessDirection">--</span>
+                </div>
+                <div class="guess-preview-item">
+                    <span class="guess-preview-label">Delta from Ask</span>
+                    <span class="guess-preview-value" id="guessDelta">--</span>
+                </div>
+                <div class="guess-preview-item">
+                    <span class="guess-preview-label">Wager</span>
+                    <span class="guess-preview-value" id="guessWager">--</span>
+                </div>
+                <div class="guess-preview-item">
+                    <span class="guess-preview-label">Potential Payout</span>
+                    <span class="guess-preview-value" id="guessPayout">--</span>
+                </div>
+                <div class="guess-preview-item">
+                    <span class="guess-preview-label">Potential Profit</span>
+                    <span class="guess-preview-value" id="guessProfit">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-card animate-in">
+            <div class="chart-header">
+                <div class="chart-title">Fair Value Discovery</div>
+                <div class="chart-legend">
+                    <div class="chart-legend-item"><span class="legend-line" style="background: var(--blue); height: 2px;"></span> Ask</div>
+                    <div class="chart-legend-item"><span class="legend-dot" style="background: var(--yellow)"></span> Fair Value</div>
+                    <div class="chart-legend-item"><span class="legend-line" style="background: rgba(255,255,255,0.3); height: 1px; border-top: 1px dashed rgba(255,255,255,0.3); width: 16px;"></span> SMA-20</div>
+                    <div class="chart-legend-item"><span class="legend-dot" style="background: var(--yellow); width: 6px; height: 6px; transform: rotate(45deg); border-radius: 1px;"></span> Your Bets</div>
+                </div>
+            </div>
+            <canvas id="probChart"></canvas>
+            <div class="chart-tooltip" id="chartTooltip"></div>
+        </div>
+
+        <!-- Trade Feed -->
+        <div class="feed-card animate-in">
+            <div class="feed-header">Live Trade Feed</div>
+            <div class="feed-list" id="feedList">
+                <div class="feed-empty">Press "Start Simulation" to begin automated price discovery.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── State ───
+        let chartData = { labels: [], fairValue: [], source: [] };
+        let simulationInterval = null;
+        let tickCount = 0;
+        let askingPrice = 450000;
+        let hoverIndex = -1; // for crosshair
+        const MAX_CHART_POINTS = 200;
+        const SMA_PERIOD = 20;
+
+        // Cache last chart layout for crosshair hit-testing
+        let lastChartLayout = null;
+
+        function probToPrice(probOver) {
+            const delta = (probOver - 0.5) * 2;
+            return askingPrice + delta * askingPrice * 0.10;
+        }
+
+        function formatPrice(p) {
+            return '$' + Math.round(p).toLocaleString();
+        }
+
+        function computeSMA(data, period) {
+            const sma = [];
+            for (let i = 0; i < data.length; i++) {
+                if (i < period - 1) {
+                    sma.push(null);
+                } else {
+                    let sum = 0;
+                    for (let j = i - period + 1; j <= i; j++) sum += data[j];
+                    sma.push(sum / period);
+                }
+            }
+            return sma;
+        }
+
+        // ─── Init ───
+        async function init() {
+            await loadHouse();
+            await refreshMarket();
+            setupCrosshair();
+        }
+
+        async function loadHouse() {
+            const res = await fetch('/api/house');
+            const house = await res.json();
+            askingPrice = house.asking_price;
+            document.getElementById('houseImage').src = house.image_url;
+            document.getElementById('houseAddress').textContent = house.address;
+            document.getElementById('housePrice').textContent = 'Asking: $' + house.asking_price.toLocaleString();
+            document.getElementById('houseStats').innerHTML = `
+                <div class="house-stat">
+                    <span class="house-stat-label">Beds</span>
+                    <span class="house-stat-value">${house.bedrooms}</span>
+                </div>
+                <div class="house-stat">
+                    <span class="house-stat-label">Baths</span>
+                    <span class="house-stat-value">${house.bathrooms}</span>
+                </div>
+                <div class="house-stat">
+                    <span class="house-stat-label">Sqft</span>
+                    <span class="house-stat-value">${house.sqft.toLocaleString()}</span>
+                </div>
+                <div class="house-stat">
+                    <span class="house-stat-label">Year</span>
+                    <span class="house-stat-value">${house.year_built}</span>
+                </div>
+                <div class="house-stat">
+                    <span class="house-stat-label">Lot</span>
+                    <span class="house-stat-value">${house.lot_acres} ac</span>
+                </div>
+            `;
+        }
+
+        async function refreshMarket() {
+            const res = await fetch('/api/market');
+            const m = await res.json();
+            updateMarketUI(m);
+        }
+
+        function updateMarketUI(m) {
+            const overPct = (m.prob_over * 100).toFixed(1);
+            const underPct = (m.prob_under * 100).toFixed(1);
+            document.getElementById('probOver').textContent = overPct + '%';
+            document.getElementById('probUnder').textContent = underPct + '%';
+            document.getElementById('probBar').style.width = overPct + '%';
+            document.getElementById('totalWagered').textContent = '$' + Math.round(m.total_wagered || 0).toLocaleString();
+            document.getElementById('avgBetSize').textContent = '$' + (m.avg_bet_size || 0).toFixed(2);
+            document.getElementById('tradeCount').textContent = m.total_trades;
+
+            const overProb = m.prob_over;
+            const delta = (overProb - 0.5) * 2;
+            const priceDelta = delta * askingPrice * 0.10;
+            const impliedPrice = askingPrice + priceDelta;
+
+            const priceEl = document.getElementById('fairValuePrice');
+            priceEl.textContent = formatPrice(impliedPrice);
+
+            if (Math.abs(delta) < 0.02) {
+                priceEl.style.color = 'var(--yellow)';
+            } else if (delta > 0) {
+                priceEl.style.color = 'var(--green)';
+            } else {
+                priceEl.style.color = 'var(--red)';
+            }
+
+            const pctDelta = ((impliedPrice - askingPrice) / askingPrice * 100).toFixed(1);
+            const sign = priceDelta >= 0 ? '+' : '';
+            document.getElementById('fairValueDetail').textContent =
+                `Asking: $${askingPrice.toLocaleString()} \u00b7 Delta: ${sign}$${Math.abs(Math.round(priceDelta)).toLocaleString()} (${sign}${pctDelta}%)`;
+        }
+
+        // ─── Simulation ───
+        function toggleSimulation() {
+            if (simulationInterval) stopSimulation();
+            else startSimulation();
+        }
+
+        function startSimulation() {
+            const speed = parseInt(document.getElementById('speedSelect').value);
+            document.getElementById('startStopBtn').textContent = 'Stop';
+            document.getElementById('startStopBtn').className = 'control-btn stop';
+            document.getElementById('pulseDot').className = 'pulse-dot active';
+            simulationInterval = setInterval(doTick, speed);
+        }
+
+        function stopSimulation() {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+            document.getElementById('startStopBtn').textContent = 'Start Simulation';
+            document.getElementById('startStopBtn').className = 'control-btn primary';
+            document.getElementById('pulseDot').className = 'pulse-dot stopped';
+        }
+
+        function updateSpeed() {
+            if (simulationInterval) { stopSimulation(); startSimulation(); }
+        }
+
+        async function doTick() {
+            try {
+                const res = await fetch('/api/tick', { method: 'POST' });
+                const data = await res.json();
+                tickCount++;
+                document.getElementById('tickCount').textContent = tickCount;
+                updateMarketUI(data.market);
+                addTradeToFeed(data.trade);
+                addChartPoint(data.market, data.trade.source || 'auto');
+            } catch (e) { console.error('Tick error:', e); }
+        }
+
+        async function resetMarket() {
+            stopSimulation();
+            await fetch('/api/reset', { method: 'POST' });
+            await refreshMarket();
+            tickCount = 0;
+            document.getElementById('tickCount').textContent = '0';
+            chartData = { labels: [], fairValue: [], source: [] };
+            hoverIndex = -1;
+            renderChart();
+            document.getElementById('feedList').innerHTML =
+                '<div class="feed-empty">Press "Start Simulation" to begin automated price discovery.</div>';
+        }
+
+        // ─── Feed ───
+        function addTradeToFeed(trade) {
+            const feedList = document.getElementById('feedList');
+            const empty = feedList.querySelector('.feed-empty');
+            if (empty) empty.remove();
+
+            const item = document.createElement('div');
+            item.className = 'feed-item';
+            const source = trade.source || 'auto';
+            const sourceClass = source === 'manual' ? 'manual' : 'auto';
+            const sourceLabel = source === 'manual' ? 'YOU' : 'BOT';
+            item.innerHTML = `
+                <span class="feed-source ${sourceClass}">${sourceLabel}</span>
+                <span class="feed-outcome ${trade.outcome}">${trade.outcome.toUpperCase()}</span>
+                <span class="feed-details">$${trade.wager.toFixed(2)} wager</span>
+                <span class="feed-details">$${trade.payout.toFixed(2)} payout</span>
+                <span class="feed-details">${(trade.prob_over_after * 100).toFixed(1)}% / ${(trade.prob_under_after * 100).toFixed(1)}%</span>
+            `;
+            feedList.prepend(item);
+            while (feedList.children.length > 50) feedList.removeChild(feedList.lastChild);
+        }
+
+        // ─── Chart ───
+        function addChartPoint(market, source) {
+            const idx = chartData.labels.length + 1;
+            chartData.labels.push(idx);
+            chartData.fairValue.push(probToPrice(market.prob_over));
+            chartData.source.push(source || 'auto');
+
+            if (chartData.labels.length > MAX_CHART_POINTS) {
+                chartData.labels.shift();
+                chartData.fairValue.shift();
+                chartData.source.shift();
+            }
+            renderChart();
+        }
+
+        function renderChart() {
+            const canvas = document.getElementById('probChart');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.parentElement.clientWidth - 56;
+            const H = 420;
+            canvas.width = W * 2;
+            canvas.height = H * 2;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.scale(2, 2);
+            ctx.clearRect(0, 0, W, H);
+
+            const pad = { top: 24, right: 80, bottom: 30, left: 72 };
+            const plotW = W - pad.left - pad.right;
+            const plotH = H - pad.top - pad.bottom;
+
+            // ── 1. Auto-scaling Y-axis ──
+            let dataMin = askingPrice, dataMax = askingPrice;
+            if (chartData.fairValue.length > 0) {
+                dataMin = Math.min(...chartData.fairValue, askingPrice);
+                dataMax = Math.max(...chartData.fairValue, askingPrice);
+            }
+            const dataRange = dataMax - dataMin || askingPrice * 0.01;
+            const yPadding = dataRange * 0.25;
+            const yMin = dataMin - yPadding;
+            const yMax = dataMax + yPadding;
+
+            function priceToY(price) {
+                return pad.top + plotH - ((price - yMin) / (yMax - yMin)) * plotH;
+            }
+
+            // Grid lines with price labels
+            ctx.strokeStyle = '#252836';
+            ctx.lineWidth = 0.5;
+            const gridSteps = 6;
+            for (let i = 0; i <= gridSteps; i++) {
+                const price = yMin + (yMax - yMin) * (i / gridSteps);
+                const y = priceToY(price);
+                ctx.beginPath();
+                ctx.moveTo(pad.left, y);
+                ctx.lineTo(W - pad.right, y);
+                ctx.stroke();
+
+                ctx.fillStyle = '#585c72';
+                ctx.font = '10px JetBrains Mono';
+                ctx.textAlign = 'right';
+                const label = price >= 1000000
+                    ? '$' + (price / 1000000).toFixed(2) + 'M'
+                    : '$' + Math.round(price / 1000).toLocaleString() + 'k';
+                ctx.fillText(label, pad.left - 8, y + 3);
+            }
+
+            // Asking price line
+            const yAsk = priceToY(askingPrice);
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([8, 4]);
+            ctx.beginPath();
+            ctx.moveTo(pad.left, yAsk);
+            ctx.lineTo(W - pad.right, yAsk);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Asking price right-edge tag
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.85)';
+            const askTagW = 70, askTagH = 18;
+            const askTagX = W - pad.right + 4;
+            ctx.beginPath();
+            ctx.roundRect(askTagX, yAsk - askTagH / 2, askTagW, askTagH, 3);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = '600 9px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText('ASK ' + (askingPrice >= 1000000 ? '$' + (askingPrice/1e6).toFixed(2) + 'M' : '$' + Math.round(askingPrice/1000) + 'k'), askTagX + askTagW / 2, yAsk + 3);
+
+            if (chartData.labels.length < 2) {
+                ctx.fillStyle = '#585c72';
+                ctx.font = '14px Outfit';
+                ctx.textAlign = 'center';
+                ctx.fillText('Start the simulation to see price discovery in action', W / 2, H / 2 + 30);
+                lastChartLayout = null;
+                return;
+            }
+
+            const n = chartData.labels.length;
+            const xStep = plotW / (n - 1);
+
+            // Save layout for crosshair
+            lastChartLayout = { pad, plotW, plotH, W, H, n, xStep, yMin, yMax, priceToY };
+
+            // ── 2. Per-segment green/red area fill ──
+            for (let i = 0; i < n - 1; i++) {
+                const x1 = pad.left + i * xStep;
+                const x2 = pad.left + (i + 1) * xStep;
+                const p1 = chartData.fairValue[i];
+                const p2 = chartData.fairValue[i + 1];
+                const y1 = priceToY(p1);
+                const y2 = priceToY(p2);
+
+                // Check for crossover
+                const above1 = p1 >= askingPrice;
+                const above2 = p2 >= askingPrice;
+
+                if (above1 === above2) {
+                    // Same side: single fill
+                    ctx.fillStyle = above1 ? 'rgba(34, 197, 94, 0.10)' : 'rgba(239, 68, 68, 0.10)';
+                    ctx.beginPath();
+                    ctx.moveTo(x1, yAsk);
+                    ctx.lineTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.lineTo(x2, yAsk);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // Crossover: find intersection X
+                    const t = (askingPrice - p1) / (p2 - p1);
+                    const xCross = x1 + t * (x2 - x1);
+
+                    // First segment
+                    ctx.fillStyle = above1 ? 'rgba(34, 197, 94, 0.10)' : 'rgba(239, 68, 68, 0.10)';
+                    ctx.beginPath();
+                    ctx.moveTo(x1, yAsk);
+                    ctx.lineTo(x1, y1);
+                    ctx.lineTo(xCross, yAsk);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Second segment
+                    ctx.fillStyle = above2 ? 'rgba(34, 197, 94, 0.10)' : 'rgba(239, 68, 68, 0.10)';
+                    ctx.beginPath();
+                    ctx.moveTo(xCross, yAsk);
+                    ctx.lineTo(x2, y2);
+                    ctx.lineTo(x2, yAsk);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+
+            // ── 3. SMA trend line ──
+            const sma = computeSMA(chartData.fairValue, SMA_PERIOD);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 3]);
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            let smaStarted = false;
+            for (let i = 0; i < n; i++) {
+                if (sma[i] === null) continue;
+                const x = pad.left + i * xStep;
+                const y = priceToY(sma[i]);
+                if (!smaStarted) { ctx.moveTo(x, y); smaStarted = true; }
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // ── Fair value line ──
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            chartData.fairValue.forEach((price, i) => {
+                const x = pad.left + i * xStep;
+                const y = priceToY(price);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // ── 5. Manual trade markers (diamonds) ──
+            for (let i = 0; i < n; i++) {
+                if (chartData.source[i] !== 'manual') continue;
+                const x = pad.left + i * xStep;
+                const y = priceToY(chartData.fairValue[i]);
+                const s = 5;
+                ctx.fillStyle = '#eab308';
+                ctx.beginPath();
+                ctx.moveTo(x, y - s);
+                ctx.lineTo(x + s, y);
+                ctx.lineTo(x, y + s);
+                ctx.lineTo(x - s, y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#0a0b0f';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+
+            // ── 7. Min/max annotations ──
+            let minIdx = 0, maxIdx = 0;
+            for (let i = 1; i < n; i++) {
+                if (chartData.fairValue[i] < chartData.fairValue[minIdx]) minIdx = i;
+                if (chartData.fairValue[i] > chartData.fairValue[maxIdx]) maxIdx = i;
+            }
+
+            // Only draw if there's meaningful range
+            if (chartData.fairValue[maxIdx] !== chartData.fairValue[minIdx]) {
+                // Max marker
+                const maxX = pad.left + maxIdx * xStep;
+                const maxY = priceToY(chartData.fairValue[maxIdx]);
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.6)';
+                ctx.font = '600 9px JetBrains Mono';
+                ctx.textAlign = 'center';
+                ctx.fillText('H ' + formatPrice(chartData.fairValue[maxIdx]), maxX, maxY - 10);
+                // Small tick
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(maxX, maxY - 6);
+                ctx.lineTo(maxX, maxY - 2);
+                ctx.stroke();
+
+                // Min marker
+                const minX = pad.left + minIdx * xStep;
+                const minY = priceToY(chartData.fairValue[minIdx]);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
+                ctx.textAlign = 'center';
+                ctx.fillText('L ' + formatPrice(chartData.fairValue[minIdx]), minX, minY + 16);
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(minX, minY + 2);
+                ctx.lineTo(minX, minY + 6);
+                ctx.stroke();
+            }
+
+            // ── 6. Right-edge current price tag ──
+            const lastPrice = chartData.fairValue[n - 1];
+            const lastY = priceToY(lastPrice);
+
+            // Dot at line end
+            ctx.beginPath();
+            ctx.arc(pad.left + (n - 1) * xStep, lastY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#eab308';
+            ctx.fill();
+            ctx.strokeStyle = '#0a0b0f';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Right-edge pill
+            const pillColor = lastPrice >= askingPrice ? '#22c55e' : '#ef4444';
+            const pillW = 70, pillH = 20;
+            const pillX = W - pad.right + 4;
+            const pillY = lastY - pillH / 2;
+
+            // Horizontal leader line from dot to pill
+            ctx.strokeStyle = pillColor;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 2]);
+            ctx.beginPath();
+            ctx.moveTo(pad.left + (n - 1) * xStep + 6, lastY);
+            ctx.lineTo(pillX, lastY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = pillColor;
+            ctx.beginPath();
+            ctx.roundRect(pillX, pillY, pillW, pillH, 4);
+            ctx.fill();
+            ctx.fillStyle = lastPrice >= askingPrice ? '#000' : '#fff';
+            ctx.font = '700 10px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(formatPrice(lastPrice), pillX + pillW / 2, lastY + 3.5);
+
+            // ── 4. Crosshair overlay ──
+            if (hoverIndex >= 0 && hoverIndex < n) {
+                const hx = pad.left + hoverIndex * xStep;
+                const hp = chartData.fairValue[hoverIndex];
+                const hy = priceToY(hp);
+
+                // Vertical line
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(hx, pad.top);
+                ctx.lineTo(hx, pad.top + plotH);
+                ctx.stroke();
+
+                // Horizontal line
+                ctx.beginPath();
+                ctx.moveTo(pad.left, hy);
+                ctx.lineTo(W - pad.right, hy);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Crosshair dot
+                ctx.beginPath();
+                ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(234, 179, 8, 0.8)';
+                ctx.fill();
+                ctx.strokeStyle = '#0a0b0f';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        // ─── Crosshair setup ───
+        function setupCrosshair() {
+            const canvas = document.getElementById('probChart');
+            const tooltip = document.getElementById('chartTooltip');
+            const chartCard = canvas.closest('.chart-card');
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (!lastChartLayout || chartData.labels.length < 2) {
+                    hoverIndex = -1;
+                    tooltip.style.display = 'none';
+                    return;
+                }
+
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const { pad, xStep, n } = lastChartLayout;
+
+                // Map mouse X to data index (canvas CSS coords)
+                const dataX = mouseX - pad.left;
+                const idx = Math.round(dataX / xStep);
+
+                if (idx < 0 || idx >= n) {
+                    hoverIndex = -1;
+                    tooltip.style.display = 'none';
+                    renderChart();
+                    return;
+                }
+
+                hoverIndex = idx;
+                renderChart();
+
+                // Tooltip content
+                const price = chartData.fairValue[idx];
+                const delta = price - askingPrice;
+                const pctDelta = ((delta / askingPrice) * 100).toFixed(2);
+                const sign = delta >= 0 ? '+' : '';
+                const src = chartData.source[idx] === 'manual' ? ' [YOUR BET]' : '';
+
+                tooltip.innerHTML =
+                    `<div style="color: var(--text-muted)">Trade #${chartData.labels[idx]}${src}</div>` +
+                    `<div style="color: #eab308; font-weight: 700; font-size: 13px">${formatPrice(price)}</div>` +
+                    `<div style="color: ${delta >= 0 ? 'var(--green)' : 'var(--red)'}">` +
+                    `${sign}${formatPrice(Math.abs(delta)).replace('$','')} (${sign}${pctDelta}%)</div>`;
+
+                // Position tooltip relative to chart card
+                const cardRect = chartCard.getBoundingClientRect();
+                let tipX = e.clientX - cardRect.left + 16;
+                let tipY = e.clientY - cardRect.top - 10;
+
+                // Keep tooltip in bounds
+                tooltip.style.display = 'block';
+                const tipW = tooltip.offsetWidth;
+                const tipH = tooltip.offsetHeight;
+                if (tipX + tipW > cardRect.width - 8) tipX = tipX - tipW - 32;
+                if (tipY + tipH > cardRect.height - 8) tipY = cardRect.height - tipH - 8;
+                if (tipY < 8) tipY = 8;
+
+                tooltip.style.left = tipX + 'px';
+                tooltip.style.top = tipY + 'px';
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                hoverIndex = -1;
+                tooltip.style.display = 'none';
+                renderChart();
+            });
+        }
+
+        // ─── Price Guess Betting ───
+        function setWager(amount) {
+            document.getElementById('wagerAmount').value = amount;
+            updateGuessPreview();
+        }
+
+        function setGuessOffset(pct) {
+            const price = Math.round(askingPrice * (1 + pct));
+            document.getElementById('guessPrice').value = price;
+            updateGuessPreview();
+        }
+
+        async function updateGuessPreview() {
+            const guessPrice = parseFloat(document.getElementById('guessPrice').value);
+            const wager = parseFloat(document.getElementById('wagerAmount').value);
+            const preview = document.getElementById('guessPreview');
+            const btn = document.getElementById('guessSubmitBtn');
+
+            if (!guessPrice || guessPrice <= 0) {
+                preview.style.display = 'none';
+                btn.className = 'guess-submit neutral';
+                btn.textContent = 'Enter a price';
+                return;
+            }
+
+            const delta = guessPrice - askingPrice;
+            const pctDelta = ((delta / askingPrice) * 100);
+            const outcome = delta >= 0 ? 'over' : 'under';
+
+            if (Math.abs(delta) < 1) {
+                preview.style.display = 'none';
+                btn.className = 'guess-submit neutral';
+                btn.textContent = 'Price matches asking';
+                return;
+            }
+
+            if (!wager || wager <= 0) {
+                preview.style.display = 'none';
+                btn.className = 'guess-submit ' + outcome;
+                btn.textContent = 'Enter wager amount';
+                return;
+            }
+
+            preview.style.display = 'flex';
+
+            // Direction
+            const dirEl = document.getElementById('guessDirection');
+            const sign = delta >= 0 ? '+' : '';
+            if (outcome === 'over') {
+                dirEl.textContent = 'OVER';
+                dirEl.style.color = 'var(--green)';
+            } else {
+                dirEl.textContent = 'UNDER';
+                dirEl.style.color = 'var(--red)';
+            }
+
+            // Delta
+            const deltaEl = document.getElementById('guessDelta');
+            deltaEl.textContent = `${sign}$${Math.abs(Math.round(delta)).toLocaleString()} (${sign}${pctDelta.toFixed(1)}%)`;
+            deltaEl.style.color = outcome === 'over' ? 'var(--green)' : 'var(--red)';
+
+            // Wager
+            document.getElementById('guessWager').textContent = '$' + wager.toFixed(2);
+            document.getElementById('guessWager').style.color = 'var(--text-primary)';
+
+            // Button
+            btn.className = 'guess-submit ' + outcome;
+            btn.textContent = outcome === 'over'
+                ? `Bet OVER @ ${formatPrice(guessPrice)}`
+                : `Bet UNDER @ ${formatPrice(guessPrice)}`;
+
+            // Payout preview via client-side binary search
+            try {
+                const res = await fetch('/api/market');
+                const m = await res.json();
+                const b = m.b;
+                function cost(qo, qu) { return b * Math.log(Math.exp(qo / b) + Math.exp(qu / b)); }
+
+                let lo = 0, hi = wager * 10;
+                for (let i = 0; i < 100; i++) {
+                    const mid = (lo + hi) / 2;
+                    const tradeCost = outcome === 'over'
+                        ? cost(m.q_over + mid, m.q_under) - cost(m.q_over, m.q_under)
+                        : cost(m.q_over, m.q_under + mid) - cost(m.q_over, m.q_under);
+                    if (Math.abs(tradeCost - wager) < 0.001) { lo = mid; break; }
+                    if (tradeCost < wager) lo = mid;
+                    else hi = mid;
+                }
+                const payout = lo;
+                const profit = payout - wager;
+
+                document.getElementById('guessPayout').textContent = '$' + payout.toFixed(2);
+                document.getElementById('guessPayout').style.color = 'var(--green)';
+                document.getElementById('guessProfit').textContent = (profit >= 0 ? '+' : '') + '$' + profit.toFixed(2);
+                document.getElementById('guessProfit').style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
+            } catch (e) {
+                document.getElementById('guessPayout').textContent = '--';
+                document.getElementById('guessProfit').textContent = '--';
+            }
+        }
+
+        async function placeGuessBet() {
+            const guessPrice = parseFloat(document.getElementById('guessPrice').value);
+            const wager = parseFloat(document.getElementById('wagerAmount').value);
+            if (!guessPrice || Math.abs(guessPrice - askingPrice) < 1) return;
+            if (!wager || wager <= 0) return;
+
+            try {
+                const res = await fetch('/api/bet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ guess_price: guessPrice, wager: wager })
+                });
+                const data = await res.json();
+                updateMarketUI(data.market);
+                addTradeToFeed(data.trade);
+                addChartPoint(data.market, 'manual');
+                updateGuessPreview();
+            } catch (e) { console.error('Bet error:', e); }
+        }
+
+        // ─── Boot ───
+        window.addEventListener('load', init);
+        window.addEventListener('resize', renderChart);
+    </script>
+</body>
+</html>
