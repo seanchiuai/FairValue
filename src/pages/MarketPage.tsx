@@ -243,9 +243,7 @@ const MarketPage: React.FC = () => {
   const priceDelta = fairValue - originalPrice;
   const priceDeltaPercent = ((priceDelta / originalPrice) * 100).toFixed(1);
 
-  const heroImg = property.photos?.find(p => p.width === 1536)?.url
-    || property.photos?.find(p => p.width === 960)?.url
-    || property.imgSrc;
+  const heroImg = property.photos?.[0]?.fullUrl || property.photos?.[0]?.url || property.imgSrc;
 
   const priceDiff = property.zestimate && property.price ? property.zestimate - property.price : null;
   const priceDiffPct = priceDiff !== null && property.price ? ((priceDiff / property.price) * 100).toFixed(1) : null;

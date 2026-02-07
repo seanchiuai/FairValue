@@ -4,9 +4,7 @@ import { ArrowRight, MapPin, Bed, Bath, Maximize } from 'lucide-react';
 
 function FeaturedMarket({ property }) {
   const formatPrice = (n) => n ? `$${n.toLocaleString()}` : '';
-  const heroImg = property.photos?.find(p => p.width === 1536)?.url
-    || property.photos?.find(p => p.width === 960)?.url
-    || property.imgSrc;
+  const heroImg = property.photos?.[0]?.fullUrl || property.photos?.[0]?.url || property.imgSrc;
 
   return (
     <div className="feat-wrap">

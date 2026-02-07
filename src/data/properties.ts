@@ -19,7 +19,7 @@ export interface Property {
   description: string;
   brokerageName: string | null;
   imgSrc: string;
-  photos: { url: string; width: number }[];
+  photos: { url: string; width: number; fullUrl: string }[];
   hdpUrl: string;
   latitude: number;
   longitude: number;
@@ -33,10 +33,18 @@ const rawData: any[] = require('./properties.json');
 
 export const properties: Property[] = rawData.map((item, index) => {
   const addr = item.address || {};
-  const photos = (item.responsivePhotos || []).flatMap((rp: any) => {
+  const photos = (item.responsivePhotos || []).map((rp: any) => {
     const jpegs = rp?.mixedSources?.jpeg || [];
-    return jpegs.map((j: any) => ({ url: j.url, width: j.width }));
-  });
+    // One entry per unique photo: 768w for thumbnails, largest for lightbox/hero
+    const thumb = jpegs.find((j: any) => j.width === 768)
+      || jpegs.find((j: any) => j.width === 576)
+      || jpegs[0]
+      || null;
+    const full = jpegs.find((j: any) => j.width === 1536)
+      || jpegs.find((j: any) => j.width === 960)
+      || thumb;
+    return thumb ? { url: thumb.url, width: thumb.width, fullUrl: full?.url || thumb.url } : null;
+  }).filter(Boolean);
   // Pick the best card-size image (768w) or fallback
   const bestPhoto = photos.find((p: any) => p.width === 768) || photos.find((p: any) => p.width === 576) || photos[0];
 

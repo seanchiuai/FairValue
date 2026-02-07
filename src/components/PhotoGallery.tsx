@@ -4,6 +4,7 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 interface Photo {
   url: string;
   width: number;
+  fullUrl?: string;
 }
 
 interface PhotoGalleryProps {
@@ -44,13 +45,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ photos }) => {
   if (!photos || photos.length <= 1) return null;
 
   const thumbs = photos.map(p => p.url);
-  const fullRes = photos.map(p => {
-    const url = p.url;
-    if (p.width < 960 && url.includes(`_${p.width}.`)) {
-      return url.replace(`_${p.width}.`, '_1536.');
-    }
-    return url;
-  });
+  const fullRes = photos.map(p => p.fullUrl || p.url);
 
   const openLightbox = (index: number) => {
     setActiveIndex(index);
