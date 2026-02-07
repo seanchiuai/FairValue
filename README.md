@@ -22,7 +22,7 @@ Zillow-only pipeline for **San Francisco houses sold in the last month**, using 
 ## Quick start
 
 ```bash
-cd /Users/rishabhbansal/Documents/web-scaper
+cd /Users/rishabhbansal/Documents/GitHub/FairValue
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -32,9 +32,9 @@ python -m sf_scraper
 
 Default outputs:
 
-- `/Users/rishabhbansal/Documents/web-scaper/data/sf_listings.json`
-- `/Users/rishabhbansal/Documents/web-scaper/data/sf_listings.csv`
-- `/Users/rishabhbansal/Documents/web-scaper/data/sf_listings.sqlite`
+- `data/sf_listings.json`
+- `data/sf_listings.csv`
+- `data/sf_listings.sqlite`
 
 Default Qdrant target:
 
@@ -84,7 +84,7 @@ Optional extractor and enrichment controls still supported:
 ## Testing
 
 ```bash
-cd /Users/rishabhbansal/Documents/web-scaper
+cd /Users/rishabhbansal/Documents/GitHub/FairValue
 source .venv/bin/activate
 pytest -q
 ```
