@@ -52,6 +52,13 @@ function formatCogneeResponse(data: any): string {
   if (typeof data === 'string') return data;
 
   if (Array.isArray(data)) {
+    // Cognee returns [{search_result: ["..."], dataset_name: "..."}, ...]
+    // Take the first result with a search_result to avoid duplicates across datasets
+    const withSearchResult = data.find((item: any) =>
+      Array.isArray(item.search_result) && item.search_result.length > 0
+    );
+    if (withSearchResult) return withSearchResult.search_result[0];
+
     const texts = data
       .map((item: any) => item.content || item.text || item.description || item.summary || '')
       .filter(Boolean);
@@ -59,6 +66,10 @@ function formatCogneeResponse(data: any): string {
     return JSON.stringify(data, null, 2);
   }
 
+  if (data?.search_result) {
+    if (Array.isArray(data.search_result) && data.search_result.length > 0) return data.search_result[0];
+    if (typeof data.search_result === 'string') return data.search_result;
+  }
   if (data?.results) return formatCogneeResponse(data.results);
   if (data?.data) return formatCogneeResponse(data.data);
   if (data?.content) return data.content;
