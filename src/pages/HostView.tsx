@@ -55,9 +55,17 @@ export default function HostView() {
 
   const handleToggleAI = useCallback(async () => {
     if (!roomCode) return;
-    const res = await fetch(`/api/rooms/${roomCode}/toggle-ai`, { method: 'POST' });
-    const data = await res.json();
-    setAiEnabled(data.ai_enabled);
+    try {
+      const res = await fetch(`/api/rooms/${roomCode}/toggle-ai`, { method: 'POST' });
+      const data = await res.json();
+      if (data.error) {
+        console.error('Toggle AI failed:', data.error);
+        return;
+      }
+      setAiEnabled(data.ai_enabled);
+    } catch (err) {
+      console.error('Toggle AI failed:', err);
+    }
   }, [roomCode, setAiEnabled]);
 
   const handleSettle = useCallback(async () => {

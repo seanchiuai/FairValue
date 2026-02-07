@@ -12,7 +12,7 @@ module.exports = function (app) {
   app.use(
     '/ws',
     createProxyMiddleware({
-      target: 'ws://localhost:8000',
+      target: 'http://localhost:8000',
       ws: true,
       changeOrigin: true,
     })
