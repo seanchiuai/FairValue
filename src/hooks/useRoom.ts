@@ -142,6 +142,26 @@ export function useRoom(roomCode: string, sessionId: string) {
     onSettle,
   });
 
+  // Poll for state when WebSocket is disconnected (fallback)
+  useEffect(() => {
+    if (connected || !roomCode) return;
+    const interval = setInterval(() => {
+      fetch(`/api/rooms/${roomCode}/state`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.error) {
+            setMarket(data.market);
+            setPlayers(data.players);
+            setActivity(data.activity || []);
+            setAiEnabled(data.ai_enabled);
+            if (data.settled) setSettled(true);
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [connected, roomCode]);
+
   const myPlayer = players.find((p) => p.session_id === sessionId) || null;
 
   const joinRoom = useCallback(
