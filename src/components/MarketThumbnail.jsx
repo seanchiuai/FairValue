@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Inline Home icon SVG to avoid dependency on lucide-react if not available
+// Inline Home icon SVG
 const HomeIcon = ({ size = 24 }) => (
   <svg
     width={size}
@@ -32,9 +32,8 @@ export function MarketThumbnail({ imageUrl, title }) {
             width: 100%;
             aspect-ratio: 16 / 9;
             background: #273445;
-            border: 1px solid #3A4A5D;
-            border-radius: 8px;
             overflow: hidden;
+            border-radius: 8px 8px 0 0;
           }
 
           .thumbnail-image {
@@ -51,7 +50,7 @@ export function MarketThumbnail({ imageUrl, title }) {
   // Fallback placeholder
   return (
     <div className="market-thumbnail-placeholder">
-      <HomeIcon size={28} />
+      <HomeIcon size={32} />
       <style>{`
         .market-thumbnail-placeholder {
           display: flex;
@@ -59,9 +58,8 @@ export function MarketThumbnail({ imageUrl, title }) {
           justify-content: center;
           width: 100%;
           aspect-ratio: 16 / 9;
-          background: #273445;
-          border: 1px solid #3A4A5D;
-          border-radius: 8px;
+          background: linear-gradient(135deg, #273445 0%, #314255 100%);
+          border-radius: 8px 8px 0 0;
           color: #7F93A8;
         }
       `}</style>

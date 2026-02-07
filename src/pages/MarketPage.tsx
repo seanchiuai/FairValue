@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -13,10 +13,14 @@ import {
   Users,
   Clock,
   Info,
-  ChevronRight
+  ChevronRight,
+  Search,
+  Brain,
+  Loader2
 } from 'lucide-react';
 import { createChart, IChartApi, ISeriesApi, LineData } from 'lightweight-charts';
 import { mockProperties } from '../data/properties';
+import { initializeMarketGraph, storeLMSRState, searchMarketInsights } from '../services/cogneeService';
 import './MarketPage.css';
 
 interface Bet {
@@ -27,7 +31,15 @@ interface Bet {
   timestamp: Date;
 }
 
-const INITIAL_PRICE = 850000;
+// LMSR Market State
+const B_LIQUIDITY = 100.0; // Liquidity parameter
+
+interface LMSRState {
+  qOver: number;  // Shares outstanding for OVER
+  qUnder: number; // Shares outstanding for UNDER
+  totalWagered: number;
+  totalTrades: number;
+}
 
 const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
@@ -37,9 +49,18 @@ const MarketPage: React.FC = () => {
   const trendSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   
   const property = mockProperties.find(p => p.id === propertyId) || mockProperties[0];
+  const askingPrice = property.currentPrice;
+  
+  // LMSR State
+  const [lmsrState, setLmsrState] = useState<LMSRState>({
+    qOver: 0,
+    qUnder: 0,
+    totalWagered: property.volume,
+    totalTrades: property.participantCount
+  });
   
   const [marketData, setMarketData] = useState({
-    fairValue: property.currentPrice,
+    fairValue: askingPrice,
     volume: property.volume,
     participantCount: property.participantCount,
     trendPrediction: property.marketPrice
@@ -47,6 +68,68 @@ const MarketPage: React.FC = () => {
   
   const [betAmount, setBetAmount] = useState<string>('');
   const [bets, setBets] = useState<Bet[]>([]);
+
+  // AI Search State
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [showAISearch, setShowAISearch] = useState<boolean>(false);
+
+  // LMSR Helper Functions
+  const costFunction = useCallback((qOver: number, qUnder: number): number => {
+    return B_LIQUIDITY * Math.log(Math.exp(qOver / B_LIQUIDITY) + Math.exp(qUnder / B_LIQUIDITY));
+  }, []);
+
+  const priceOver = useCallback((qOver: number, qUnder: number): number => {
+    const expOver = Math.exp(qOver / B_LIQUIDITY);
+    const expUnder = Math.exp(qUnder / B_LIQUIDITY);
+    return expOver / (expOver + expUnder);
+  }, []);
+
+  const calculateImpliedPrice = useCallback((probOver: number): number => {
+    // implied_price = asking_price + (prob_over - 0.5) * 2 * asking_price * 0.10
+    return askingPrice + (probOver - 0.5) * 2 * askingPrice * 0.10;
+  }, [askingPrice]);
+
+  const buyWithBudget = useCallback((outcome: 'over' | 'under', budget: number, currentQOver: number, currentQUnder: number): number => {
+    // Binary search to find shares that cost ~budget dollars
+    let lo = 0.0;
+    let hi = budget * 10;
+    
+    for (let i = 0; i < 100; i++) {
+      const mid = (lo + hi) / 2;
+      let cost: number;
+      
+      if (outcome === 'over') {
+        cost = costFunction(currentQOver + mid, currentQUnder) - costFunction(currentQOver, currentQUnder);
+      } else {
+        cost = costFunction(currentQOver, currentQUnder + mid) - costFunction(currentQOver, currentQUnder);
+      }
+      
+      if (Math.abs(cost - budget) < 0.001) {
+        return mid;
+      }
+      
+      if (cost < budget) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    
+    return (lo + hi) / 2;
+  }, [costFunction]);
+
+  // Initialize Cognee market graph on mount
+  useEffect(() => {
+    const initCognee = async () => {
+      if (propertyId) {
+        await initializeMarketGraph(propertyId, askingPrice);
+        console.log('Cognee market graph initialized');
+      }
+    };
+    initCognee();
+  }, [propertyId, askingPrice]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -67,37 +150,62 @@ const MarketPage: React.FC = () => {
     const fairValueSeries = chart.addLineSeries({
       color: '#3BA776',
       lineWidth: 2,
-      title: 'Fair Value',
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
 
     const trendSeries = chart.addLineSeries({
       color: '#4BA3FF',
       lineWidth: 2,
       lineStyle: 2,
-      title: 'Trend Prediction',
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
 
     chartRef.current = chart;
     fairValueSeriesRef.current = fairValueSeries;
     trendSeriesRef.current = trendSeries;
 
+    // Initialize with historical mock data based on LMSR
     const initialData: LineData[] = [];
     const trendData: LineData[] = [];
     const now = new Date();
+    
+    // Simulate market history starting from asking price
+    let historicalQOver = 0;
+    let historicalQUnder = 0;
     
     for (let i = 30; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 60000);
       const timestamp = time.getTime() / 1000 as LineData['time'];
       
-      const randomWalk = (Math.random() - 0.5) * 20000;
-      const price = INITIAL_PRICE + randomWalk + (30 - i) * 500;
+      // Simulate some random trades in history
+      if (Math.random() > 0.5) {
+        const shares = Math.random() * 20;
+        if (Math.random() > 0.5) {
+          historicalQOver += shares;
+        } else {
+          historicalQUnder += shares;
+        }
+      }
       
-      initialData.push({ time: timestamp, value: price });
-      trendData.push({ time: timestamp, value: price + 25000 + (Math.random() - 0.5) * 10000 });
+      const probOver = priceOver(historicalQOver, historicalQUnder);
+      const fairValue = calculateImpliedPrice(probOver);
+      const trendValue = askingPrice; // Asking price as baseline trend
+      
+      initialData.push({ time: timestamp, value: fairValue });
+      trendData.push({ time: timestamp, value: trendValue });
     }
 
     fairValueSeries.setData(initialData);
     trendSeries.setData(trendData);
+
+    // Initialize LMSR state from "history"
+    setLmsrState(prev => ({
+      ...prev,
+      qOver: historicalQOver,
+      qUnder: historicalQUnder
+    }));
 
     const handleResize = () => {
       if (chartContainerRef.current) {
@@ -111,51 +219,79 @@ const MarketPage: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, []);
+  }, [askingPrice, calculateImpliedPrice, priceOver]);
 
+  // Auto-update chart with current fair value
   useEffect(() => {
     const interval = setInterval(() => {
-      setMarketData(prev => {
-        const change = (Math.random() - 0.5) * 5000;
-        const newFairValue = Math.max(700000, Math.min(1000000, prev.fairValue + change));
+      if (fairValueSeriesRef.current && trendSeriesRef.current) {
+        const now = new Date();
+        const timestamp = now.getTime() / 1000 as LineData['time'];
         
-        if (fairValueSeriesRef.current && trendSeriesRef.current) {
-          const now = new Date();
-          const timestamp = now.getTime() / 1000 as LineData['time'];
-          
-          fairValueSeriesRef.current.update({
-            time: timestamp,
-            value: newFairValue,
-          });
-          
-          trendSeriesRef.current.update({
-            time: timestamp,
-            value: newFairValue + 25000 + (Math.random() - 0.5) * 5000,
-          });
-        }
+        const probOver = priceOver(lmsrState.qOver, lmsrState.qUnder);
+        const currentFairValue = calculateImpliedPrice(probOver);
         
-        return {
+        fairValueSeriesRef.current.update({
+          time: timestamp,
+          value: currentFairValue,
+        });
+        
+        trendSeriesRef.current.update({
+          time: timestamp,
+          value: askingPrice,
+        });
+        
+        setMarketData(prev => ({
           ...prev,
-          fairValue: newFairValue,
-          volume: prev.volume + Math.floor(Math.random() * 5000),
-        };
-      });
+          fairValue: currentFairValue,
+        }));
+      }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [lmsrState.qOver, lmsrState.qUnder, askingPrice, calculateImpliedPrice, priceOver]);
 
   const placeBet = (direction: 'higher' | 'lower') => {
-    const amount = parseFloat(betAmount);
-    if (!amount || amount <= 0) {
+    const wager = parseFloat(betAmount);
+    if (!wager || wager <= 0) {
       alert('Please enter a valid bet amount');
       return;
     }
 
+    // Use LMSR to execute trade
+    const outcome: 'over' | 'under' = direction === 'higher' ? 'over' : 'under';
+    
+    // Convert dollar wager to shares using binary search
+    const shares = buyWithBudget(outcome, wager, lmsrState.qOver, lmsrState.qUnder);
+    
+    // Calculate actual cost
+    const oldCost = costFunction(lmsrState.qOver, lmsrState.qUnder);
+    let newCost: number;
+    
+    if (outcome === 'over') {
+      newCost = costFunction(lmsrState.qOver + shares, lmsrState.qUnder);
+    } else {
+      newCost = costFunction(lmsrState.qOver, lmsrState.qUnder + shares);
+    }
+    
+    const actualCost = newCost - oldCost;
+    // const payout = shares; // Each share pays $1 if correct - stored for potential future use
+    
+    // Update LMSR state
+    const newQOver = outcome === 'over' ? lmsrState.qOver + shares : lmsrState.qOver;
+    const newQUnder = outcome === 'under' ? lmsrState.qUnder + shares : lmsrState.qUnder;
+    
+    setLmsrState(prev => ({
+      qOver: newQOver,
+      qUnder: newQUnder,
+      totalWagered: prev.totalWagered + actualCost,
+      totalTrades: prev.totalTrades + 1
+    }));
+
     const newBet: Bet = {
       id: Math.random().toString(36).substr(2, 9),
       direction,
-      amount,
+      amount: wager,
       priceAtBet: marketData.fairValue,
       timestamp: new Date(),
     };
@@ -163,14 +299,59 @@ const MarketPage: React.FC = () => {
     setBets(prev => [newBet, ...prev]);
     setBetAmount('');
     
+    // Calculate new fair value
+    const newProbOver = priceOver(
+      outcome === 'over' ? lmsrState.qOver + shares : lmsrState.qOver,
+      outcome === 'under' ? lmsrState.qUnder + shares : lmsrState.qUnder
+    );
+    const newFairValue = calculateImpliedPrice(newProbOver);
+    
     setMarketData(prev => ({
       ...prev,
-      fairValue: direction === 'higher' 
-        ? prev.fairValue + amount * 0.5 
-        : prev.fairValue - amount * 0.5,
-      volume: prev.volume + amount,
+      fairValue: newFairValue,
+      volume: prev.volume + actualCost,
       participantCount: prev.participantCount + 1,
     }));
+    
+    // Update chart immediately
+    if (fairValueSeriesRef.current) {
+      const now = new Date();
+      const timestamp = now.getTime() / 1000 as LineData['time'];
+      fairValueSeriesRef.current.update({
+        time: timestamp,
+        value: newFairValue,
+      });
+    }
+
+    // Store LMSR state in Cognee
+    if (propertyId) {
+      storeLMSRState(
+        {
+          qOver: newQOver,
+          qUnder: newQUnder,
+          totalWagered: lmsrState.totalWagered + actualCost,
+          totalTrades: lmsrState.totalTrades + 1,
+          fairValue: newFairValue,
+          askingPrice: askingPrice,
+          timestamp: new Date().toISOString(),
+          propertyId: propertyId
+        },
+        {
+          id: newBet.id,
+          direction: newBet.direction,
+          amount: wager,
+          priceAtBet: newBet.priceAtBet,
+          timestamp: newBet.timestamp,
+          propertyId: propertyId,
+          shares: shares,
+          actualCost: actualCost
+        }
+      ).then(() => {
+        console.log('LMSR state stored in Cognee');
+      }).catch((error) => {
+        console.error('Failed to store LMSR state:', error);
+      });
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -191,6 +372,22 @@ const MarketPage: React.FC = () => {
   const confidence = getConfidence();
   const priceDelta = marketData.fairValue - property.currentPrice;
   const priceDeltaPercent = ((priceDelta / property.currentPrice) * 100).toFixed(1);
+
+  // AI Search Handler
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !propertyId) return;
+    
+    setIsSearching(true);
+    try {
+      const results = await searchMarketInsights(searchQuery, propertyId, 'GRAPH_COMPLETION');
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setSearchResults({ error: 'Search failed. Please try again.' });
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   return (
     <div className="market-page">
@@ -294,6 +491,62 @@ const MarketPage: React.FC = () => {
                 <span className="stat-value" style={{ color: confidence.color }}>{confidence.text}</span>
                 <span className="stat-desc">{marketData.participantCount} traders</span>
               </div>
+            </div>
+
+            {/* AI Search Section */}
+            <div className="ai-search-section">
+              <div className="ai-search-header" onClick={() => setShowAISearch(!showAISearch)}>
+                <div className="ai-search-title">
+                  <Brain size={20} />
+                  <h3>AI Market Insights</h3>
+                </div>
+                <span className="ai-search-toggle">{showAISearch ? '−' : '+'}</span>
+              </div>
+              
+              {showAISearch && (
+                <div className="ai-search-content">
+                  <div className="ai-search-input-group">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      placeholder="Ask about market trends, betting patterns, or price predictions..."
+                      className="ai-search-input"
+                    />
+                    <button 
+                      className="ai-search-btn" 
+                      onClick={handleSearch}
+                      disabled={isSearching}
+                    >
+                      {isSearching ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
+                      {isSearching ? 'Analyzing...' : 'Search'}
+                    </button>
+                  </div>
+                  
+                  {searchResults && (
+                    <div className="ai-search-results">
+                      {searchResults.error ? (
+                        <p className="ai-search-error">{searchResults.error}</p>
+                      ) : (
+                        <div className="ai-search-response">
+                          {searchResults.results && searchResults.results.map((result: any, idx: number) => (
+                            <div key={idx} className="ai-result-item">
+                              <p>{result.text || JSON.stringify(result)}</p>
+                            </div>
+                          ))}
+                          {searchResults.answer && (
+                            <div className="ai-answer">
+                              <strong>Answer:</strong>
+                              <p>{searchResults.answer}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
