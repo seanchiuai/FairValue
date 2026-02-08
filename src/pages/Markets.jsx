@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
+import PropertyMap from '../components/PropertyMap';
 import { useProperties } from '../data/properties';
 
 const SORT_OPTIONS = [
@@ -193,6 +194,14 @@ function Markets() {
         </div>
       </section>
 
+      <section className="map-section">
+        <div className="map-section-header">
+          <h2 className="map-section-title">Map View</h2>
+          <span className="map-section-count">{sortedProperties.length} pins</span>
+        </div>
+        <PropertyMap properties={sortedProperties} />
+      </section>
+
       {/* Grid */}
       <section className="markets-grid">
         {sortedProperties.map((property) => (
@@ -342,6 +351,30 @@ function Markets() {
         .sort-option .check { color: #0071E3; font-weight: 600; }
         .results-count { color: #AEAEB2; font-size: 12px; font-weight: 500; }
 
+        .map-section {
+          padding: 0 32px 18px;
+        }
+        .map-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 10px;
+          padding: 0 4px;
+        }
+        .map-section-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: #1D1D1F;
+        }
+        .map-section-count {
+          color: #8E8E93;
+          font-size: 12px;
+          font-weight: 500;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
         .markets-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -364,6 +397,8 @@ function Markets() {
           .header-center { display: none; }
           .filters-bar { padding: 10px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
           .filters-right { width: 100%; justify-content: space-between; }
+          .map-section { padding: 0 16px 14px; }
+          .map-section-title { font-size: 15px; }
           .markets-grid { grid-template-columns: 1fr; padding: 12px 16px 32px; gap: 12px; }
         }
       `}</style>
