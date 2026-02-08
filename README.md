@@ -17,7 +17,7 @@ A host creates a room and selects a property. Players join via QR code or room c
 |-------|-----------|
 | Frontend | React 19, TypeScript, Create React App |
 | Backend | Node.js, Express 5 |
-| Database | Neon / QDrant |
+| Database | Neon / Qdrant |
 | Real-time | WebSocket (`ws`) |
 | Charting | TradingView Lightweight Charts |
 | AI Chat | Cognee Knowledge Graph API |
