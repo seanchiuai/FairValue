@@ -135,6 +135,12 @@ export function useMarketChart({
       probDataRef.current.push(probPoint);
       fvDataRef.current.push(fvPoint);
 
+      // Cap data points to prevent unbounded growth in long sessions
+      if (probDataRef.current.length > 500) {
+        probDataRef.current = probDataRef.current.slice(-400);
+        fvDataRef.current = fvDataRef.current.slice(-400);
+      }
+
       probSeriesRef.current.setData(probDataRef.current);
       fairValueSeriesRef.current.setData(fvDataRef.current);
     }, tickIntervalMs);

@@ -49,7 +49,7 @@ const MarketPage: React.FC = () => {
           loadHistory(points);
         }
       })
-      .catch(() => {});
+      .catch(() => console.warn('Chart history unavailable'));
   }, [propertyId, property, loadHistory]);
 
   const handleStartBid = async () => {

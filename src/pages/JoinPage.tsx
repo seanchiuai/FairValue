@@ -14,14 +14,18 @@ export default function JoinPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const sanitize = (s: string, max: number) => s.trim().replace(/<[^>]*>/g, '').slice(0, max);
+
   const handleCreate = async () => {
-    if (!name.trim() || !address.trim() || !askingPrice.trim()) {
+    const cleanName = sanitize(name, 20);
+    const cleanAddress = sanitize(address, 100);
+    if (!cleanName || !cleanAddress || !askingPrice.trim()) {
       setError('All fields are required');
       return;
     }
     const price = parseFloat(askingPrice.replace(/,/g, ''));
-    if (isNaN(price) || price <= 0) {
-      setError('Enter a valid asking price');
+    if (isNaN(price) || price <= 0 || price > 100_000_000) {
+      setError('Enter a valid asking price (up to $100M)');
       return;
     }
 
@@ -31,12 +35,12 @@ export default function JoinPage() {
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: address.trim(), asking_price: price }),
+        body: JSON.stringify({ address: cleanAddress, asking_price: price }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      saveNickname(name.trim());
+      saveNickname(cleanName);
 
       // Join the room as host
       await fetch(`/api/rooms/${data.room_code}/join`, {
@@ -46,34 +50,40 @@ export default function JoinPage() {
       });
 
       navigate(`/host/${data.room_code}`);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create room');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create room');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleJoin = async () => {
-    if (!name.trim() || !roomCode.trim()) {
+    const cleanName = sanitize(name, 20);
+    const cleanCode = roomCode.trim().toUpperCase();
+    if (!cleanName || !cleanCode) {
       setError('Nickname and room code are required');
+      return;
+    }
+    if (!/^[A-Z]{4}$/.test(cleanCode)) {
+      setError('Room code must be 4 letters');
       return;
     }
 
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch(`/api/rooms/${roomCode.trim().toUpperCase()}/join`, {
+      const res = await fetch(`/api/rooms/${cleanCode}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, nickname: name.trim() }),
+        body: JSON.stringify({ session_id: sessionId, nickname: cleanName }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      saveNickname(name.trim());
-      navigate(`/play/${roomCode.trim().toUpperCase()}`);
-    } catch (err: any) {
-      setError(err.message || 'Failed to join room');
+      saveNickname(cleanName);
+      navigate(`/play/${cleanCode}`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to join room');
     } finally {
       setSubmitting(false);
     }
@@ -113,6 +123,7 @@ export default function JoinPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter your name"
+                maxLength={20}
                 autoFocus
               />
             </div>
@@ -123,6 +134,7 @@ export default function JoinPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="742 Evergreen Terrace"
+                maxLength={100}
               />
             </div>
             <div style={styles.field}>
@@ -159,6 +171,7 @@ export default function JoinPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter your name"
+                maxLength={20}
                 autoFocus
               />
             </div>

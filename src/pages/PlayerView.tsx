@@ -4,7 +4,10 @@ import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
-import { Wifi, WifiOff, TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
+import ConnectionIndicator from '../components/ConnectionIndicator';
+import ReconnectingOverlay from '../components/ReconnectingOverlay';
+import { RateLimiter } from '../lib/rateLimiter';
 
 export default function PlayerView() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -15,7 +18,7 @@ export default function PlayerView() {
     house,
     settled,
     settleResult,
-    connected,
+    connectionState,
     loading,
     placeBet,
     joinRoom,
@@ -41,6 +44,7 @@ export default function PlayerView() {
         historyLoadedRef.current = true;
       })
       .catch(() => {
+        console.warn('Chart history unavailable');
         historyLoadedRef.current = true;
       });
   }, [roomCode, house, loadHistory]);
@@ -60,15 +64,23 @@ export default function PlayerView() {
   const [joinName, setJoinName] = useState(savedNickname);
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
+  const wasConnectedRef = useRef(false);
+  const rateLimiterRef = useRef(new RateLimiter(5, 1));
+  if (connectionState === 'connected') wasConnectedRef.current = true;
 
   const handleBet = async (outcome: 'over' | 'under') => {
     if (betting || !wager || wager <= 0) return;
+    if (!rateLimiterRef.current.canAct()) {
+      const wait = Math.ceil(rateLimiterRef.current.timeUntilNext() / 1000);
+      setBetError(`Slow down! Wait ${wait}s before betting again.`);
+      return;
+    }
     setBetting(true);
     setBetError('');
     try {
       await placeBet(outcome, wager);
-    } catch (err: any) {
-      setBetError(err.message);
+    } catch (err: unknown) {
+      setBetError(err instanceof Error ? err.message : 'Bet failed');
     } finally {
       setBetting(false);
     }
@@ -93,17 +105,18 @@ export default function PlayerView() {
   // Player hasn't joined yet — show nickname form
   if (!myPlayer) {
     const handleJoin = async () => {
-      if (!joinName.trim()) {
+      const sanitized = joinName.trim().replace(/<[^>]*>/g, '').slice(0, 20);
+      if (!sanitized) {
         setJoinError('Enter your name');
         return;
       }
       setJoining(true);
       setJoinError('');
       try {
-        await joinRoom(joinName.trim());
-        saveNickname(joinName.trim());
-      } catch (err: any) {
-        setJoinError(err.message || 'Failed to join');
+        await joinRoom(sanitized);
+        saveNickname(sanitized);
+      } catch (err: unknown) {
+        setJoinError(err instanceof Error ? err.message : 'Failed to join');
       } finally {
         setJoining(false);
       }
@@ -129,6 +142,8 @@ export default function PlayerView() {
               value={joinName}
               onChange={(e) => setJoinName(e.target.value)}
               placeholder="Enter your name"
+              maxLength={20}
+              aria-required="true"
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
             />
@@ -154,11 +169,7 @@ export default function PlayerView() {
       <div style={s.header}>
         <div style={s.headerLeft}>
           <span style={s.roomBadge}>{roomCode}</span>
-          {connected ? (
-            <Wifi size={14} color="var(--accent-success)" />
-          ) : (
-            <WifiOff size={14} color="var(--accent-danger)" />
-          )}
+          <ConnectionIndicator state={connectionState} />
         </div>
         <div style={s.balanceBox}>
           <DollarSign size={14} color="var(--accent-warning)" />
@@ -210,7 +221,14 @@ export default function PlayerView() {
       {!settled && (
         <>
           <div style={s.probContainer}>
-            <div style={s.probBar}>
+            <div
+              style={s.probBar}
+              role="progressbar"
+              aria-valuenow={probPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${probPercent}% probability of going over asking price`}
+            >
               <div
                 style={{
                   ...s.probFill,
@@ -295,9 +313,14 @@ export default function PlayerView() {
               style={s.customInput}
               type="number"
               value={wager || ''}
-              onChange={(e) => setWager(Number(e.target.value))}
+              onChange={(e) => {
+                const val = Math.max(0, Math.min(Number(e.target.value), myPlayer ? myPlayer.balance : 10000));
+                setWager(val);
+              }}
               placeholder="$"
               inputMode="numeric"
+              min={1}
+              max={myPlayer ? myPlayer.balance : 10000}
             />
           </div>
           <div style={s.betButtons}>
@@ -305,6 +328,7 @@ export default function PlayerView() {
               style={{ ...s.betBtn, ...s.overBtn, opacity: betting ? 0.6 : 1 }}
               onClick={() => handleBet('over')}
               disabled={betting}
+              aria-label={`Bet $${wager} on OVER`}
             >
               <TrendingUp size={20} />
               OVER
@@ -312,6 +336,7 @@ export default function PlayerView() {
             <button
               style={{ ...s.betBtn, ...s.underBtn, opacity: betting ? 0.6 : 1 }}
               onClick={() => handleBet('under')}
+              aria-label={`Bet $${wager} on UNDER`}
               disabled={betting}
             >
               <TrendingDown size={20} />
@@ -320,6 +345,8 @@ export default function PlayerView() {
           </div>
         </div>
       )}
+
+      <ReconnectingOverlay state={connectionState} wasConnected={wasConnectedRef.current} />
     </div>
   );
 }

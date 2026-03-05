@@ -33,7 +33,7 @@
   /* Text — iOS system colors */
   --text-primary: #1C1C1E;
   --text-secondary: #636366;
-  --text-muted: #AEAEB2;
+  --text-muted: #8E8E93;
   --text-on-glass: rgba(0, 0, 0, 0.75);
 
   /* Accents — iOS system blue */
@@ -97,4 +97,21 @@ body {
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-inner-shadow), var(--glass-shadow);
+}
+
+/* Toast animation */
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Skeleton shimmer */
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

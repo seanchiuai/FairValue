@@ -1,32 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, TrendingUp, DollarSign, BarChart3 } from 'lucide-react';
-import { useCogneeChat, type ChatMessage } from '../hooks/useCogneeChat';
-
-interface Market {
-  prob_over: number;
-  prob_under: number;
-  q_over: number;
-  q_under: number;
-  total_trades: number;
-  total_wagered: number;
-  avg_bet_size: number;
-  b: number;
-}
-
-interface ActivityEntry {
-  type: string;
-  nickname?: string;
-  outcome?: string;
-  wager?: number;
-  timestamp: number;
-}
-
-interface PlayerData {
-  session_id: string;
-  nickname: string;
-  balance: number;
-  bets: Array<{ outcome: string; wager: number; shares: number; prob_at_entry: number; timestamp: number }>;
-}
+import { useCogneeChat } from '../hooks/useCogneeChat';
+import type { Market, ActivityEntry, PlayerData, ChatMessage } from '../types';
 
 interface CogneeChatProps {
   propertyId: string;

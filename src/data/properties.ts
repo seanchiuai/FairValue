@@ -31,18 +31,57 @@ export interface Property {
   priceHistory: { date: string; event: string; price: number; source: string }[];
 }
 
-function mapRaw(rawData: any[]): Property[] {
+interface RawPhotoSource {
+  url: string;
+  width: number;
+}
+
+interface RawResponsivePhoto {
+  mixedSources?: { jpeg?: RawPhotoSource[] };
+}
+
+interface RawPropertyData {
+  zpid?: number;
+  address?: { streetAddress?: string; city?: string; state?: string; zipcode?: string };
+  streetAddress?: string;
+  city?: string;
+  state?: string;
+  zipcode?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  livingArea?: number;
+  yearBuilt?: number;
+  price?: number;
+  zestimate?: number;
+  rentZestimate?: number;
+  homeType?: string;
+  homeStatus?: string;
+  dateSoldString?: string;
+  daysOnZillow?: number;
+  description?: string;
+  brokerageName?: string;
+  responsivePhotos?: RawResponsivePhoto[];
+  hdpUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  county?: string;
+  propertyTaxRate?: number;
+  schools?: Array<{ name?: string; rating?: number; distance?: number; level?: string; link?: string }>;
+  priceHistory?: Array<{ date?: string; event?: string; price?: number; source?: string }>;
+}
+
+function mapRaw(rawData: RawPropertyData[]): Property[] {
   return rawData.map((item, index) => {
     const addr = item.address || {};
-    const photos = (item.responsivePhotos || []).flatMap((rp: any) => {
+    const photos = (item.responsivePhotos || []).flatMap((rp) => {
       const jpegs = rp?.mixedSources?.jpeg || [];
-      return jpegs.map((j: any) => ({ url: j.url, width: j.width }));
+      return jpegs.map((j) => ({ url: j.url, width: j.width }));
     });
-    const bestPhoto = photos.find((p: any) => p.width === 768) || photos.find((p: any) => p.width === 576) || photos[0];
+    const bestPhoto = photos.find((p) => p.width === 768) || photos.find((p) => p.width === 576) || photos[0];
 
     return {
       id: String(item.zpid || index + 1),
-      zpid: item.zpid,
+      zpid: item.zpid || 0,
       address: item.streetAddress || addr.streetAddress || '',
       city: item.city || addr.city || 'San Francisco',
       state: item.state || addr.state || 'CA',
@@ -67,14 +106,14 @@ function mapRaw(rawData: any[]): Property[] {
       longitude: item.longitude || 0,
       county: item.county || '',
       propertyTaxRate: item.propertyTaxRate ?? null,
-      schools: (item.schools || []).map((s: any) => ({
+      schools: (item.schools || []).map((s) => ({
         name: s.name || '',
         rating: s.rating ?? null,
         distance: s.distance || 0,
         level: s.level || '',
         link: s.link || '',
       })),
-      priceHistory: (item.priceHistory || []).map((ph: any) => ({
+      priceHistory: (item.priceHistory || []).map((ph) => ({
         date: ph.date || '',
         event: ph.event || '',
         price: ph.price || 0,
@@ -93,7 +132,7 @@ function fetchProperties(): Promise<Property[]> {
   if (fetchPromise) return fetchPromise;
   fetchPromise = fetch(`${process.env.PUBLIC_URL}/data/properties.json`)
     .then(res => res.json())
-    .then((raw: any[]) => {
+    .then((raw: RawPropertyData[]) => {
       cached = mapRaw(raw);
       return cached;
     });

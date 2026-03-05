@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import {
   Search,
   ChevronDown,
   X,
   Home,
+  Map as MapIcon,
 } from 'lucide-react';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
-import PropertyMap from '../components/PropertyMap';
 import { useProperties } from '../data/properties';
+
+const PropertyMap = React.lazy(() => import('../components/PropertyMap'));
 
 const SORT_OPTIONS = [
   { value: 'price-desc', label: 'Price: High to Low' },
@@ -30,13 +32,14 @@ function Markets() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [homeType, setHomeType] = useState('All');
   const [minBeds, setMinBeds] = useState('Any');
+  const [showMap, setShowMap] = useState(true);
   const [chartDataMap, setChartDataMap] = useState({});
 
   const fetchCharts = useCallback(() => {
     fetch('/api/markets/charts')
       .then(r => r.ok ? r.json() : {})
       .then(data => setChartDataMap(data))
-      .catch(() => {});
+      .catch(() => console.warn('Chart data unavailable'));
   }, []);
 
   useEffect(() => {
@@ -45,7 +48,7 @@ function Markets() {
     return () => clearInterval(interval);
   }, [fetchCharts]);
 
-  const filteredProperties = properties.filter((property) => {
+  const filteredProperties = useMemo(() => properties.filter((property) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch = !q ||
       property.address.toLowerCase().includes(q) ||
@@ -63,9 +66,9 @@ function Markets() {
     }
 
     return true;
-  });
+  }), [properties, searchQuery, homeType, minBeds]);
 
-  const sortedProperties = [...filteredProperties].sort((a, b) => {
+  const sortedProperties = useMemo(() => [...filteredProperties].sort((a, b) => {
     switch (sortBy) {
       case 'price-desc': return (b.price || 0) - (a.price || 0);
       case 'price-asc': return (a.price || 0) - (b.price || 0);
@@ -74,7 +77,7 @@ function Markets() {
       case 'address': return a.address.localeCompare(b.address);
       default: return 0;
     }
-  });
+  }), [filteredProperties, sortBy]);
 
   const hasFilters = homeType !== 'All' || minBeds !== 'Any' || searchQuery;
   const featuredProperty = properties.length > 0
@@ -115,12 +118,20 @@ function Markets() {
         </div>
 
         <div className="header-right">
-          <span className="header-count">{properties.length} Properties</span>
+          <button
+            type="button"
+            className={`map-toggle ${showMap ? 'active' : ''}`}
+            onClick={() => setShowMap((prev) => !prev)}
+            aria-pressed={showMap}
+          >
+            <MapIcon size={14} />
+            Map View
+          </button>
         </div>
       </header>
 
       {/* Featured */}
-      <FeaturedMarket property={featuredProperty} />
+      {featuredProperty && <FeaturedMarket property={featuredProperty} />}
 
       {/* Filters Bar */}
       <section className="filters-bar">
@@ -194,32 +205,36 @@ function Markets() {
         </div>
       </section>
 
-      <section className="map-section">
-        <div className="map-section-header">
-          <h2 className="map-section-title">Map View</h2>
-          <span className="map-section-count">{sortedProperties.length} pins</span>
-        </div>
-        <PropertyMap properties={sortedProperties} />
-      </section>
+      <section className={`results-layout ${showMap ? 'with-map' : ''}`}>
+        <div className="results-list">
+          {/* Grid */}
+          <section className="markets-grid">
+            {sortedProperties.map((property) => (
+              <MarketCard
+                key={property.id}
+                property={property}
+                chartData={chartDataMap[property.id]?.map(d => d.prob)}
+              />
+            ))}
+          </section>
 
-      {/* Grid */}
-      <section className="markets-grid">
-        {sortedProperties.map((property) => (
-          <MarketCard
-            key={property.id}
-            property={property}
-            chartData={chartDataMap[property.id]?.map(d => d.prob)}
-          />
-        ))}
-      </section>
-
-      {sortedProperties.length === 0 && (
-        <div className="empty-state">
-          <Search size={48} className="empty-icon" />
-          <h3>No properties found</h3>
-          <p>Try adjusting your search or filters</p>
+          {sortedProperties.length === 0 && (
+            <div className="empty-state">
+              <Search size={48} className="empty-icon" />
+              <h3>No properties found</h3>
+              <p>Try adjusting your search or filters</p>
+            </div>
+          )}
         </div>
-      )}
+
+        {showMap && sortedProperties.length > 0 && (
+          <aside className="map-dock">
+            <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>Loading map...</div>}>
+              <PropertyMap properties={sortedProperties} />
+            </Suspense>
+          </aside>
+        )}
+      </section>
 
       <footer className="footer">
         <p>© 2026 FairValue · {properties.length} properties in San Francisco 94110</p>
@@ -280,7 +295,28 @@ function Markets() {
         }
         .search-clear:hover { background: #E8E8ED; color: #1D1D1F; }
         .header-right { display: flex; align-items: center; gap: 12px; }
-        .header-count { font-size: 13px; color: #8E8E93; font-weight: 500; }
+        .map-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 11px;
+          border-radius: 999px;
+          border: 1px solid #D2D2D7;
+          background: #FFF;
+          color: #1D1D1F;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .map-toggle svg { color: #636366; }
+        .map-toggle:hover { border-color: #AEAEB2; }
+        .map-toggle.active {
+          color: #0D5C2D;
+          background: #F2FBF4;
+          border-color: #A5D6A7;
+        }
+        .map-toggle.active svg { color: #0D5C2D; }
 
         .filters-bar {
           display: flex;
@@ -351,35 +387,37 @@ function Markets() {
         .sort-option .check { color: #0071E3; font-weight: 600; }
         .results-count { color: #AEAEB2; font-size: 12px; font-weight: 500; }
 
-        .map-section {
-          padding: 0 32px 18px;
-        }
-        .map-section-header {
+        .results-layout {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 10px;
-          padding: 0 4px;
+          align-items: flex-start;
+          gap: 16px;
+          padding: 0 32px 40px;
         }
-        .map-section-title {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: #1D1D1F;
+        .results-layout.with-map .results-list {
+          flex: 1;
+          min-width: 0;
         }
-        .map-section-count {
-          color: #8E8E93;
-          font-size: 12px;
-          font-weight: 500;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
+        .results-layout:not(.with-map) .results-list {
+          width: 100%;
+        }
+        .map-dock {
+          width: min(40vw, 460px);
+          min-width: 360px;
+          position: sticky;
+          top: 72px;
+          flex-shrink: 0;
+        }
+        .map-dock .map-wrap {
+          height: calc(100vh - 92px);
+          min-height: 500px;
+          max-height: 760px;
         }
 
         .markets-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
           gap: 16px;
-          padding: 4px 32px 40px;
+          padding: 4px 0 0;
         }
 
         .empty-state {
@@ -397,9 +435,19 @@ function Markets() {
           .header-center { display: none; }
           .filters-bar { padding: 10px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
           .filters-right { width: 100%; justify-content: space-between; }
-          .map-section { padding: 0 16px 14px; }
-          .map-section-title { font-size: 15px; }
-          .markets-grid { grid-template-columns: 1fr; padding: 12px 16px 32px; gap: 12px; }
+          .results-layout { flex-direction: column; padding: 0 16px 32px; gap: 12px; }
+          .results-list { width: 100%; }
+          .map-dock {
+            width: 100%;
+            min-width: 0;
+            position: static;
+          }
+          .map-dock .map-wrap {
+            height: 320px;
+            min-height: 0;
+            max-height: none;
+          }
+          .markets-grid { grid-template-columns: 1fr; padding: 0; gap: 12px; }
         }
       `}</style>
     </div>

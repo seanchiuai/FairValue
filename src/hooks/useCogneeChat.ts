@@ -5,40 +5,7 @@ import {
   searchMarketInsights,
   type LMSRState,
 } from '../services/cogneeService';
-
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-  isError?: boolean;
-}
-
-interface Market {
-  prob_over: number;
-  prob_under: number;
-  q_over: number;
-  q_under: number;
-  total_trades: number;
-  total_wagered: number;
-  avg_bet_size: number;
-  b: number;
-}
-
-interface ActivityEntry {
-  type: string;
-  nickname?: string;
-  outcome?: string;
-  wager?: number;
-  timestamp: number;
-}
-
-interface PlayerData {
-  session_id: string;
-  nickname: string;
-  balance: number;
-  bets: Array<{ outcome: string; wager: number; shares: number; prob_at_entry: number; timestamp: number }>;
-}
+import type { Market, ActivityEntry, PlayerData, ChatMessage, CogneeSearchResponse } from '../types';
 
 interface UseCogneeChatProps {
   propertyId: string;
@@ -48,32 +15,30 @@ interface UseCogneeChatProps {
   players: PlayerData[];
 }
 
-function formatCogneeResponse(data: any): string {
+function formatCogneeResponse(data: CogneeSearchResponse | string): string {
   if (typeof data === 'string') return data;
 
   if (Array.isArray(data)) {
-    // Cognee returns [{search_result: ["..."], dataset_name: "..."}, ...]
-    // Take the first result with a search_result to avoid duplicates across datasets
-    const withSearchResult = data.find((item: any) =>
+    const withSearchResult = data.find((item) =>
       Array.isArray(item.search_result) && item.search_result.length > 0
     );
-    if (withSearchResult) return withSearchResult.search_result[0];
+    if (withSearchResult && withSearchResult.search_result) return withSearchResult.search_result[0];
 
     const texts = data
-      .map((item: any) => item.content || item.text || item.description || item.summary || '')
+      .map((item) => item.content || item.text || item.description || item.summary || '')
       .filter(Boolean);
     if (texts.length > 0) return texts.join('\n\n');
     return JSON.stringify(data, null, 2);
   }
 
-  if (data?.search_result) {
+  if (data.search_result) {
     if (Array.isArray(data.search_result) && data.search_result.length > 0) return data.search_result[0];
     if (typeof data.search_result === 'string') return data.search_result;
   }
-  if (data?.results) return formatCogneeResponse(data.results);
-  if (data?.data) return formatCogneeResponse(data.data);
-  if (data?.content) return data.content;
-  if (data?.text) return data.text;
+  if (data.results) return formatCogneeResponse(data.results);
+  if (data.data) return formatCogneeResponse(data.data);
+  if (data.content) return data.content;
+  if (data.text) return data.text;
 
   return JSON.stringify(data, null, 2);
 }

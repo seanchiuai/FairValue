@@ -87,7 +87,10 @@ export function useCloudFairValue(marketIds: string[]) {
         },
         // Add cache-busting to always get fresh data
         cache: 'no-cache'
-      }).catch(() => null);
+      }).catch(() => {
+        console.warn('Cloud sync: network request failed');
+        return null;
+      });
 
       if (response && response.ok) {
         const data = await response.json();
