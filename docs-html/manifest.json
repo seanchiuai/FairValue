@@ -1,0 +1,19 @@
+{
+  "repo": "FairValue",
+  "generatedAt": "2026-05-09T19:44:57.990074+00:00",
+  "eligibleMarkdown": [
+    "HACKATHON_PROGRESS.md",
+    "IMPROVEMENT_BACKLOG.md",
+    "README.md",
+    "sean/ALGORITHM.md"
+  ],
+  "protectedMarkdown": [
+    "CLAUDE.md"
+  ],
+  "htmlPages": [
+    "docs-html/pages/HACKATHON_PROGRESS.html",
+    "docs-html/pages/IMPROVEMENT_BACKLOG.html",
+    "docs-html/pages/README.html",
+    "docs-html/pages/sean/ALGORITHM.html"
+  ]
+}
