@@ -64,7 +64,8 @@ test('fake host token cannot settle a room from the host UI', async ({ page, req
     ),
     page.getByRole('button', { name: /Confirm Settlement/ }).click(),
   ]);
-  await expect(page.getByText('Invalid host token')).toBeVisible();
+  await expect(page.locator('#settle-error')).toContainText('Invalid host token');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Invalid host token' })).toBeVisible();
 
   const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
   expect(stateResponse.status()).toBe(200);

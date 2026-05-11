@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { House } from '../../types';
 import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
+import { useToast } from '../../contexts/ToastContext';
 
 interface SettleModalProps {
   house: House;
@@ -15,6 +16,7 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
   const [settling, setSettling] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -54,15 +56,19 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
       const data = await res.json();
       if (data.error) {
         setError(data.error);
+        showToast(data.error, 'error');
         return;
       }
+      showToast('Market settled.', 'success');
       onClose();
     } catch {
-      setError('Settlement failed');
+      const message = 'Settlement failed';
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setSettling(false);
     }
-  }, [roomCode, hostToken, userToken, actualPrice, onClose]);
+  }, [roomCode, hostToken, userToken, actualPrice, onClose, showToast]);
 
   return (
     <div

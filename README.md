@@ -213,7 +213,7 @@ npm run test:a11y:assistive
 
 `smoke:boot` starts `node server/index.js` on a free local port with an isolated temporary room snapshot file, checks health/readiness, verifies ops metrics token gating, creates/joins/bets/settles one room through HTTP plus a WebSocket join broadcast, verifies host token non-leakage, and confirms local room snapshot persistence wrote.
 
-`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, join forms, host/player room surfaces, settle modal, host-action failure notifications, missing-key AI fallback, player validation notifications, and mobile wager controls.
+`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, join forms, host/player room surfaces, settle modal, settlement failure notifications, host-action failure notifications, missing-key AI fallback, player validation notifications, and mobile wager controls.
 
 `test:e2e:matrix` starts fresh backend/frontend ports (`8030`/`3030`) and runs the rendered host/player room flow across Chromium, Firefox, and WebKit projects.
 
