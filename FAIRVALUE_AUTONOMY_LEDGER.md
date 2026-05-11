@@ -57,7 +57,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Player bet API failures now treat non-OK or malformed mutation responses as failed bets, roll back optimistic market/player state, and announce the failure inline plus through the global toast system.
 - Direct player join validation and API failure paths now have browser proof that empty nicknames stay local-only, server join failures are announced without marking the nickname field invalid, and no failed join mutates room players.
 - Market detail room-start failures now surface inline on `/market/:propertyId` and through the global toast system instead of silently re-enabling the Start a Bid button.
-- Join-page create-room and room-code join API failures now validate HTTP status and response shape before navigation, preserve inline errors, and emit message-specific global error toasts for async server failures.
+- Join-page create-room and room-code join API failures now validate HTTP status and response shape before navigation, preserve inline errors, avoid blaming fields for backend outages, and emit message-specific global error toasts for async server failures.
 - Host AI toggle failures now use the global toast system instead of console-only errors, so invalid/missing host authority is visible and announced to room operators; AI toggle success also emits a polite status notification.
 - Host settlement failures now preserve the modal inline error while also using the global toast system for announced, message-specific failure feedback; successful settlement emits a polite status toast.
 - The unused `useCloudFairValue` hook and `cloudPersistence` stub were removed so the client no longer carries a fake `api.fairvalue.io` fair-value sync surface or mock/stub cloud logging path.
@@ -130,6 +130,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 join-page API failure notification pass: focused E2E first caught a strict text-locator collision between inline `Room not found` and the new toast; after scoping the assertion to `#join-room-error`, focused E2E passed 2 Chromium tests, full `npm run test:e2e:isolated` passed 14 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.44 kB / 760.00 kB, and `smoke:boot` room `SCUB`.
 - 2026-05-11 player bet rollback notification pass: focused E2E passed a forced non-JSON `POST /api/rooms/:roomCode/bet` 503 branch, full `npm run test:e2e:isolated` passed 15 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.62 kB / 760.00 kB, and `smoke:boot` room `YAIQ`.
 - 2026-05-11 direct player join API failure pass: focused E2E passed a forced non-JSON `POST /api/rooms/:roomCode/join` 503 branch, full `npm run test:e2e:isolated` passed 16 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `OGC4`.
+- 2026-05-11 join-page room-code outage pass: focused E2E passed a forced non-JSON `/join` room-code submit 503 branch, full `npm run test:e2e:isolated` passed 17 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `V22O`.
 
 ## Current Known Risks
 
@@ -143,7 +144,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start, join-page API create/join, direct-player-join validation/API failure, player-wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start, join-page API create/join outage, direct-player-join validation/API failure, player-wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -151,7 +152,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start, join-page API create/join, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start, join-page API create/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
@@ -159,6 +160,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Join Page Room Join Outage
+
+- Added negative-path browser coverage for a valid-looking `/join` room-code submission receiving a plain-text `503` from `POST /api/rooms/:code/join`.
+- Verified the join page keeps the user on `/join`, shows inline `#join-room-error`, emits the message-specific `Failed to join room` toast, links both fields to the alert, and does not mark either field invalid for a backend outage.
+- Ran a serious/critical axe check on the joined failure state and updated README isolated E2E wording to distinguish join-page create/join API failure coverage.
 
 ### 2026-05-11 - Direct Player Join API Failure
 
@@ -916,6 +923,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "direct player join API failure"` after intercepting player join with a non-JSON 503 -> passed 1 Chromium test.
 - Full `npm run test:e2e:isolated` after direct player join API failure patch -> passed 16 Chromium tests, including the new direct player join API failure branch.
 - Final `npm run verify` after direct player join API failure patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.75 kB / 240.00 kB and total JS 659.63 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:61376`, room `OGC4`.
+- `git diff --check` after join-page room join outage coverage -> passed.
+- `npm run typecheck` after join-page room join outage coverage -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "join page room-code API failure"` after intercepting `/api/rooms/FAIL/join` with a non-JSON 503 -> passed 1 Chromium test.
+- Full `npm run test:e2e:isolated` after join-page room join outage coverage -> passed 17 Chromium tests, including the new join-page room-code API outage branch.
+- Final `npm run verify` after join-page room join outage coverage -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.75 kB / 240.00 kB and total JS 659.63 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:64489`, room `V22O`.
 
 ## Screens And Routes Verified
 
@@ -978,6 +990,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Join-page API failure evidence verified `/join` nonexistent room feedback through inline `#join-room-error` plus a message-specific `Room not found` toast, and forced create-room `POST /api/rooms` 503 feedback through inline `#create-room-error`, a message-specific toast, preserved `/join` URL, and serious/critical axe coverage.
 - Player bet failure rollback evidence verified `/play/:roomCode` forced `POST /api/rooms/:roomCode/bet` plain-text 503 feedback through inline `#player-bet-error`, a message-specific `Bet failed` toast, `aria-invalid` / `aria-describedby` linkage on the custom wager input, unchanged rendered balance, no rendered positions, unchanged server trade count/player balance, and serious/critical axe coverage.
 - Direct player join API failure evidence verified `/play/:roomCode` forced `POST /api/rooms/:roomCode/join` plain-text 503 feedback through inline `#player-join-error`, a message-specific `Failed to join room` toast, `aria-describedby` without incorrect nickname `aria-invalid`, preserved retry state/URL, unchanged server player list, and serious/critical axe coverage.
+- Join-page room join outage evidence verified `/join` forced `POST /api/rooms/FAIL/join` plain-text 503 feedback through inline `#join-room-error`, a message-specific `Failed to join room` toast, both fields described by the alert without invalid field semantics, preserved `/join` URL, and serious/critical axe coverage.
 
 ## Screenshots Or Traces
 
@@ -1079,11 +1092,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `d9595a7` - Cover player bet failure rollback.
 - `026dda0` - Record player bet rollback evidence.
 - `c9aaa1a` - Cover direct player join API failure.
+- `a8cf7c3` - Record direct player join API evidence.
+- `5cfecf6` - Cover join page room join outage.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start, join-page API create/join, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start, join-page API create/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
