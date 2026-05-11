@@ -53,6 +53,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
 - Assistive-technology evidence now also covers the browse route, sort menu, property detail route, host AI degraded alert, and settled host/player result states; dense browse/detail routes use bounded Playwright ARIA evidence while room/dialog/player states still capture macOS AX.
 - Accessibility edge states now expose field-level `aria-invalid` / `aria-describedby` semantics for create/join validation errors and settlement errors; map pins have accessible names and map popup contrast is gated by axe.
+- Player validation notifications now use the existing global toast system for join/bet errors while preserving inline alerts; error toasts announce assertively, non-error toasts announce politely, dismiss buttons are message-specific, mobile width is bounded, and the toast entrance no longer fades text through low-contrast states.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
@@ -113,6 +114,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 HTTP security headers pass: `node --check server/index.js && node --check server/__tests__/securityHeaders.test.js && node --test server/__tests__/securityHeaders.test.js` passed 3 focused header tests; `npm run verify` passed client secret scan, TypeScript type checking, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 E2E TypeScript coverage pass: a broad `tsc` probe first exposed unchecked Playwright/WebSocket spec types and a nullable restart-process guard; after adding `@types/ws`, fixing the guard, and expanding `tsconfig.json`, `npm run typecheck` passed over E2E specs and Playwright configs, `npx playwright test --list -c playwright.restart.config.ts` listed the restart test, `npm run verify` passed client secret scan, typecheck, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate, and `npm audit --json` reported 0 vulnerabilities.
 - 2026-05-11 local backend boot smoke pass: `node --check scripts/smoke-local-boot.js && npm run smoke:boot` passed with room `UL61` on a free local port; final `npm run verify` passed client secret scan, typecheck, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `KA6M`.
+- 2026-05-11 player validation notification pass: `npm test -- ToastContainer` passed 1 suite / 2 tests, `npm run typecheck` passed, focused player-validation E2E first caught a serious toast contrast regression during the opacity animation, the fixed focused E2E passed, `npm test` passed 6 Vitest suites / 43 tests, `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 5 Chromium tests, full `npm run test:e2e:isolated` passed 10 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `VAE4`.
 
 ## Current Known Risks
 
@@ -126,7 +128,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, and map-popup states; it still needs a human-listened VoiceOver rotor/audio pass and deeper edge-state coverage such as toasts and every possible validation branch.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, and player notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered create/join/player-wager/settle paths.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -134,13 +136,23 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-4. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-5. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-6. Run `npm run check:production` against the actual deployment environment once production env values are available.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/player wager/settle paths.
+3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
+6. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Player Validation Notifications
+
+- Wired `PlayerView` join and bet error paths into the existing toast system instead of leaving the toast surface unused.
+- Kept inline form errors while adding `role="alert"`, `aria-live`, `aria-invalid`, and `aria-describedby` semantics for player join and wager validation.
+- Hardened `ToastContainer` so error notifications use assertive alerts, non-error notifications use polite status regions, icons are hidden from assistive tech, and dismiss buttons identify the exact notification message.
+- Expanded the browser accessibility edge-state E2E to verify an invalid `$0` wager on `/play/:roomCode` announces inline, links the custom wager input to the error, renders a dismissible toast, and passes serious/critical axe checks.
+- A first focused E2E run caught that the toast opacity animation temporarily reduced text contrast to 1.85:1; the animation now slides without fading alert text through a low-contrast state.
+- Added unit coverage for error/status toast live-region semantics and message-specific dismissal.
 
 ### 2026-05-11 - Local Backend Boot Smoke
 
@@ -781,6 +793,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm audit --json` after E2E TypeScript coverage -> reported 0 vulnerabilities.
 - `node --check scripts/smoke-local-boot.js && npm run smoke:boot` -> passed with real backend child process on `http://127.0.0.1:62005`, room `UL61`, and a temporary snapshot path under `/var/folders/.../fairvalue-local-boot-*`.
 - `npm run verify` after wiring `smoke:boot` into the standard gate -> passed: `scan:secrets`, `typecheck`, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, bundle budget gate, and `smoke:boot` with real backend child process on `http://127.0.0.1:62172`, room `KA6M`.
+- `npm test -- ToastContainer` after player notification hardening -> passed 1 Vitest suite / 2 tests.
+- `npm run typecheck` after player notification hardening -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts -g "validation, settlement error"` first run -> failed on a serious toast text contrast violation because the opacity animation lowered contrast to 1.85:1 during the alert entrance.
+- Focused `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts -g "validation, settlement error"` after removing toast opacity animation -> passed 1 Chromium test.
+- `npm test` after player notification hardening -> passed 6 Vitest suites / 43 tests.
+- `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` after player notification hardening -> passed 5 Chromium tests.
+- `npm run test:e2e:isolated` after player notification hardening -> passed 10 Chromium tests.
+- `npm run verify` after player notification hardening -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.49 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:50653`, room `VAE4`.
 
 ## Screens And Routes Verified
 
@@ -834,6 +854,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - HTTP security header evidence verified `/healthz`, `/api/rooms` validation errors, and unknown routes all include the security baseline while omitting `X-Powered-By`.
 - E2E TypeScript evidence verified Playwright specs/configs are now inside `npm run typecheck`, including WebSocket-backed load/accessibility specs and the restart recovery harness.
 - Local boot smoke evidence verified the real `node server/index.js` process starts on a free local port, serves health/readiness, runs the degraded-local multiplayer room path over HTTP plus WebSocket, writes a local room snapshot, protects metrics with the ops token, and omits host tokens from public state/metrics.
+- Player notification evidence verified `/play/:roomCode` invalid `$0` wager feedback through inline alert semantics, `aria-invalid` / `aria-describedby` linkage on the custom wager input, a message-specific dismissible error toast, and serious/critical axe coverage in the full isolated Chromium suite.
 
 ## Screenshots Or Traces
 
@@ -917,13 +938,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `499a324` - Expand TypeScript gate to E2E specs.
 - `a29bc1a` - Record E2E TypeScript coverage evidence.
 - `151538c` - Add local backend boot smoke.
+- `bff61ba` - Harden player validation notifications.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-4. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-5. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-6. Run `npm run check:production` against the actual deployment environment once production env values are available.
-7. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/player wager/settle paths.
+3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
+6. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+7. Run `npm run check:production` against the actual deployment environment once production env values are available.
+8. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
