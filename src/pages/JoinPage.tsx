@@ -24,6 +24,23 @@ export default function JoinPage() {
   const sanitize = (s: string, max: number) => s.trim().replace(/<[^>]*>/g, '').slice(0, max);
   const formatRoomCodeInput = (value: string) =>
     value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  const createErrorId = 'create-room-error';
+  const joinErrorId = 'join-room-error';
+  const createErrorMessage = mode === 'create' ? error || identityError : '';
+  const joinErrorMessage = mode === 'join' ? error || identityError : '';
+  const createFieldInvalid = (field: 'name' | 'address' | 'askingPrice') => {
+    if (!error) return false;
+    if (error === 'All fields are required') return true;
+    return field === 'askingPrice' && error.startsWith('Enter a valid asking price');
+  };
+  const joinFieldInvalid = (field: 'name' | 'roomCode') => {
+    if (!error) return false;
+    if (error === 'Nickname and room code are required') return true;
+    return field === 'roomCode' && (
+      error.startsWith('Room code') ||
+      error === 'Room not found'
+    );
+  };
 
   useEffect(() => {
     if (!name && nickname) setName(nickname);
@@ -163,6 +180,8 @@ export default function JoinPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 aria-label="Host nickname"
+                aria-describedby={createErrorMessage ? createErrorId : undefined}
+                aria-invalid={createFieldInvalid('name') || undefined}
                 placeholder="Enter your name"
                 maxLength={20}
                 autoFocus
@@ -176,6 +195,8 @@ export default function JoinPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 aria-label="Property address"
+                aria-describedby={createErrorMessage ? createErrorId : undefined}
+                aria-invalid={createFieldInvalid('address') || undefined}
                 placeholder="742 Evergreen Terrace"
                 maxLength={100}
               />
@@ -188,11 +209,13 @@ export default function JoinPage() {
                 value={askingPrice}
                 onChange={(e) => setAskingPrice(e.target.value)}
                 aria-label="Asking price"
+                aria-describedby={createErrorMessage ? createErrorId : undefined}
+                aria-invalid={createFieldInvalid('askingPrice') || undefined}
                 placeholder="450,000"
                 inputMode="numeric"
               />
             </div>
-            {(error || identityError) && <p style={styles.error} role="alert">{error || identityError}</p>}
+            {createErrorMessage && <p id={createErrorId} style={styles.error} role="alert">{createErrorMessage}</p>}
             <button
               style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
               onClick={handleCreate}
@@ -217,6 +240,8 @@ export default function JoinPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 aria-label="Player nickname"
+                aria-describedby={joinErrorMessage ? joinErrorId : undefined}
+                aria-invalid={joinFieldInvalid('name') || undefined}
                 placeholder="Enter your name"
                 maxLength={20}
                 autoFocus
@@ -230,12 +255,14 @@ export default function JoinPage() {
                 value={roomCode}
                 onChange={(e) => setRoomCode(formatRoomCodeInput(e.target.value))}
                 aria-label="Room code"
+                aria-describedby={joinErrorMessage ? joinErrorId : undefined}
+                aria-invalid={joinFieldInvalid('roomCode') || undefined}
                 placeholder="A1B2"
                 maxLength={4}
                 inputMode="text"
               />
             </div>
-            {(error || identityError) && <p style={styles.error} role="alert">{error || identityError}</p>}
+            {joinErrorMessage && <p id={joinErrorId} style={styles.error} role="alert">{joinErrorMessage}</p>}
             <button
               style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
               onClick={handleJoin}

@@ -25,7 +25,7 @@ export default class ErrorBoundary extends React.Component<
 
     return (
       <div style={s.page}>
-        <div style={s.card}>
+        <div style={s.card} role="alert" aria-live="assertive">
           <AlertCircle size={40} color="var(--accent-danger)" />
           <h1 style={s.heading}>Something went wrong</h1>
           <p style={s.message}>

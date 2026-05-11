@@ -321,6 +321,78 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
   }
 });
 
+test('validation, settlement error, and map popup states expose accessible semantics', async ({
+  browser,
+}: {
+  browser: Browser;
+}) => {
+  const context = await browser.newContext({ viewport: hostViewport });
+  const page = await context.newPage();
+
+  try {
+    await page.goto('/join');
+    await page.getByRole('button', { name: /Create Room/ }).click();
+    await page.getByRole('button', { name: /^Create Room$/ }).click();
+    await expect(page.getByRole('alert')).toContainText('All fields are required');
+    await expect(page.getByLabel('Host nickname')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Host nickname')).toHaveAttribute('aria-describedby', 'create-room-error');
+    await expect(page.getByLabel('Property address')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Asking price')).toHaveAttribute('aria-invalid', 'true');
+
+    await page.getByLabel('Host nickname').fill('Edge Host');
+    await page.getByLabel('Property address').fill('1 Edge Case Way');
+    await page.getByLabel('Asking price').fill('0');
+    await page.getByRole('button', { name: /^Create Room$/ }).click();
+    await expect(page.getByRole('alert')).toContainText('Enter a valid asking price');
+    await expect(page.getByLabel('Asking price')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Host nickname')).not.toHaveAttribute('aria-invalid', 'true');
+    await expectNoSeriousAxeViolations(page, 'create-room validation alert state');
+
+    await page.getByRole('button', { name: /Back/ }).click();
+    await page.getByRole('button', { name: /Join Room/ }).click();
+    await page.getByRole('button', { name: /^Join Room$/ }).click();
+    await expect(page.getByRole('alert')).toContainText('Nickname and room code are required');
+    await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Room code')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Room code')).toHaveAttribute('aria-describedby', 'join-room-error');
+
+    await page.getByLabel('Player nickname').fill('Edge Player');
+    await page.getByLabel('Room code').fill('AB');
+    await page.getByRole('button', { name: /^Join Room$/ }).click();
+    await expect(page.getByRole('alert')).toContainText('Room code must be 4 letters or numbers');
+    await expect(page.getByLabel('Room code')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Player nickname')).not.toHaveAttribute('aria-invalid', 'true');
+    await expectNoSeriousAxeViolations(page, 'join-room validation alert state');
+
+    const roomCode = await createRoomThroughUi(page);
+    await page.getByRole('button', { name: /Settle/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
+    await page.getByRole('button', { name: /^Confirm Settlement$/ }).click();
+    await expect(page.getByRole('alert')).toContainText('Actual price is required');
+    await expect(page.getByLabel('Actual price')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Actual price')).toHaveAttribute('aria-describedby', 'settle-error');
+
+    await page.getByLabel('Actual price').fill('0');
+    await page.getByRole('button', { name: /^Confirm Settlement$/ }).click();
+    await expect(page.getByRole('alert')).toContainText('Enter a valid actual price');
+    await expectNoSeriousAxeViolations(page, 'settle validation alert state');
+    await page.getByRole('button', { name: /Cancel/ }).click();
+
+    await page.goto('/');
+    await expect(page.getByLabel('Search properties')).toBeVisible({ timeout: 15_000 });
+    const mapMarker = page.locator('.leaflet-marker-icon [role="button"]').first();
+    await expect(mapMarker).toHaveAttribute('aria-label', /^Open details for .+ priced \$/);
+    await mapMarker.click({ force: true });
+    await expect(page.getByRole('link', { name: /View Details/ }).first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(300);
+    await expectNoSeriousAxeViolations(page, 'map popup detail state');
+
+    expect(roomCode).toMatch(/^[A-Z0-9]{4}$/);
+  } finally {
+    await context.close();
+  }
+});
+
 test('keyboard and screen-reader-adjacent flows stay operable', async ({
   browser,
 }: {

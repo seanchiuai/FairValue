@@ -25,10 +25,20 @@ function shortPrice(n) {
   return `$${n}`;
 }
 
-function createPriceIcon(price, color, textColor) {
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function createPriceIcon(price, color, textColor, address) {
+  const label = `Open details for ${address || 'property'} priced ${shortPrice(price)}`;
   return L.divIcon({
     className: '',
-    html: `<div style="
+    html: `<div role="button" aria-label="${escapeHtml(label)}" style="
       background: ${color};
       color: ${textColor};
       font-size: 11px;
@@ -92,7 +102,7 @@ function PropertyMap({ properties }) {
             <Marker
               key={p.id}
               position={[p.latitude, p.longitude]}
-              icon={createPriceIcon(priceValue, bucket.color, bucket.textColor)}
+              icon={createPriceIcon(priceValue, bucket.color, bucket.textColor, p.address)}
             >
               <Popup>
                 <div className="map-popup">
@@ -127,6 +137,14 @@ function PropertyMap({ properties }) {
           align-items: center; justify-content: center;
           color: var(--text-muted); font-size: 15px;
         }
+        .map-wrap .leaflet-popup-content-wrapper,
+        .map-wrap .leaflet-popup-tip {
+          background: #FFFFFF;
+          color: #1C1C1E;
+        }
+        .map-wrap .leaflet-popup-content {
+          color: #1C1C1E;
+        }
         .map-popup {
           display: flex; flex-direction: column;
           gap: 8px; min-width: 180px;
@@ -153,7 +171,10 @@ function PropertyMap({ properties }) {
           text-decoration: none; font-weight: 600;
           margin-top: 4px;
         }
-        .map-popup-link:hover { text-decoration: underline; }
+        .map-popup-link:hover,
+        .map-popup-link:focus-visible {
+          text-decoration: underline;
+        }
 
         @media (max-width: 768px) {
           .map-wrap { height: 350px; border-radius: 20px; }

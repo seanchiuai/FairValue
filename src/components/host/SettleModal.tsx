@@ -26,9 +26,15 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
   }, [onClose]);
 
   const handleSettle = useCallback(async () => {
-    if (!actualPrice) return;
+    if (!actualPrice) {
+      setError('Actual price is required');
+      return;
+    }
     const price = parseFloat(actualPrice.replace(/,/g, ''));
-    if (isNaN(price) || price <= 0 || price > 100_000_000) return;
+    if (isNaN(price) || price <= 0 || price > 100_000_000) {
+      setError('Enter a valid actual price (up to $100M)');
+      return;
+    }
     const authHeaders = buildHostAuthHeaders({ userToken, hostToken });
     if (!Object.keys(authHeaders).length) {
       setError('Host authority missing for this room');
@@ -81,6 +87,8 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
             value={actualPrice}
             onChange={(e) => setActualPrice(e.target.value)}
             aria-label="Actual price"
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={error ? 'settle-error' : undefined}
             placeholder="450,000"
             inputMode="numeric"
             aria-required="true"
@@ -94,7 +102,7 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
               : 'UNDER wins'
             : 'enter a price'}
         </p>
-        {error && <p style={s.error} role="alert">{error}</p>}
+        {error && <p id="settle-error" style={s.error} role="alert">{error}</p>}
         <div style={s.buttons}>
           <button style={s.cancel} onClick={onClose}>Cancel</button>
           <button
