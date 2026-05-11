@@ -16,7 +16,9 @@ import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import { useToast } from '../contexts/ToastContext';
-import { Users, Bot, Gavel, Trophy } from 'lucide-react';
+import { Users, Bot, Gavel, Trophy, ShieldAlert } from 'lucide-react';
+
+const hostAuthorityNoticeId = 'host-authority-warning';
 
 type ToggleAIResponse = {
   ai_enabled?: boolean;
@@ -193,6 +195,7 @@ export default function HostView() {
                 onClick={handleToggleAI}
                 aria-label={`AI bot ${aiEnabled ? 'enabled' : 'disabled'}`}
                 aria-pressed={aiEnabled}
+                aria-describedby={!hasHostAuthority ? hostAuthorityNoticeId : undefined}
                 disabled={!hasHostAuthority}
                 title={hasHostAuthority ? undefined : 'Host authority missing for this room'}
               >
@@ -207,6 +210,7 @@ export default function HostView() {
                   opacity: hasHostAuthority ? 1 : 0.45,
                 }}
                 onClick={() => setShowSettleModal(true)}
+                aria-describedby={!hasHostAuthority ? hostAuthorityNoticeId : undefined}
                 disabled={!hasHostAuthority}
                 title={hasHostAuthority ? undefined : 'Host authority missing for this room'}
               >
@@ -216,6 +220,24 @@ export default function HostView() {
           )}
         </div>
       </div>
+
+      {!settled && !hasHostAuthority && (
+        <div
+          id={hostAuthorityNoticeId}
+          style={s.hostAuthorityNotice}
+          role="status"
+          aria-live="polite"
+          data-testid="host-authority-warning"
+        >
+          <ShieldAlert size={16} color="#8A4E00" aria-hidden="true" />
+          <div>
+            <div style={s.hostAuthorityTitle}>Host controls unavailable</div>
+            <div style={s.hostAuthorityText}>
+              Open the original host browser session for this room. AI and settlement controls require host authority.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Layout */}
       <div style={s.layout}>
@@ -375,6 +397,30 @@ const s: Record<string, React.CSSProperties> = {
   topBarRight: {
     display: 'flex',
     gap: 8,
+  },
+  hostAuthorityNotice: {
+    width: 'calc(100% - 48px)',
+    maxWidth: 1392,
+    boxSizing: 'border-box',
+    margin: '12px auto 0',
+    padding: '12px 14px',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    background: '#FFF7E8',
+    border: '1px solid #C37B13',
+    borderRadius: 8,
+    color: 'var(--text-primary)',
+  },
+  hostAuthorityTitle: {
+    fontSize: 13,
+    fontWeight: 800,
+    marginBottom: 2,
+  },
+  hostAuthorityText: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: 'var(--text-secondary)',
   },
   controlBtn: {
     display: 'flex',

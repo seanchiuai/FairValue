@@ -381,6 +381,30 @@ test('market detail host auto-join failure is visible to the host', async ({ pag
   await expectNoSeriousAxeViolations(page, 'market detail host auto-join failure notification state');
 });
 
+test('host page without authority explains disabled controls', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+
+  await page.goto(`/host/${roomCode}`);
+  await expectConnected(page);
+
+  await expect(page.getByTestId('host-authority-warning')).toContainText('Host controls unavailable');
+  await expect(page.getByTestId('host-authority-warning')).toContainText('AI and settlement controls require host authority');
+
+  const aiButton = page.getByRole('button', { name: /AI bot disabled/i });
+  const settleButton = page.getByRole('button', { name: /Settle/ });
+  await expect(aiButton).toBeDisabled();
+  await expect(settleButton).toBeDisabled();
+  await expect(aiButton).toHaveAttribute('aria-describedby', 'host-authority-warning');
+  await expect(settleButton).toHaveAttribute('aria-describedby', 'host-authority-warning');
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.ai_enabled).toBe(false);
+  expect(state.settled).toBe(false);
+  await expectNoSeriousAxeViolations(page, 'missing host authority disabled controls state');
+});
+
 test('fake host token cannot settle a room from the host UI', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.addInitScript((code) => {
