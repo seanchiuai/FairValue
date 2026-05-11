@@ -357,6 +357,77 @@ test('market detail explains simulated market mechanics and data provenance', as
   }
 });
 
+test('multiplayer room entry and settlement recaps carry trust language', async ({
+  browser,
+}: {
+  browser: Browser;
+}) => {
+  const hostContext = await browser.newContext({ viewport: hostViewport });
+  const playerContext = await browser.newContext({
+    viewport: playerViewport,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const host = await hostContext.newPage();
+  const player = await playerContext.newPage();
+
+  try {
+    const roomCode = await createRoomThroughUi(host);
+    await expect(host.getByTestId('host-room-trust-notice')).toContainText('Simulation credits only');
+    await expect(host.getByTestId('host-room-trust-notice')).toContainText('not an appraisal');
+    await expect(host.getByTestId('host-room-trust-notice')).toContainText('room event history');
+    await expectNoSeriousAxeViolations(host, 'host room trust notice');
+
+    await player.goto(`/play/${roomCode}`);
+    await expect(player.getByTestId('player-entry-trust-notice')).toContainText('Before you join', {
+      timeout: 15_000,
+    });
+    await expect(player.getByTestId('player-entry-trust-notice')).toContainText('Simulation credits only');
+    await expect(player.getByTestId('player-entry-trust-notice')).toContainText('not an appraisal');
+    await expectNoSeriousAxeViolations(player, 'player entry trust notice');
+
+    await player.getByLabel('Player nickname').fill('Trust Player');
+    await Promise.all([
+      player.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/join`) && response.status() === 200
+      ),
+      player.getByRole('button', { name: /^Join Room$/ }).click(),
+    ]);
+    await expectConnected(player);
+    await expect(player.getByTestId('player-room-trust-notice')).toContainText('simulation credits only');
+    await expect(player.getByTestId('player-room-trust-notice')).toContainText('LMSR probability');
+    await expect(player.getByTestId('player-room-trust-notice')).toContainText('host settles');
+
+    await host.getByRole('button', { name: /Settle/ }).click();
+    await expect(host.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
+    await expect(host.getByTestId('settle-modal-trust-notice')).toContainText('Before settlement');
+    await expect(host.getByTestId('settle-modal-trust-notice')).toContainText('simulation-credit payouts only');
+    await expect(host.getByTestId('settle-modal-trust-notice')).toContainText('room event history');
+    await expectNoSeriousAxeViolations(host, 'settle modal trust notice');
+    await host.getByLabel('Actual price').fill(String(property.actualPrice));
+    await Promise.all([
+      host.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/settle`) && response.status() === 200
+      ),
+      host.getByRole('button', { name: /^Confirm Settlement$/ }).click(),
+    ]);
+
+    await expect(host.getByTestId('host-settlement-result')).toContainText('OVER WINS', { timeout: 15_000 });
+    await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('simulation credits only');
+    await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('not a FairValue appraisal');
+    await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('Room events preserve joins');
+
+    await expect(player.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
+    await expect(player.getByTestId('player-settlement-trust-notice')).toContainText('simulation credits only');
+    await expect(player.getByTestId('player-settlement-trust-notice')).toContainText('not a FairValue appraisal');
+    await expect(player.getByTestId('player-settlement-trust-notice')).toContainText('event history preserves this outcome');
+    await expectNoSeriousAxeViolations(player, 'player settlement trust notice');
+  } finally {
+    await hostContext.close();
+    await playerContext.close();
+  }
+});
+
 test('validation, settlement error, and map popup states expose accessible semantics', async ({
   browser,
 }: {

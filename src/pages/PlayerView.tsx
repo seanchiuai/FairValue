@@ -7,6 +7,7 @@ import { calculateImpliedPrice } from '../lib/lmsr';
 import { TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
+import TrustNotice from '../components/TrustNotice';
 import { RateLimiter } from '../lib/rateLimiter';
 import { useToast } from '../contexts/ToastContext';
 
@@ -168,6 +169,14 @@ export default function PlayerView() {
               </div>
             </div>
           )}
+          <div style={s.joinTrustWrap}>
+            <TrustNotice
+              testId="player-entry-trust-notice"
+              title="Before you join"
+              compact
+              tone="dark"
+            />
+          </div>
           <div style={s.joinField}>
             <label style={s.joinLabel} htmlFor="player-join-nickname">Your Name</label>
             <input
@@ -228,6 +237,20 @@ export default function PlayerView() {
         </div>
       </div>
 
+      <div style={s.roomTrustWrap}>
+        <TrustNotice
+          testId="player-room-trust-notice"
+          title="Market mechanics"
+          compact
+          tone="dark"
+          points={[
+            'Your balance and wagers are simulation credits only.',
+            'Over/Under prices come from LMSR probability, not an appraisal.',
+            'The host settles with actual sale or appraisal evidence.',
+          ]}
+        />
+      </div>
+
       {/* Settle Result */}
       {settled && settleResult && (
         <div style={s.settleCard} data-testid="player-settlement-result">
@@ -247,6 +270,17 @@ export default function PlayerView() {
           >
             {settleResult.winning_outcome.toUpperCase()} wins!
           </div>
+          <TrustNotice
+            testId="player-settlement-trust-notice"
+            title="Settlement recap"
+            compact
+            tone="dark"
+            points={[
+              'Payouts are simulation credits only.',
+              'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
+              'The room event history preserves this outcome for replay.',
+            ]}
+          />
           {settleResult.results.map((r) => (
             <div key={r.nickname} style={s.resultRow}>
               <span>{r.nickname}</span>
@@ -693,6 +727,13 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 10,
     width: '100%',
     maxWidth: 320,
+  },
+  joinTrustWrap: {
+    width: '100%',
+    maxWidth: 320,
+  },
+  roomTrustWrap: {
+    margin: '0 16px 12px',
   },
   joinField: {
     display: 'flex',

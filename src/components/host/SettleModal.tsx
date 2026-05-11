@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { House } from '../../types';
 import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
 import { useToast } from '../../contexts/ToastContext';
+import TrustNotice from '../TrustNotice';
 
 interface SettleModalProps {
   house: House;
@@ -84,6 +85,17 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
         <p id="settle-desc" style={s.desc}>
           Enter the actual appraisal/sale price to determine the winner.
         </p>
+        <TrustNotice
+          testId="settle-modal-trust-notice"
+          title="Before settlement"
+          compact
+          tone="dark"
+          points={[
+            'Confirm against actual sale or appraisal evidence.',
+            'This value decides simulation-credit payouts only.',
+            'The settlement is written into the room event history.',
+          ]}
+        />
         <div style={s.field}>
           <label style={s.label} htmlFor="settle-actual-price">Actual Price ($)</label>
           <input
@@ -156,6 +168,7 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
+    marginTop: 14,
     marginBottom: 8,
   },
   label: {

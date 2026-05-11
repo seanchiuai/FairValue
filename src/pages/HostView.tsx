@@ -14,6 +14,7 @@ import QRCard from '../components/host/QRCard';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
+import TrustNotice from '../components/TrustNotice';
 import { useToast } from '../contexts/ToastContext';
 import { Users, Bot, Gavel, Trophy } from 'lucide-react';
 
@@ -225,6 +226,12 @@ export default function HostView() {
             </div>
           </div>
 
+          <TrustNotice
+            testId="host-room-trust-notice"
+            title="Room trust note"
+            tone="dark"
+          />
+
           {/* Settle Result */}
           {settled && settleResult && (
             <div style={s.settleResultCard} data-testid="host-settlement-result">
@@ -242,6 +249,17 @@ export default function HostView() {
               >
                 {settleResult.winning_outcome.toUpperCase()} WINS
               </div>
+              <TrustNotice
+                testId="host-settlement-trust-notice"
+                title="Settlement evidence"
+                compact
+                tone="dark"
+                points={[
+                  'This recap uses simulation credits only.',
+                  'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
+                  'Room events preserve joins, bets, and settlement for replay.',
+                ]}
+              />
             </div>
           )}
 
