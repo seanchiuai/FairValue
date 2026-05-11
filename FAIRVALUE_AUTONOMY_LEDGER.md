@@ -45,6 +45,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Vite route splitting now keeps the `/join` entry flow eager for keyboard reliability while lazy-loading browse, market detail, host, and player routes; the largest production JS chunk dropped from about 512 kB to 199 kB and the build no longer emits the large-chunk warning.
 - `npm run verify` now includes a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
+- Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 
 ## Current Test Status
 
@@ -81,6 +82,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 Vite route-splitting pass: `npm run build` dropped the largest JS chunk to 199.30 kB with no Vite large-chunk warning; focused keyboard E2E passed after keeping `/join` eager; full `npm run test:e2e:isolated` passed 9 Chromium tests; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, and Vite production build; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit host/player flows.
 - 2026-05-11 bundle budget pass: `npm run check:bundle` passed with largest JS 194.63 kB / 240 kB, total JS 656.45 kB / 760 kB, and largest CSS 14.74 kB / 25 kB; `npm run verify` passed with the same bundle budget gate included after build.
 - 2026-05-11 assistive-technology AX pass: `npm run test:a11y:assistive` passed with room `N5A8` on frontend `64036` / backend `64034`, recording PASS for `/join`, create-room form, host dashboard, settle modal, player join form, and mobile betting controls; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 rendered browser load pass: `npm run test:e2e:browser-load` passed with room `VF08`, 10 rendered mobile player pages, 11 persisted players including host, 10 trades, 77 events, settlement, join wave 1703ms, bet wave 502ms, settlement 130ms, total 5031ms; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -91,7 +93,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshot persistence still lacks retention policy, corruption recovery, and encryption-at-rest.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
-- Load coverage now includes a bounded synthetic burst, a 24-player wave soak, and a local restart/load latency profile, but not browser-driven high-concurrency soak or production-like traffic mix.
+- Load coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, and a 10-rendered-mobile-player browser load profile; longer mixed traffic, slow-client, and production-like traffic profiles are still missing.
 - Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the most important join, host, player, settle, and AI fallback states; it still does not cover every route, every possible modal branch, or a human-listened VoiceOver rotor/audio pass.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing.
@@ -100,10 +102,19 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
-2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
-3. Add browser-driven production-like performance timing around first room creation/join after cold Vite/production build loads.
+2. Add browser-driven production-like performance timing around first room creation/join after cold Vite/production build loads.
+3. Add longer mixed traffic profiling with rendered slow clients, API churn, and network throttling.
 
 ## Iteration History
+
+### 2026-05-11 - Rendered Browser Load Profile
+
+- Added `e2e/browser-load.spec.ts` for one rendered desktop host plus configurable rendered mobile player pages.
+- Added `playwright.browser-load.config.ts` and `npm run test:e2e:browser-load`, using fresh `8032` / `3032` ports and `/tmp/fairvalue-browser-load-rooms.json`.
+- Kept the heavier rendered-load spec out of the default Playwright config while documenting the explicit command in `README.md`.
+- The harness concurrently joins 10 mobile player pages, concurrently places rendered UI bets, verifies host totals/activity/leaderboard, verifies settlement broadcast on every player page, rejects console/page errors, and reconciles the durable snapshot.
+- The first run caught a strict accessible-name lookup issue where `$10` also matched `$100`; exact role matching now protects the test from false interaction.
+- The second run exposed tiny floating-point drift in persisted `total_wagered`; the snapshot assertion now uses a close numeric comparison while the UI remains rounded to whole-dollar volume.
 
 ### 2026-05-11 - Assistive Technology AX Notes
 
@@ -545,6 +556,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run test:a11y:assistive` after assistive-tech AX capture -> passed and wrote `docs/accessibility-assistive-tech-notes.md` with room `N5A8`, frontend `64036`, backend `64034`, and PASS results for join pick, create-room form, host dashboard, settle modal, player join form, and mobile betting controls.
 - `git diff --check` after assistive-tech AX capture -> passed.
 - `npm run verify` after assistive-tech AX capture -> passed: `scan:secrets`, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npx playwright test --list -c playwright.browser-load.config.ts` -> listed 1 Chromium browser-load test.
+- Initial `npm run test:e2e:browser-load` -> failed on a strict-mode accessible-name lookup because `Set wager to $10` also matched `Set wager to $100`; the rendered-load test now uses exact button names.
+- Second `npm run test:e2e:browser-load` -> completed the rendered flow and exposed persisted floating-point drift (`405.000...` for `$405` volume); the durable snapshot assertion now uses close numeric comparison while UI volume stays rounded.
+- Final `npm run test:e2e:browser-load` -> passed with room `VF08`, 10 rendered mobile players, join wave 1703ms, bet wave 502ms, settlement 130ms, total 5031ms, and `$405` rendered wager volume.
+- `/tmp/fairvalue-browser-load-rooms.json` after the final browser-load run -> room `VF08`, 11 players including host, 10 trades, 77 events, settled true, and persisted wagered amount close to 405.
+- `npx playwright test --list` after adding browser-load coverage -> default Playwright suite stayed at 9 tests in 3 files, excluding the heavier browser-load spec.
+- `npm run verify` after browser-load coverage -> passed: `scan:secrets`, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Screens And Routes Verified
 
@@ -581,6 +599,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Vite migration verified `react-scripts` and `webpack-dev-server` are absent, full and production audits report zero vulnerabilities, Vite build passes, Vitest unit tests pass, isolated browser E2E passes, host/player matrix passes, and restart matrix passes.
 - Route-splitting verified the production app no longer emits a large-chunk warning while browser and keyboard E2E still pass on Vite.
 - Assistive-tech AX capture verified headed Chrome macOS app-region AX names and Playwright ARIA snapshots for `/join`, create-room form, `/host/:roomCode`, settle modal, `/play/:roomCode` join form, and mobile betting controls using room `N5A8`.
+- Browser-load E2E verified `/join`, `/host/:roomCode`, and 10 simultaneous rendered `/play/:roomCode` mobile pages through concurrent joins, concurrent bets, host totals/activity, all-player settlement broadcasts, and durable snapshot reconciliation using room `VF08`.
 
 ## Screenshots Or Traces
 
@@ -641,10 +660,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `c186a2a` - Split heavy frontend routes.
 - `4d28ed5` - Add frontend bundle budget gate.
 - `52f9ee4` - Add assistive technology AX capture.
+- `f188062` - Add rendered browser load profile.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
-2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
-3. Add browser-driven production-like performance timing around first room creation/join after cold Vite/production build loads.
-4. Start the next loop with `npm run verify`, then inspect the highest-risk performance/load gap that is not already covered by the current matrix, restart, soak, latency, and assistive-tech harnesses.
+2. Add browser-driven production-like performance timing around first room creation/join after cold Vite/production build loads.
+3. Add longer mixed traffic profiling with rendered slow clients, API churn, and network throttling.
+4. Start the next loop with `npm run verify`, then inspect the highest-risk cold-load/performance gap that is not already covered by the current matrix, restart, soak, latency, browser-load, and assistive-tech harnesses.
