@@ -27,6 +27,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Browser restart recovery now has a dedicated Playwright harness that owns fresh backend/frontend child processes, keeps rendered host/player pages open, restarts the real backend against `/tmp/fairvalue-browser-restart-rooms.json`, and proves reconnect, post-restart betting, settlement, and settled reload.
 - Room persistence now has an adapter boundary: JSON remains the default local store, while `FAIRVALUE_ROOM_STORE=postgres` targets a Neon/Postgres `fairvalue_room_snapshots` table and startup can await async room loads before listening.
 - Postgres room persistence now has a Docker-backed smoke command that verifies the adapter against a real disposable `postgres:16-alpine` database and removes the container afterward.
+- Critical room mutations now wait for configured durable snapshot writes and return `503 Room persistence failed` instead of claiming success when create/join/bet/settle persistence fails.
 
 ## Current Test Status
 
@@ -49,6 +50,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 browser restart recovery pass: `npm run test:e2e:restart` passed 1 Chromium host/player backend-restart test; `npx playwright test --list` confirmed the default suite remains 7 tests in 3 files; `npm run verify` passed client secret scan, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-10 persistence adapter pass: `npm run test:server` passed 19 server tests including fake-Postgres adapter coverage; `npm run test:e2e:restart` passed 1 browser restart test; `npm run verify` passed client secret scan, 19 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-10 disposable Postgres smoke pass: `npm run test:persistence:postgres` passed against Docker `postgres:16-alpine`; `npm run verify` passed client secret scan, 19 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean and full audit stayed at the known 2 moderate CRA dev findings.
+- 2026-05-10 durable-write failure pass: `npm run test:server` passed 20 server tests including forced persistence-failure 503s; `npm run test:e2e:restart` passed 1 Chromium restart test; `npm run verify` passed client secret scan, 20 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:persistence:postgres` stayed green.
 
 ## Current Known Risks
 
@@ -56,7 +58,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host-only settlement and AI toggles now require a room host capability token, but durable user identity is still missing.
 - Room connections, rate-limit buckets, and AI bot intervals are still process-local; restored rooms intentionally do not auto-resume AI intervals after restart.
 - The Postgres snapshot adapter is covered by fake-SQL tests and disposable local Postgres, but not by a live Neon smoke in this environment.
-- Room snapshot persistence still lacks retention policy, corruption recovery, encryption-at-rest, and response-critical write acknowledgment for every mutation.
+- Room snapshot persistence still lacks retention policy, corruption recovery, encryption-at-rest, and response-critical write acknowledgment for AI bot interval trades and host-only audit error events.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
 - Load coverage is still a bounded synthetic burst, not a sustained soak, k6-style latency profile, or multi-browser matrix.
@@ -67,9 +69,9 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Make critical room mutations fail honestly or report degraded durability when the configured durable snapshot write fails.
-2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
-3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
+1. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+2. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
+3. Add response-critical durability status for AI bot interval trades and host-only audit error events.
 4. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
 5. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
@@ -230,6 +232,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - The smoke command starts Docker if already available, runs `postgres:16-alpine` on a free local port, waits for readiness, creates/uses the adapter table, saves and loads a room snapshot with host token, player, receipt, and event payloads, replaces it with a second snapshot to prove stale-room deletion, clears the table, and removes the container.
 - Documented the Docker-backed persistence smoke in `README.md`.
 
+### 2026-05-10 - Durable Persistence Failure Honesty
+
+- Tagged room persistence failures so route handlers can distinguish durable-store failures from normal validation errors.
+- Made room creation await the configured room snapshot write before returning a room code.
+- Made join, bet, settlement, and AI-toggle routes await the configured room snapshot write before returning success.
+- Moved join, bet, and settlement broadcasts behind successful durable snapshot writes so connected clients do not receive success events for mutations the configured store rejected.
+- Extracted AI bot interval startup so AI toggles start the interval only after the toggle event is durably accepted.
+- Added route coverage that forces the Postgres adapter to fail and proves create, join, bet, and settle return `503 Room persistence failed`.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -333,6 +344,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm audit --omit=dev --json` after adding `postgres` -> 0 vulnerabilities.
 - `npm audit --json` after adding `postgres` -> unchanged 2 moderate dev-only findings through `react-scripts` -> `webpack-dev-server`.
 - `docker ps --filter name=fairvalue-room-postgres` -> no leftover smoke containers.
+- `npm run test:server` after durable failure surfacing -> passed 20 server tests, including forced create/join/bet/settle persistence-failure 503 coverage.
+- `npm run test:e2e:restart` after moving broadcasts behind durable writes -> passed 1 Chromium browser restart test in 50.4s; the test body took 10.0s.
+- `/tmp/fairvalue-browser-restart-rooms.json` after durable failure surfacing -> room `6OLW`, 28 persisted events, 2 bet receipts, 2 players, settled `true`, and `aiEnabled` `false`.
+- `npm run verify` after durable failure surfacing -> passed: `scan:secrets`, 20 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm run test:persistence:postgres` after durable failure surfacing -> passed against `postgres:16-alpine` on local port `57107`.
 
 ## Screens And Routes Verified
 
@@ -354,6 +370,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart E2E verified rendered `/join`, `/host/:roomCode`, and `/play/:roomCode` pages through a real backend restart, post-restart bet, settlement, second restart, and reload recovery on fresh dynamic local ports.
 - Persistence adapter tests verified Postgres snapshot save/load/delete/clear semantics through a deterministic fake tagged SQL client.
 - Disposable Postgres smoke verified the same snapshot adapter semantics against a real local Postgres container.
+- Server tests verified forced durable persistence failures return `503` for `/api/rooms`, `/join`, `/bet`, and `/settle`.
 
 ## Screenshots Or Traces
 
@@ -391,10 +408,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `f3ee986` - Add browser restart recovery E2E.
 - `4d9d3ba` - Add room persistence adapter boundary.
 - `aa0f78c` - Add disposable Postgres persistence smoke.
+- `4fe4f09` - Surface durable room persistence failures.
 
 ## Next Action Queue
 
-1. Make critical room mutations fail honestly or report degraded durability when the configured durable snapshot write fails.
-2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
-3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
-4. Start the next loop with `npm run verify`, then inspect the mutation routes and persistence queue to decide where write acknowledgments should become user-visible durability status.
+1. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+2. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
+3. Add response-critical durability status for AI bot interval trades and host-only audit error events.
+4. Start the next loop with `npm run verify`, then inspect `useSession`, host capability storage, and the room player model before introducing durable user identity.
