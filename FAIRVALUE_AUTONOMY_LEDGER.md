@@ -49,7 +49,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart/load latency now has a deterministic local profile command that starts the real backend, drives create/join/bet/state traffic through a backend restart, records p50/p95/max plus recovery timings, and fails on explicit local latency budgets.
 - Frontend dev/build/test tooling now uses Vite and Vitest instead of Create React App/react-scripts; the old CRA proxy template, web-vitals hook, and `%PUBLIC_URL%` HTML template are removed.
 - Vite route splitting now keeps the `/join` entry flow eager for keyboard reliability while lazy-loading browse, market detail, host, and player routes; the largest production JS chunk dropped from about 512 kB to 199 kB and the build no longer emits the large-chunk warning.
-- `npm run verify` now includes TypeScript `tsc --noEmit` type checking plus a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
+- `npm run verify` now includes TypeScript `tsc --noEmit` type checking over the Vite/React source tree, Vite config, Playwright configs, and E2E specs, plus a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
 - Assistive-technology evidence now also covers the browse route, sort menu, property detail route, host AI degraded alert, and settled host/player result states; dense browse/detail routes use bounded Playwright ARIA evidence while room/dialog/player states still capture macOS AX.
 - Accessibility edge states now expose field-level `aria-invalid` / `aria-describedby` semantics for create/join validation errors and settlement errors; map pins have accessible names and map popup contrast is gated by axe.
@@ -110,6 +110,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 Prometheus metrics pass: baseline `npm run verify` passed before the exporter; `node --check server/observability.js && node --check server/index.js && node --check server/__tests__/observability.test.js && node --test server/__tests__/observability.test.js` passed 4 focused ops tests; `npm run test:server` passed 38 server tests; final `npm run verify` passed client secret scan, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 TypeScript verification pass: `npx tsc --noEmit` initially failed because TypeScript 4.9 could not resolve Vite 8 plugin package-export types; after upgrading TypeScript and switching to `moduleResolution: bundler`, `npm run typecheck` passed, `npm run verify` passed client secret scan, TypeScript type checking, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate, and `npm audit --json` reported 0 vulnerabilities.
 - 2026-05-11 HTTP security headers pass: `node --check server/index.js && node --check server/__tests__/securityHeaders.test.js && node --test server/__tests__/securityHeaders.test.js` passed 3 focused header tests; `npm run verify` passed client secret scan, TypeScript type checking, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 E2E TypeScript coverage pass: a broad `tsc` probe first exposed unchecked Playwright/WebSocket spec types and a nullable restart-process guard; after adding `@types/ws`, fixing the guard, and expanding `tsconfig.json`, `npm run typecheck` passed over E2E specs and Playwright configs, `npx playwright test --list -c playwright.restart.config.ts` listed the restart test, `npm run verify` passed client secret scan, typecheck, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate, and `npm audit --json` reported 0 vulnerabilities.
 
 ## Current Known Risks
 
@@ -138,6 +139,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 6. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - E2E TypeScript Coverage
+
+- Expanded `tsconfig.json` so `npm run typecheck` covers `e2e/*.ts` and all `playwright*.config.ts` files, not only app source.
+- Added `@types/ws` so WebSocket-backed E2E specs are checked with the real `ws` API types.
+- Fixed a real nullable-process guard in the restart recovery harness that was only visible once the E2E specs were typechecked.
+- Verified the restart Playwright config still lists its Chromium recovery test.
 
 ### 2026-05-11 - Baseline HTTP Security Headers
 
@@ -756,6 +764,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm audit --json` after the TypeScript verification gate -> reported 0 vulnerabilities.
 - `node --check server/index.js && node --check server/__tests__/securityHeaders.test.js && node --test server/__tests__/securityHeaders.test.js` after HTTP security headers -> passed 3 focused tests covering success, validation-error, and unknown-route responses.
 - `npm run verify` after HTTP security headers -> passed: `scan:secrets`, `typecheck`, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- Broad one-off E2E/config TypeScript probe before expanding `tsconfig.json` -> failed on missing `@types/ws`, implicit WebSocket callback types, and a nullable restart-process guard.
+- `npm install -D @types/ws` -> added WebSocket declarations and kept npm audit at 0 vulnerabilities.
+- `npm run typecheck` after expanding E2E/config coverage -> passed.
+- `npx playwright test --list -c playwright.restart.config.ts` after fixing the restart harness guard -> listed 1 Chromium restart-recovery test.
+- `npm run verify` after E2E TypeScript coverage -> passed: `scan:secrets`, `typecheck`, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npm audit --json` after E2E TypeScript coverage -> reported 0 vulnerabilities.
 
 ## Screens And Routes Verified
 
@@ -807,6 +821,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Prometheus metrics evidence verified `/metrics` returns text/plain Prometheus scrape output for aggregate request/status/latency, room, WebSocket, rate-limit, database, persistence, and AI counters; it omits room host tokens and shares the configured ops-token guard.
 - TypeScript verification evidence verified the Vite/React source tree and Vite config with `tsc --noEmit`, and `npm run verify` now fails if the type gate regresses.
 - HTTP security header evidence verified `/healthz`, `/api/rooms` validation errors, and unknown routes all include the security baseline while omitting `X-Powered-By`.
+- E2E TypeScript evidence verified Playwright specs/configs are now inside `npm run typecheck`, including WebSocket-backed load/accessibility specs and the restart recovery harness.
 
 ## Screenshots Or Traces
 
@@ -886,6 +901,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `6212616` - Add TypeScript gate to verification.
 - `7bf3b57` - Record TypeScript verification evidence.
 - `ac3002c` - Add baseline HTTP security headers.
+- `81fb66b` - Record HTTP security header evidence.
+- `499a324` - Expand TypeScript gate to E2E specs.
 
 ## Next Action Queue
 
