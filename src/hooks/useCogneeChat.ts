@@ -167,7 +167,7 @@ export function useCogneeChat({ propertyId, askingPrice, market, activity, playe
       setIsLoading(false);
       setIsInitializing(false);
     }
-  }, [propertyId, askingPrice, market, activity, pushCurrentState]);
+  }, [propertyId, askingPrice, market, activity, players, pushCurrentState]);
 
   const clearMessages = useCallback(() => setMessages([]), []);
 
