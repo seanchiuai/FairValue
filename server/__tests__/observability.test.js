@@ -1,0 +1,153 @@
+const { after, afterEach, before, test } = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  server,
+  rooms,
+  configureRoomPersistence,
+  observability,
+  roomEventStore,
+} = require('../index');
+
+let baseUrl;
+const originalOpsToken = process.env.FAIRVALUE_OPS_TOKEN;
+const originalNodeEnv = process.env.NODE_ENV;
+
+function restoreEnv(name, value) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
+function listen() {
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      baseUrl = `http://127.0.0.1:${address.port}`;
+      resolve();
+    });
+  });
+}
+
+function close() {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+async function request(path, { method = 'GET', body, headers } = {}) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(headers || {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  return { status: res.status, data, headers: res.headers };
+}
+
+async function createHostedRoom() {
+  const created = await request('/api/rooms', {
+    method: 'POST',
+    body: { address: '321 Observability Loop', asking_price: 725000 },
+  });
+  assert.equal(created.status, 200);
+  return created.data;
+}
+
+before(listen);
+
+afterEach(() => {
+  restoreEnv('FAIRVALUE_OPS_TOKEN', originalOpsToken);
+  restoreEnv('NODE_ENV', originalNodeEnv);
+  configureRoomPersistence(null);
+  observability.resetObservability();
+  roomEventStore.clearAll();
+  for (const room of Object.values(rooms)) {
+    if (room.aiInterval) clearInterval(room.aiInterval);
+  }
+  for (const code of Object.keys(rooms)) {
+    delete rooms[code];
+  }
+});
+
+after(close);
+
+test('health and readiness expose runtime status without requiring database credentials', async () => {
+  const health = await request('/healthz');
+  assert.equal(health.status, 200);
+  assert.equal(health.data.service, 'fairvalue');
+  assert.equal(health.data.status, 'ok');
+  assert.equal(typeof health.data.uptime_seconds, 'number');
+  assert.ok(health.headers.get('x-request-id'));
+
+  const ready = await request('/readyz');
+  assert.equal(ready.status, 200);
+  assert.equal(ready.data.ready, true);
+  assert.equal(ready.data.checks.database.configured, false);
+  assert.equal(ready.data.checks.database.required, false);
+
+  const disabledSql = Object.assign(async () => [], { isConfigured: false });
+  await configureRoomPersistence({ mode: 'postgres', sql: disabledSql });
+  const degraded = await request('/readyz');
+  assert.equal(degraded.status, 503);
+  assert.equal(degraded.data.ready, false);
+  assert.equal(degraded.data.checks.database.required, true);
+  assert.equal(degraded.data.checks.room_persistence.ok, false);
+});
+
+test('ops metrics track requests, room lifecycle, and avoid room secret leakage', async () => {
+  observability.resetObservability();
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'metrics-player', nickname: 'Metrics Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'metrics-bet-001' },
+    body: { session_id: 'metrics-player', outcome: 'over', wager: 25 },
+  });
+  assert.equal(bet.status, 200);
+
+  const settled = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: { actual_price: 750000 },
+  });
+  assert.equal(settled.status, 200);
+
+  const metrics = await request('/api/ops/metrics');
+  assert.equal(metrics.status, 200);
+  assert.ok(metrics.data.requests.total >= 4);
+  assert.ok(metrics.data.requests.by_route['/api/rooms'] >= 1);
+  assert.ok(metrics.data.requests.by_route['/api/rooms/:code/join'] >= 1);
+  assert.ok(metrics.data.requests.by_route['/api/rooms/:code/bet'] >= 1);
+  assert.equal(metrics.data.room_lifecycle.created, 1);
+  assert.equal(metrics.data.room_lifecycle.joined, 1);
+  assert.equal(metrics.data.room_lifecycle.bets, 1);
+  assert.equal(metrics.data.room_lifecycle.settlements, 1);
+  assert.equal(metrics.data.rooms.active_rooms, 1);
+  assert.equal(metrics.data.rooms.settled_rooms, 1);
+  assert.equal(metrics.data.rooms.total_players, 1);
+  assert.equal(metrics.data.database.configured, false);
+  assert.equal(JSON.stringify(metrics.data).includes(room.host_token), false);
+});
+
+test('ops metrics require a configured token before exposing counters', async () => {
+  process.env.FAIRVALUE_OPS_TOKEN = 'observability-test-token';
+
+  const denied = await request('/api/ops/metrics');
+  assert.equal(denied.status, 403);
+  assert.equal(denied.data.error, 'Ops token required');
+
+  const allowed = await request('/api/ops/metrics', {
+    headers: { Authorization: 'Bearer observability-test-token' },
+  });
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.data.service, 'fairvalue');
+});

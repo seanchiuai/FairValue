@@ -12,6 +12,7 @@ const {
   roomEventToActivity,
 } = require('./roomEventLog');
 const { createRoomPersistence } = require('./roomPersistence');
+const observability = require('./observability');
 const {
   DEFAULT_B,
   priceOver,
@@ -36,6 +37,7 @@ const server = http.createServer(app);
 const rooms = {};
 const HOST_TOKEN_HEADER = 'x-fairvalue-host-token';
 const USER_TOKEN_HEADER = 'x-fairvalue-user-token';
+const OPS_TOKEN_HEADER = 'x-fairvalue-ops-token';
 const USER_TOKEN_VERSION = 'fv1';
 const DEFAULT_IDENTITY_SECRET = 'fairvalue-local-dev-identity-secret';
 const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -183,6 +185,9 @@ async function waitForRoomPersistence(persistenceResult) {
 
 function roomPersistenceError(res, error) {
   if (!error?.roomPersistenceFailed) throw error;
+  observability.increment('persistence.failures');
+  observability.increment('room_lifecycle.durability_failures');
+  observability.recordError('persistence', error, { kind: roomPersistence.kind });
   return res.status(503).json({
     error: 'Room persistence failed',
     message: 'Configured room persistence could not save this room mutation.',
@@ -200,6 +205,8 @@ function roomPersistenceFailurePayload(action, error) {
 
 function setRoomDurabilityError(room, action, error) {
   room.durabilityError = roomPersistenceFailurePayload(action, error);
+  observability.increment('room_lifecycle.durability_failures');
+  observability.recordError('persistence', error, { action, kind: roomPersistence.kind });
   return room.durabilityError;
 }
 
@@ -273,6 +280,7 @@ async function runAiBotTick(room) {
       event_sequence: aiEvent.sequence,
       durability: { room_persistence: 'persisted' },
     });
+    observability.increment('room_lifecycle.ai_trades');
 
     persistTrade(room.marketId, trade, shares);
     updateMarketState(room.marketId, room.market);
@@ -435,6 +443,7 @@ function limitRequests(scope, { max, windowMs = RATE_LIMIT_WINDOW_MS } = {}) {
     }
 
     const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    observability.increment('rate_limits.rejected');
     res.set('Retry-After', String(retryAfterSeconds));
     res.status(429).json({
       error: 'Too many requests',
@@ -536,6 +545,7 @@ async function createRoom(house, roomCode, options = {}) {
     `;
     console.log(`Room ${code}: created DB market ${room.marketId}`);
   } catch (e) {
+    observability.recordError('database', e, { operation: 'create_room_market' });
     console.error(`Room ${code}: failed to create DB market:`, e.message);
   }
 
@@ -551,13 +561,17 @@ async function createRoom(house, roomCode, options = {}) {
 
 function broadcast(room, event) {
   const msg = JSON.stringify(event);
+  let recipients = 0;
   room.connections = room.connections.filter(ws => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(msg);
+      recipients += 1;
       return true;
     }
     return false;
   });
+  observability.increment('websocket.broadcasts');
+  observability.increment('websocket.broadcast_recipients', recipients);
 }
 
 function appendRoomEvent(room, type, payload = {}, req) {
@@ -579,6 +593,7 @@ function appendRoomEvent(room, type, payload = {}, req) {
 }
 
 function recordRoomError(room, action, message, status, req) {
+  observability.increment('room_lifecycle.room_errors');
   return appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
 }
 
@@ -703,6 +718,7 @@ async function persistTrade(marketId, trade, shares) {
     await sql`INSERT INTO trades (market_id, outcome, shares, wager, payout, prob_over_after, prob_under_after, source)
               VALUES (${marketId}, ${trade.outcome}, ${shares}, ${trade.wager}, ${trade.payout}, ${trade.prob_over_after}, ${trade.prob_under_after}, ${trade.source})`;
   } catch (e) {
+    observability.recordError('database', e, { operation: 'persist_trade' });
     console.error('Failed to persist trade:', e.message);
   }
 }
@@ -712,6 +728,7 @@ async function updateMarketState(marketId, market) {
   try {
     await sql`UPDATE market_state SET q_over=${market.q_over}, q_under=${market.q_under}, total_trades=${market.total_trades}, total_wagered=${market.total_wagered}, updated_at=now() WHERE market_id=${marketId}`;
   } catch (e) {
+    observability.recordError('database', e, { operation: 'update_market_state' });
     console.error('Failed to update market_state:', e.message);
   }
 }
@@ -724,6 +741,7 @@ app.use((req, res, next) => {
 
   res.on('finish', () => {
     const durationMs = Date.now() - startedAt;
+    observability.observeRequest(req, res, durationMs);
     const entry = JSON.stringify({
       request_id: requestId,
       method: req.method,
@@ -736,6 +754,54 @@ app.use((req, res, next) => {
   });
 
   next();
+});
+
+function safeCompareSecrets(provided, expected) {
+  if (!provided || !expected) return false;
+  const providedBuffer = Buffer.from(String(provided));
+  const expectedBuffer = Buffer.from(String(expected));
+  if (providedBuffer.length !== expectedBuffer.length) return false;
+  return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function getProvidedOpsToken(req) {
+  const auth = String(req.get('authorization') || '').trim();
+  if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+  return String(req.get(OPS_TOKEN_HEADER) || '').trim();
+}
+
+function requireOpsAccess(req, res) {
+  const configuredToken = String(process.env.FAIRVALUE_OPS_TOKEN || '').trim();
+  if (!configuredToken) {
+    if (process.env.NODE_ENV === 'production') {
+      res.status(503).json({
+        error: 'Ops token is required',
+        message: 'Set FAIRVALUE_OPS_TOKEN before exposing operational metrics in production.',
+      });
+      return false;
+    }
+    return true;
+  }
+
+  if (!safeCompareSecrets(getProvidedOpsToken(req), configuredToken)) {
+    res.status(403).json({ error: 'Ops token required' });
+    return false;
+  }
+  return true;
+}
+
+app.get('/healthz', (req, res) => {
+  res.json(observability.health());
+});
+
+app.get('/readyz', (req, res) => {
+  const payload = observability.readiness({ roomPersistence, sql });
+  res.status(payload.ready ? 200 : 503).json(payload);
+});
+
+app.get('/api/ops/metrics', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  res.json(observability.snapshot({ rooms, roomPersistence, sql }));
 });
 
 app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, res) => {
@@ -751,6 +817,7 @@ app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, r
 const COGNEE_BASE_URL = process.env.COGNEE_BASE_URL || 'https://api.cognee.ai';
 
 function cogneeUnavailable(res) {
+  observability.increment('ai.degraded_responses');
   return res.status(503).json({
     degraded: true,
     error: 'AI analyst unavailable',
@@ -799,6 +866,7 @@ async function cogneeRequest(path, { method = 'GET', body } = {}) {
 
 function handleCogneeError(res, error) {
   if (error.degraded) return cogneeUnavailable(res);
+  observability.increment('ai.integration_errors');
   const status = error.status && error.status >= 400 && error.status < 600 ? error.status : 502;
   return res.status(status).json({
     error: 'Cognee request failed',
@@ -961,6 +1029,7 @@ app.post('/api/rooms', limitRequests('rooms:create', { max: 20 }), async (req, r
 
   try {
     const room = await createRoom(house, undefined, { hostUserId: host_user_id });
+    observability.increment('room_lifecycle.created');
     res.json({ room_code: room.code, host_token: room.hostToken, house });
   } catch (error) {
     return roomPersistenceError(res, error);
@@ -983,8 +1052,10 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   let player = room.players[session_id];
   let joinBroadcast = null;
   let persistence = null;
+  let joinLifecycleCounter = null;
   if (player) {
     player.nickname = nickname;
+    joinLifecycleCounter = 'room_lifecycle.reconnected';
     ({ persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
       session_id,
       nickname,
@@ -994,6 +1065,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   } else {
     player = { session_id, nickname, balance: 1000, bets: [] };
     room.players[session_id] = player;
+    joinLifecycleCounter = 'room_lifecycle.joined';
     const { activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
       session_id,
       nickname,
@@ -1017,6 +1089,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   }
 
   if (joinBroadcast) broadcast(room, joinBroadcast);
+  if (joinLifecycleCounter) observability.increment(joinLifecycleCounter);
 
   const state = getRoomStatePayload(room);
   res.json({
@@ -1169,6 +1242,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     activity: activityEntry,
     event_sequence: event.sequence,
   });
+  observability.increment('room_lifecycle.bets');
 
   res.json(response);
 });
@@ -1212,6 +1286,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   }
 
   broadcast(room, { type: 'settle', ...room.settlement, activity: activityEntry, event_sequence: event.sequence });
+  observability.increment('room_lifecycle.settlements');
 
   res.json({ ...room.settlement, event_sequence: event.sequence });
 });
@@ -1263,6 +1338,7 @@ app.get('/api/markets', async (req, res) => {
                            WHERE m.status = 'open' ORDER BY m.created_at`;
     res.json(rows);
   } catch (e) {
+    observability.recordError('database', e, { operation: 'list_markets' });
     console.error(e);
     res.status(500).json({ error: 'DB error' });
   }
@@ -1289,6 +1365,7 @@ app.get('/api/markets/charts', async (req, res) => {
     }
     res.json(grouped);
   } catch (e) {
+    observability.recordError('database', e, { operation: 'market_charts' });
     console.error(e);
     res.status(500).json({ error: 'DB error' });
   }
@@ -1311,6 +1388,7 @@ app.get('/api/markets/by-property/:propertyId/chart', async (req, res) => {
     }));
     res.json(data);
   } catch (e) {
+    observability.recordError('database', e, { operation: 'property_chart' });
     console.error(e);
     res.status(500).json({ error: 'DB error' });
   }
@@ -1324,6 +1402,7 @@ app.get('/api/markets/:id', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Market not found' });
     res.json(rows[0]);
   } catch (e) {
+    observability.recordError('database', e, { operation: 'get_market' });
     console.error(e);
     res.status(500).json({ error: 'DB error' });
   }
@@ -1334,6 +1413,7 @@ app.get('/api/markets/:id/history', async (req, res) => {
     const rows = await sql`SELECT * FROM trades WHERE market_id = ${req.params.id} ORDER BY created_at`;
     res.json(rows);
   } catch (e) {
+    observability.recordError('database', e, { operation: 'market_history' });
     console.error(e);
     res.status(500).json({ error: 'DB error' });
   }
@@ -1378,6 +1458,7 @@ async function startSimulations() {
 
     console.log(`Simulation started for ${rows.length} markets`);
   } catch (e) {
+    observability.recordError('database', e, { operation: 'start_simulations' });
     console.error('Failed to start simulations:', e.message);
   }
 }
@@ -1428,6 +1509,7 @@ const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (req, socket, head) => {
   if (!req.url || !req.url.startsWith('/ws/')) {
+    observability.increment('websocket.rejected_connections');
     socket.destroy();
     return;
   }
@@ -1439,17 +1521,29 @@ server.on('upgrade', (req, socket, head) => {
 
 wss.on('connection', (ws, req) => {
   const roomCode = normalizeRoomCode(req.url.replace('/ws/', ''));
-  if (!roomCode) { ws.close(4000); return; }
+  if (!roomCode) {
+    observability.increment('websocket.rejected_connections');
+    ws.close(4000);
+    return;
+  }
   const room = rooms[roomCode];
-  if (!room) { ws.close(4004); return; }
+  if (!room) {
+    observability.increment('websocket.rejected_connections');
+    ws.close(4004);
+    return;
+  }
 
   room.connections.push(ws);
+  observability.increment('websocket.current_connections');
+  observability.increment('websocket.total_connections');
   appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
     source: 'websocket',
     connection_count: room.connections.length,
   });
   ws.on('close', () => {
     room.connections = room.connections.filter(c => c !== ws);
+    observability.increment('websocket.current_connections', -1);
+    observability.increment('websocket.total_disconnects');
     appendRoomEvent(room, EVENT_TYPES.PLAYER_LEFT, {
       source: 'websocket',
       connection_count: room.connections.length,
@@ -1493,6 +1587,7 @@ module.exports = {
   requireHostCapability,
   roomEventStore,
   roomPersistence: () => roomPersistence,
+  observability,
   configureRoomPersistence,
   loadPersistedRooms,
   persistRooms,

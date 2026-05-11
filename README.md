@@ -158,11 +158,18 @@ cp .env.example .env
 - `FAIRVALUE_LIVE_POSTGRES_SMOKE=1` lets `npm run test:persistence:live` create, read, and delete one temporary `FV**` room row in the configured `DATABASE_URL`; without it, that command only checks configuration/connectivity and table presence.
 - `FAIRVALUE_REQUIRE_DATABASE_URL=1` makes the live persistence readiness command fail when `DATABASE_URL` is missing. `FAIRVALUE_ROOM_STORE=postgres` implies that requirement.
 - `FAIRVALUE_LIVE_POSTGRES_DRIVER=postgres` can force the live readiness script to use a plain Postgres TCP client; otherwise it uses the app's Neon serverless driver for Neon hosts and the Postgres client for localhost.
+- `FAIRVALUE_OPS_TOKEN` protects `/api/ops/metrics`. Local development allows metrics without a token, but production requires this value and accepts either `Authorization: Bearer <token>` or `X-FairValue-Ops-Token`.
 - `FAIRVALUE_IDENTITY_SECRET` signs anonymous browser identities used for durable player sessions and host authority. Set a stable private value anywhere rooms need to survive server restarts.
 
 Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, and bet idempotency receipts; AI bot intervals are not auto-resumed after a backend restart. Local JSON retention prunes settled rooms only; active rooms and rooms without a room-specific timestamp are kept. Postgres retention is opt-in and prunes settled rows only. If `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, local JSON snapshots are saved as encrypted envelopes; existing plaintext snapshots still load and are rewritten encrypted on the next save. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually.
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
+
+## Operations
+
+- `GET /healthz` returns a minimal process health payload and is safe for basic uptime checks.
+- `GET /readyz` reports whether the process is ready for its configured dependencies. Local degraded mode is ready without `DATABASE_URL`; `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` makes the database requirement explicit.
+- `GET /api/ops/metrics` returns an in-memory JSON snapshot for local triage: request counts/latency, room lifecycle counters, active room/player/connection counts, WebSocket counters, rate-limit rejections, database errors, persistence failures, and AI degraded/error counts. It does not include room host tokens or player payloads. Set `FAIRVALUE_OPS_TOKEN` before exposing it outside local development.
 
 ## Verification
 
