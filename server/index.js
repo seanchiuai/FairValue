@@ -423,12 +423,14 @@ app.post('/api/rooms/:code/join', (req, res) => {
   } else {
     player = { session_id, nickname, balance: 1000, bets: [] };
     room.players[session_id] = player;
-    room.activity.push({ type: 'join', nickname, timestamp: Date.now() / 1000 });
+    const activityEntry = { type: 'join', nickname, timestamp: Date.now() / 1000 };
+    room.activity.push(activityEntry);
     broadcast(room, {
       type: 'join',
       nickname,
       player,
       player_count: Object.keys(room.players).length,
+      activity: activityEntry,
     });
   }
 

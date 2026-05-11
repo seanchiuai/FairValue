@@ -20,6 +20,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 post-patch: `npm run verify` passed: client secret scan, 4 test suites / 33 tests, and production build.
 - 2026-05-10 host-authority pass: `npm run verify` passed: client secret scan, server authority tests, 4 React/Jest suites / 33 tests, and production build.
 - 2026-05-10 room-code contract pass: `npm run verify` passed: client secret scan, 6 server tests, 4 React/Jest suites / 33 tests, and production build.
+- 2026-05-10 multiplayer protocol pass: `npm run verify` passed: client secret scan, 7 server tests, 4 React/Jest suites / 33 tests, and production build.
 
 ## Current Known Risks
 
@@ -32,12 +33,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Add broader API/WebSocket tests for create room, join, bet, leaderboard, and settlement.
-2. Add idempotency keys, validation, rate limits, and request correlation IDs.
-3. Create an append-only room event log with replay tests.
-4. Unify backend and frontend LMSR logic behind one shared domain boundary.
-5. Add Playwright E2E coverage for host/player room flow.
-6. Address npm audit vulnerabilities without breaking CRA compatibility.
+1. Add idempotency keys, validation, rate limits, and request correlation IDs.
+2. Create an append-only room event log with replay tests.
+3. Unify backend and frontend LMSR logic behind one shared domain boundary.
+4. Add Playwright E2E coverage for host/player room flow.
+5. Address npm audit vulnerabilities without breaking CRA compatibility.
 
 ## Iteration History
 
@@ -78,6 +78,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Updated README room-code copy and local WebSocket run notes.
 - Added server tests for generated code shape, lowercase normalization, invalid codes, nonexistent rooms, and successful alphanumeric joins.
 
+### 2026-05-10 - Multiplayer API And WebSocket Coverage
+
+- Added a full server integration test for room creation, two joins, WebSocket join broadcasts, bets, leaderboard, settlement broadcasts, and recovered room state.
+- Fixed join WebSocket broadcasts to include the same activity entry stored in the room event feed.
+- Verified that state recovery after socket closure includes settlement payload, activity tail, players, and final market trade count.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -103,6 +109,9 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run verify` after room-code patch -> passed: `scan:secrets`, 6 server tests, React/Jest tests, production build.
 - Room-code API smoke through `http://127.0.0.1:8000` -> created digit-bearing room `Q4IU`, lowercase `/api/rooms/q4iu/join` returned 200, invalid `AB!2` returned 400, valid nonexistent `Z9X8` returned 404.
 - Browser room-code smoke through Playwright fallback -> `/join` accepted lowercase `q4iu`, normalized the input to `Q4IU`, navigated to `/play/Q4IU`, connected, and showed the room property.
+- `npm run test:server` after multiplayer protocol patch -> passed 7 server tests.
+- `npm run verify` after multiplayer protocol patch -> passed: `scan:secrets`, 7 server tests, React/Jest tests, production build.
+- Live WebSocket smoke through `http://127.0.0.1:8000` -> room `RMOF` emitted join, bet, and settlement broadcasts with activity entries; recovered room state was settled with `over` winner and settlement activity tail.
 
 ## Screens And Routes Verified
 
@@ -130,10 +139,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `7df90d6` - Harden AI boundary and realtime recovery.
 - `b1936cb` - Protect host-only room controls.
 - `baa8e98` - Align room code contract.
+- Pending multiplayer protocol coverage commit.
 
 ## Next Action Queue
 
-1. Add backend API/WebSocket integration tests for joins, bets, leaderboard, settlement, and reconnect state recovery.
-2. Add idempotency keys and payload validation for betting.
-3. Add server-side rate limits and request correlation IDs.
-4. Start the next loop with `npm run verify`, then widen multiplayer API/WebSocket coverage.
+1. Add idempotency keys and payload validation for betting.
+2. Add server-side rate limits and request correlation IDs.
+3. Create an append-only room event log with replay tests.
+4. Start the next loop with `npm run verify`, then attack idempotent betting and payload validation.
