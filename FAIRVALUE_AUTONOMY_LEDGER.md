@@ -49,7 +49,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart/load latency now has a deterministic local profile command that starts the real backend, drives create/join/bet/state traffic through a backend restart, records p50/p95/max plus recovery timings, and fails on explicit local latency budgets.
 - Frontend dev/build/test tooling now uses Vite and Vitest instead of Create React App/react-scripts; the old CRA proxy template, web-vitals hook, and `%PUBLIC_URL%` HTML template are removed.
 - Vite route splitting now keeps the `/join` entry flow eager for keyboard reliability while lazy-loading browse, market detail, host, and player routes; the largest production JS chunk dropped from about 512 kB to 199 kB and the build no longer emits the large-chunk warning.
-- `npm run verify` now includes a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
+- `npm run verify` now includes TypeScript `tsc --noEmit` type checking plus a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
 - Assistive-technology evidence now also covers the browse route, sort menu, property detail route, host AI degraded alert, and settled host/player result states; dense browse/detail routes use bounded Playwright ARIA evidence while room/dialog/player states still capture macOS AX.
 - Accessibility edge states now expose field-level `aria-invalid` / `aria-describedby` semantics for create/join validation errors and settlement errors; map pins have accessible names and map popup contrast is gated by axe.
@@ -107,6 +107,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 backend observability pass: baseline `npm run verify` passed before the loop; `node --test server/__tests__/observability.test.js` passed 3 focused ops tests; `npm run test:server` passed 34 server tests; final `npm run verify` passed client secret scan, 34 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 production readiness pass: `node --test server/__tests__/productionReadiness.test.js` passed 3 checker tests; local `npm run check:production` failed as expected with 5 blockers and 3 warnings; a synthetic production Postgres env passed with only the optional Cognee warning; `npm run test:server` passed 37 server tests; final `npm run verify` passed client secret scan, 37 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 Prometheus metrics pass: baseline `npm run verify` passed before the exporter; `node --check server/observability.js && node --check server/index.js && node --check server/__tests__/observability.test.js && node --test server/__tests__/observability.test.js` passed 4 focused ops tests; `npm run test:server` passed 38 server tests; final `npm run verify` passed client secret scan, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 TypeScript verification pass: `npx tsc --noEmit` initially failed because TypeScript 4.9 could not resolve Vite 8 plugin package-export types; after upgrading TypeScript and switching to `moduleResolution: bundler`, `npm run typecheck` passed, `npm run verify` passed client secret scan, TypeScript type checking, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate, and `npm audit --json` reported 0 vulnerabilities.
 
 ## Current Known Risks
 
@@ -135,6 +136,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 6. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - TypeScript Verification Gate
+
+- Added `npm run typecheck` as `tsc --noEmit` and wired it into `npm run verify` after the client secret scan.
+- Upgraded TypeScript from 4.9 to 6.0.3 so the compiler can resolve Vite 8 / `@vitejs/plugin-react` package-export types.
+- Updated `tsconfig.json` to target `ES2020` and use `moduleResolution: bundler`, matching the modern Vite toolchain.
+- Documented the typecheck gate in the README verification section.
 
 ### 2026-05-11 - Prometheus Metrics Export
 
@@ -731,6 +739,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `node --check server/observability.js && node --check server/index.js && node --check server/__tests__/observability.test.js && node --test server/__tests__/observability.test.js` after Prometheus metrics exporter -> passed 4 focused ops tests covering `/healthz`, `/readyz`, JSON ops metrics, Prometheus `/metrics`, host-token non-leakage, and token-gated scrape access.
 - `npm run test:server` after Prometheus metrics exporter -> passed 38 server tests.
 - `npm run verify` after Prometheus metrics exporter -> passed: `scan:secrets`, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npx tsc --noEmit` before TypeScript verification gate -> failed because TypeScript 4.9 could not resolve `@vitejs/plugin-react` under Vite 8 package exports.
+- `npm install -D typescript@latest` -> upgraded TypeScript to 6.0.3 and kept npm audit at 0 vulnerabilities.
+- `npx tsc --noEmit` after the compiler and `tsconfig.json` updates -> passed.
+- `npm run typecheck` after adding the package script -> passed.
+- `npm run verify` after wiring typecheck into the gate -> passed: `scan:secrets`, `typecheck`, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npm audit --json` after the TypeScript verification gate -> reported 0 vulnerabilities.
 
 ## Screens And Routes Verified
 
@@ -780,6 +794,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Backend observability evidence verified `/healthz`, `/readyz`, and `/api/ops/metrics`; the metrics snapshot tracks aggregate room lifecycle/request/dependency counters, omits host tokens, requires the configured ops token, and remains covered by full verify.
 - Production readiness evidence verified the deploy-env gate rejects local defaults, does not echo secret values, accepts a synthetic durable Postgres production config, and is included in the 37-test server suite.
 - Prometheus metrics evidence verified `/metrics` returns text/plain Prometheus scrape output for aggregate request/status/latency, room, WebSocket, rate-limit, database, persistence, and AI counters; it omits room host tokens and shares the configured ops-token guard.
+- TypeScript verification evidence verified the Vite/React source tree and Vite config with `tsc --noEmit`, and `npm run verify` now fails if the type gate regresses.
 
 ## Screenshots Or Traces
 
@@ -855,6 +870,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `4ffa3f1` - Add production readiness environment check.
 - `cc30195` - Record production readiness evidence.
 - `d27ce9b` - Add Prometheus metrics exporter.
+- `f35b95c` - Record Prometheus metrics evidence.
+- `6212616` - Add TypeScript gate to verification.
 
 ## Next Action Queue
 
