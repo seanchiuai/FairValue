@@ -66,6 +66,9 @@ const MarketPage: React.FC = () => {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      if (data.host_token) {
+        sessionStorage.setItem(`fv_host_token_${data.room_code}`, data.host_token);
+      }
 
       await fetch(`/api/rooms/${data.room_code}/join`, {
         method: 'POST',

@@ -35,6 +35,10 @@ export default function HostView() {
   const [ngrokUrl, setNgrokUrl] = useState(
     () => sessionStorage.getItem('fv_ngrok_url') || ''
   );
+  const hostToken = useMemo(
+    () => (roomCode ? sessionStorage.getItem(`fv_host_token_${roomCode}`) || '' : ''),
+    [roomCode]
+  );
   const wasConnectedRef = useRef(false);
   if (connectionState === 'connected') wasConnectedRef.current = true;
 
@@ -73,8 +77,15 @@ export default function HostView() {
 
   const handleToggleAI = useCallback(async () => {
     if (!roomCode) return;
+    if (!hostToken) {
+      console.error('Toggle AI failed: missing host token');
+      return;
+    }
     try {
-      const res = await fetch(`/api/rooms/${roomCode}/toggle-ai`, { method: 'POST' });
+      const res = await fetch(`/api/rooms/${roomCode}/toggle-ai`, {
+        method: 'POST',
+        headers: { 'X-FairValue-Host-Token': hostToken },
+      });
       const data = await res.json();
       if (data.error) {
         console.error('Toggle AI failed:', data.error);
@@ -84,7 +95,7 @@ export default function HostView() {
     } catch (err) {
       console.error('Toggle AI failed:', err);
     }
-  }, [roomCode, setAiEnabled]);
+  }, [roomCode, hostToken, setAiEnabled]);
 
   const handleNgrokChange = useCallback((url: string) => {
     setNgrokUrl(url);
@@ -146,16 +157,26 @@ export default function HostView() {
                   ...s.controlBtn,
                   background: aiEnabled ? 'var(--accent-primary)' : 'var(--bg-input)',
                   color: aiEnabled ? '#fff' : 'var(--text-secondary)',
+                  opacity: hostToken ? 1 : 0.45,
                 }}
                 onClick={handleToggleAI}
                 aria-label={`AI bot ${aiEnabled ? 'enabled' : 'disabled'}`}
                 aria-pressed={aiEnabled}
+                disabled={!hostToken}
+                title={hostToken ? undefined : 'Host token missing for this room'}
               >
                 <Bot size={14} /> AI {aiEnabled ? 'ON' : 'OFF'}
               </button>
               <button
-                style={{ ...s.controlBtn, background: 'var(--accent-warning)', color: '#000' }}
+                style={{
+                  ...s.controlBtn,
+                  background: 'var(--accent-warning)',
+                  color: '#000',
+                  opacity: hostToken ? 1 : 0.45,
+                }}
                 onClick={() => setShowSettleModal(true)}
+                disabled={!hostToken}
+                title={hostToken ? undefined : 'Host token missing for this room'}
               >
                 <Gavel size={14} /> Settle
               </button>
@@ -253,6 +274,7 @@ export default function HostView() {
         <SettleModal
           house={house}
           roomCode={roomCode || ''}
+          hostToken={hostToken}
           onClose={() => setShowSettleModal(false)}
         />
       )}

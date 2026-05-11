@@ -4,12 +4,14 @@ import type { House } from '../../types';
 interface SettleModalProps {
   house: House;
   roomCode: string;
+  hostToken: string;
   onClose: () => void;
 }
 
-export default function SettleModal({ house, roomCode, onClose }: SettleModalProps) {
+export default function SettleModal({ house, roomCode, hostToken, onClose }: SettleModalProps) {
   const [actualPrice, setActualPrice] = useState('');
   const [settling, setSettling] = useState(false);
+  const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -25,15 +27,33 @@ export default function SettleModal({ house, roomCode, onClose }: SettleModalPro
     if (!actualPrice) return;
     const price = parseFloat(actualPrice.replace(/,/g, ''));
     if (isNaN(price) || price <= 0 || price > 100_000_000) return;
+    if (!hostToken) {
+      setError('Host token missing for this room');
+      return;
+    }
     setSettling(true);
-    await fetch(`/api/rooms/${roomCode}/settle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actual_price: price }),
-    });
-    setSettling(false);
-    onClose();
-  }, [roomCode, actualPrice, onClose]);
+    setError('');
+    try {
+      const res = await fetch(`/api/rooms/${roomCode}/settle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-FairValue-Host-Token': hostToken,
+        },
+        body: JSON.stringify({ actual_price: price }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      onClose();
+    } catch {
+      setError('Settlement failed');
+    } finally {
+      setSettling(false);
+    }
+  }, [roomCode, hostToken, actualPrice, onClose]);
 
   return (
     <div style={s.overlay} onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settle-title">
@@ -62,12 +82,13 @@ export default function SettleModal({ house, roomCode, onClose }: SettleModalPro
               : 'UNDER wins'
             : 'enter a price'}
         </p>
+        {error && <p style={s.error}>{error}</p>}
         <div style={s.buttons}>
           <button style={s.cancel} onClick={onClose}>Cancel</button>
           <button
             style={{ ...s.confirm, opacity: settling ? 0.6 : 1 }}
             onClick={handleSettle}
-            disabled={settling}
+            disabled={settling || !hostToken}
           >
             {settling ? 'Settling...' : 'Confirm Settlement'}
           </button>
@@ -132,6 +153,11 @@ const s: Record<string, React.CSSProperties> = {
   hint: {
     fontSize: 13,
     color: 'var(--text-muted)',
+    margin: '0 0 16px',
+  },
+  error: {
+    fontSize: 13,
+    color: 'var(--accent-danger)',
     margin: '0 0 16px',
   },
   buttons: {

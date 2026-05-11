@@ -103,6 +103,8 @@ Browser (React)
 | POST | `/api/rooms/:code/toggle-ai` | Toggle AI bot |
 | GET | `/api/rooms/:code/leaderboard` | Leaderboard |
 
+`POST /api/rooms` returns a `host_token` only to the creator. Host-only routes (`settle` and `toggle-ai`) require that value in the `X-FairValue-Host-Token` header. Join, state, player, and WebSocket payloads do not expose the token.
+
 ### Solo Markets (from Neon)
 
 | Method | Route | Purpose |

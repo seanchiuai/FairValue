@@ -41,12 +41,15 @@ export default function JoinPage() {
       if (data.error) throw new Error(data.error);
 
       saveNickname(cleanName);
+      if (data.host_token) {
+        sessionStorage.setItem(`fv_host_token_${data.room_code}`, data.host_token);
+      }
 
       // Join the room as host
       await fetch(`/api/rooms/${data.room_code}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, nickname: name.trim() }),
+        body: JSON.stringify({ session_id: sessionId, nickname: cleanName }),
       });
 
       navigate(`/host/${data.room_code}`);

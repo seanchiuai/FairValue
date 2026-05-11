@@ -36,8 +36,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
-    "verify": "npm run scan:secrets && npm test -- --watchAll=false && npm run build",
+    "verify": "npm run scan:secrets && npm run test:server && npm test -- --watchAll=false && npm run build",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

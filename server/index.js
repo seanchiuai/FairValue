@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const crypto = require('crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 const sql = require('./db');
 
@@ -14,6 +15,7 @@ const server = http.createServer(app);
 // Trades within rooms DO get persisted to Neon.
 
 const rooms = {};
+const HOST_TOKEN_HEADER = 'x-fairvalue-host-token';
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -23,6 +25,10 @@ function generateRoomCode() {
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
   } while (rooms[code]);
   return code;
+}
+
+function generateHostToken() {
+  return crypto.randomBytes(32).toString('base64url');
 }
 
 // ─── LMSR Math ──────────────────────────────────────────────────────
@@ -95,6 +101,7 @@ async function createRoom(house, roomCode) {
   const code = roomCode || generateRoomCode();
   const room = {
     code,
+    hostToken: generateHostToken(),
     house,
     market: { qOver: 0, qUnder: 0, b: 100, totalTrades: 0, totalWagered: 0 },
     players: {},
@@ -139,6 +146,15 @@ function broadcast(room, event) {
     }
     return false;
   });
+}
+
+function requireHostCapability(req, res, room) {
+  const token = req.get(HOST_TOKEN_HEADER);
+  if (!token || token !== room.hostToken) {
+    res.status(403).json({ error: 'Host token required' });
+    return false;
+  }
+  return true;
 }
 
 // ─── Persist trade to Neon ──────────────────────────────────────────
@@ -370,7 +386,7 @@ app.post('/api/rooms', async (req, res) => {
   const { address, asking_price } = req.body;
   const house = { address, asking_price };
   const room = await createRoom(house);
-  res.json({ room_code: room.code, house });
+  res.json({ room_code: room.code, host_token: room.hostToken, house });
 });
 
 app.post('/api/rooms/:code/join', (req, res) => {
@@ -469,6 +485,7 @@ app.post('/api/rooms/:code/bet', async (req, res) => {
 app.post('/api/rooms/:code/settle', (req, res) => {
   const room = rooms[req.params.code.toUpperCase()];
   if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (!requireHostCapability(req, res, room)) return;
 
   if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   room.aiEnabled = false;
@@ -499,6 +516,7 @@ app.post('/api/rooms/:code/settle', (req, res) => {
 app.post('/api/rooms/:code/toggle-ai', (req, res) => {
   const room = rooms[req.params.code.toUpperCase()];
   if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (!requireHostCapability(req, res, room)) return;
   if (room.settled) return res.status(400).json({ error: 'Market is settled' });
 
   room.aiEnabled = !room.aiEnabled;
@@ -745,7 +763,20 @@ wss.on('connection', (ws, req) => {
 // ─── Start ──────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => {
-  console.log(`FairValue server running on http://localhost:${PORT}`);
-  startSimulations();
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`FairValue server running on http://localhost:${PORT}`);
+    startSimulations();
+  });
+}
+
+module.exports = {
+  app,
+  server,
+  rooms,
+  createRoom,
+  generateRoomCode,
+  generateHostToken,
+  requireHostCapability,
+  startSimulations,
+};
