@@ -21,6 +21,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - CRA dev proxying now honors the same backend target env as the WebSocket client, so `/api` and `/ws` both point at the intended backend when fresh E2E/dev servers run on non-default ports.
 - Browser E2E now has an isolated fresh-server script, a multiplayer burst/API/WebSocket test, and a serious axe accessibility gate over join, host, and mobile player surfaces.
 - Accessibility pass tightened the app color tokens and added missing names for the AI send button, public URL input, QR SVG, and host settle button contrast.
+- Negative-path browser coverage now exercises malformed/nonexistent room-code errors, fake host-token settlement rejection, join rate-limit retry metadata, and missing Cognee-key AI Analyst degradation.
+- Host capability errors now distinguish missing host tokens from invalid host tokens so UI feedback can tell the host what actually failed.
 
 ## Current Test Status
 
@@ -38,6 +40,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 dependency audit pass: `npm audit --omit=dev --json` reported 0 vulnerabilities; full `npm audit --json` reported only 2 moderate dev-only findings from CRA's `webpack-dev-server`; `npm run verify` and `npm run test:e2e` passed.
 - 2026-05-10 durable room snapshot pass: `npm run test:server` passed 14 server tests, `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build, and fresh-port `npm run test:e2e` passed on frontend `3010` / backend `8010` with file-backed room snapshots enabled.
 - 2026-05-10 load/accessibility pass: `npm run test:e2e:isolated` passed 3 Chromium tests on fresh frontend `3010` / backend `8010`; `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean.
+- 2026-05-10 negative-path pass: `npm run test:e2e:isolated` passed 7 Chromium tests on fresh frontend `3010` / backend `8010`; `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean.
 
 ## Current Known Risks
 
@@ -51,10 +54,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Accessibility coverage currently gates serious/critical axe violations on core room surfaces, not every route, every modal state, or manual screen-reader behavior.
 - Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
 - Sustained load, broader accessibility, wider E2E matrix coverage, and deeper security test layers are still missing.
+- Browser restart-recovery coverage is still missing even though local room snapshots are now verified by server tests and snapshot-backed E2E artifacts.
 
 ## Current Backlog Ranked By Impact
 
-1. Expand Playwright beyond the happy path to auth failures, rate limits, degraded AI, and restart recovery.
+1. Add browser-level restart recovery coverage for local room snapshots.
 2. Replace local JSON room snapshots with a production-grade durable room/event adapter, including locking or single-writer guarantees.
 3. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
 4. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
@@ -170,6 +174,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Fixed real axe findings by naming the AI analyst input/send control, adding QR SVG title text, wiring the public URL label/input, changing the settle button to white-on-warning, and darkening primary/success/warning/muted tokens to meet contrast on the room surfaces.
 - Documented the isolated E2E path in README.
 
+### 2026-05-10 - Negative Path Browser Coverage
+
+- Added `e2e/negative-paths.spec.ts`.
+- Covered join-form handling for malformed room code input and valid-but-nonexistent room codes.
+- Covered fake host-token settlement from the rendered host UI and proved the room remains unsettled after the 403.
+- Split host capability copy so missing tokens return `Host token required` and wrong tokens return `Invalid host token`.
+- Covered join-route rate limiting from Playwright's HTTP client, including `Retry-After` and `retry_after` response metadata.
+- Covered missing `COGNEE_API_KEY` behavior from the rendered AI Analyst by waiting for the degraded search 503 and asserting the visible fallback message.
+- Fixed the settlement modal confirm button to use white text on the darker warning token for contrast consistency.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -246,6 +260,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm audit --omit=dev --json` after adding axe -> 0 vulnerabilities.
 - `npm audit --json` after adding axe -> unchanged 2 moderate dev-only findings through `react-scripts` -> `webpack-dev-server`.
 - `/tmp/fairvalue-e2e-rooms.json` after full isolated E2E -> three rooms `IM8M`, `MP3I`, `QYZQ`; event counts `21`, `27`, `11`; one settled room; receipt counts `2`, `12`, `0`.
+- `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts` initial run -> 3 passed and fake host-token settlement failed because the server returned generic `Host token required` copy for a present-but-invalid token.
+- `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts` final run -> passed 4 Chromium tests: malformed/nonexistent room-code UI, fake-token settlement rejection, join rate-limit metadata, and missing Cognee-key AI fallback.
+- `npm run test:e2e:isolated` after negative-path patch -> passed 7 Chromium tests: host/player happy path, load/accessibility checks, and negative-path coverage.
+- `npm run verify` after negative-path patch -> passed: `scan:secrets`, 14 server tests, 5 React/Jest suites / 41 tests, and production build. Jest emitted the Watchman recrawl warning, not a test failure.
+- `npm audit --omit=dev --json` after negative-path patch -> 0 vulnerabilities.
+- `npm audit --json` after negative-path patch -> unchanged 2 moderate dev-only findings through `react-scripts` -> `webpack-dev-server`.
+- `/tmp/fairvalue-e2e-rooms.json` after 7-test isolated E2E -> six rooms `1409`, `BAR7`, `K0TE`, `72AV`, `KATU`, `5S3L`; event counts `6`, `27`, `27`, `11`, `31`, `4`; one settled room; receipt counts `0`, `2`, `12`, `0`, `0`, `0`.
 
 ## Screens And Routes Verified
 
@@ -262,6 +283,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Fresh-port Playwright E2E verified the same host/player loop through managed `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend with `FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-rooms.json`.
 - Isolated E2E verified join, host, and mobile player surfaces with serious/critical axe checks and no captured console/page errors.
 - Isolated E2E verified a 12-player / 12-bet API burst while a live room WebSocket observed all join and bet broadcasts.
+- Negative-path E2E verified `/join` malformed code feedback, `/join` nonexistent room feedback, `/host/:roomCode` fake-token settlement rejection, join route rate limiting, and host AI Analyst missing-key fallback.
 
 ## Screenshots Or Traces
 
@@ -293,10 +315,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `76814c8` - Add durable local room snapshots.
 - `ee356b4` - Record durable room snapshot evidence.
 - `61a27a6` - Add multiplayer load and accessibility E2E.
+- `ffbea1d` - Record load and accessibility evidence.
+- `cfe26ff` - Add negative path Playwright coverage.
 
 ## Next Action Queue
 
-1. Expand Playwright to auth failures, rate limits, degraded AI, and restart recovery.
+1. Add browser-level restart recovery coverage around the local room snapshot store.
 2. Design the production durable room/event adapter that can replace the local JSON snapshot store.
 3. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
-4. Start the next loop with `npm run verify`, then add negative-path Playwright coverage for host-token failures, bad room codes, rate-limit feedback, and missing Cognee key behavior.
+4. Start the next loop with `npm run verify`, then prove a room can be recreated from `/tmp/fairvalue-e2e-rooms.json` across a real backend restart.
