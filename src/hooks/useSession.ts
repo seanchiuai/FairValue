@@ -5,6 +5,10 @@ interface StoredIdentity extends FairValueIdentity {
   nickname?: string;
 }
 
+type IdentityResponse = Partial<FairValueIdentity> & {
+  error?: string;
+};
+
 const IDENTITY_STORAGE_KEY = 'fv_identity_v1';
 const LEGACY_NICKNAME_KEY = 'fv_nickname';
 const LEGACY_SESSION_ID_KEY = 'fv_session_id';
@@ -40,6 +44,10 @@ function persistIdentity(identity: StoredIdentity) {
   }
 }
 
+async function readIdentityResponse(response: Response): Promise<IdentityResponse> {
+  return response.json().catch(() => ({}));
+}
+
 function readInitialNickname(): string {
   const identity = readStoredIdentity();
   if (identity?.nickname) return identity.nickname;
@@ -71,7 +79,7 @@ export function useSession() {
     setIdentityLoading(true);
     mintIdentityRef.current = fetch('/api/identity', { method: 'POST' })
       .then(async (res) => {
-        const data = await res.json();
+        const data = await readIdentityResponse(res);
         if (!res.ok || data.error) throw new Error(data.error || 'Identity unavailable');
         if (typeof data.user_id !== 'string' || typeof data.user_token !== 'string') {
           throw new Error('Identity response was invalid');
@@ -89,7 +97,7 @@ export function useSession() {
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : 'Identity unavailable';
         setIdentityError(message);
-        throw error;
+        throw new Error(message);
       })
       .finally(() => {
         setIdentityLoading(false);

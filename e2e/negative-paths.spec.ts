@@ -70,6 +70,48 @@ test('join flow reports malformed and nonexistent room codes', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Dismiss error notification: Room not found' })).toBeVisible();
 });
 
+test('create room identity outage is announced before room mutation', async ({ page }) => {
+  let identityRequests = 0;
+  let createRoomRequests = 0;
+  await page.route('**/api/identity', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    identityRequests += 1;
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'identity service unavailable',
+    });
+  });
+  page.on('request', (sentRequest) => {
+    if (sentRequest.url().endsWith('/api/rooms') && sentRequest.method() === 'POST') {
+      createRoomRequests += 1;
+    }
+  });
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Create Room/ }).click();
+  await page.getByLabel('Host nickname').fill('Identity Failure Host');
+  await page.getByLabel('Property address').fill(property.address);
+  await page.getByLabel('Asking price').fill(String(property.askingPrice));
+  await expect(page.getByRole('button', { name: /^Create Room$/ })).toBeEnabled();
+  await page.getByRole('button', { name: /^Create Room$/ }).click();
+
+  await expect(page.locator('#create-room-error')).toContainText('Identity unavailable');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Identity unavailable' })).toBeVisible();
+  await expect(page.getByLabel('Host nickname')).toHaveAttribute('aria-describedby', 'create-room-error');
+  await expect(page.getByLabel('Property address')).toHaveAttribute('aria-describedby', 'create-room-error');
+  await expect(page.getByLabel('Asking price')).toHaveAttribute('aria-describedby', 'create-room-error');
+  await expect(page.getByLabel('Host nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Property address')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Asking price')).not.toHaveAttribute('aria-invalid', 'true');
+  expect(identityRequests).toBeGreaterThan(0);
+  expect(createRoomRequests).toBe(0);
+  await expectNoSeriousAxeViolations(page, 'create-room identity outage notification state');
+});
+
 test('direct player join announces missing nickname before submitting', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   let joinRequestCount = 0;
@@ -86,6 +128,44 @@ test('direct player join announces missing nickname before submitting', async ({
   await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
   await expect(page.getByRole('button', { name: 'Dismiss error notification: Enter your name' })).toBeVisible();
   expect(joinRequestCount).toBe(0);
+});
+
+test('malformed identity success is announced before direct player join', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  let identityRequests = 0;
+  let joinRequestCount = 0;
+  await page.route('**/api/identity', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    identityRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ user_id: 'missing-token' }),
+    });
+  });
+  page.on('request', (sentRequest) => {
+    if (sentRequest.url().includes(`/api/rooms/${roomCode}/join`)) joinRequestCount += 1;
+  });
+
+  await page.goto(`/play/${roomCode}`);
+  await page.getByLabel('Player nickname').fill('Malformed Identity Player');
+  await expect(page.getByRole('button', { name: /^Join Room$/ })).toBeEnabled();
+  await page.getByRole('button', { name: /^Join Room$/ }).click();
+
+  await expect(page.locator('#player-join-error')).toContainText('Identity response was invalid');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Identity response was invalid' })).toBeVisible();
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
+  await expect(page.getByLabel('Player nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  expect(identityRequests).toBeGreaterThan(0);
+  expect(joinRequestCount).toBe(0);
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'malformed identity direct player join notification state');
 });
 
 test('direct player join API failure is announced without blaming the nickname', async ({ page, request }) => {
