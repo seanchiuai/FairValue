@@ -17,9 +17,20 @@ function createDisabledRoomPersistence({ kind = 'disabled', reason = 'Room persi
     load() {
       return { version: SNAPSHOT_VERSION, rooms: {} };
     },
+    loadRoom() {
+      return null;
+    },
     save() {},
+    saveRoom() {},
+    deleteRoom() {},
     clear() {},
   };
+}
+
+function normalizeRoomCode(value) {
+  const code = String(value || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{4}$/.test(code)) throw new Error(`Invalid room code for persistence: ${value}`);
+  return code;
 }
 
 function createJsonRoomPersistence({ filePath } = {}) {
@@ -55,6 +66,27 @@ function createJsonRoomPersistence({ filePath } = {}) {
     fs.renameSync(tempPath, resolvedPath);
   }
 
+  function loadRoom(roomCode) {
+    const code = normalizeRoomCode(roomCode);
+    const snapshot = load();
+    return snapshot.rooms[code] ? cloneJson(snapshot.rooms[code]) : null;
+  }
+
+  function saveRoom(roomCode, roomSnapshot) {
+    const code = normalizeRoomCode(roomCode);
+    const snapshot = load();
+    snapshot.rooms[code] = cloneJson(roomSnapshot);
+    save(snapshot);
+  }
+
+  function deleteRoom(roomCode) {
+    const code = normalizeRoomCode(roomCode);
+    const snapshot = load();
+    if (!snapshot.rooms[code]) return;
+    delete snapshot.rooms[code];
+    save(snapshot);
+  }
+
   function clear() {
     if (!enabled || !fs.existsSync(resolvedPath)) return;
     fs.rmSync(resolvedPath, { force: true });
@@ -65,7 +97,10 @@ function createJsonRoomPersistence({ filePath } = {}) {
     enabled,
     filePath: resolvedPath,
     load,
+    loadRoom,
     save,
+    saveRoom,
+    deleteRoom,
     clear,
   };
 }
@@ -119,6 +154,37 @@ function createPostgresRoomPersistence({ sql } = {}) {
     return { version: SNAPSHOT_VERSION, updated_at: updatedAt, rooms };
   }
 
+  async function loadRoom(roomCode) {
+    await ensureSchema();
+    const code = normalizeRoomCode(roomCode);
+    const rows = await sql`
+      SELECT snapshot
+      FROM fairvalue_room_snapshots
+      WHERE room_code = ${code}
+      LIMIT 1
+    `;
+    const row = rows?.[0];
+    return row ? parseSnapshotJson(row.snapshot) : null;
+  }
+
+  async function saveRoom(roomCode, roomSnapshot) {
+    await ensureSchema();
+    const code = normalizeRoomCode(roomCode);
+    await sql`
+      INSERT INTO fairvalue_room_snapshots (room_code, snapshot, updated_at)
+      VALUES (${code}, ${JSON.stringify(cloneJson(roomSnapshot))}::jsonb, now())
+      ON CONFLICT (room_code) DO UPDATE
+      SET snapshot = EXCLUDED.snapshot,
+          updated_at = now()
+    `;
+  }
+
+  async function deleteRoom(roomCode) {
+    await ensureSchema();
+    const code = normalizeRoomCode(roomCode);
+    await sql`DELETE FROM fairvalue_room_snapshots WHERE room_code = ${code}`;
+  }
+
   async function save(snapshot) {
     await ensureSchema();
     const rooms = cloneJson(snapshot?.rooms || {});
@@ -134,13 +200,7 @@ function createPostgresRoomPersistence({ sql } = {}) {
     }
 
     for (const roomCode of roomCodes) {
-      await sql`
-        INSERT INTO fairvalue_room_snapshots (room_code, snapshot, updated_at)
-        VALUES (${roomCode}, ${JSON.stringify(rooms[roomCode])}::jsonb, now())
-        ON CONFLICT (room_code) DO UPDATE
-        SET snapshot = EXCLUDED.snapshot,
-            updated_at = now()
-      `;
+      await saveRoom(roomCode, rooms[roomCode]);
     }
   }
 
@@ -155,7 +215,10 @@ function createPostgresRoomPersistence({ sql } = {}) {
     tableName: DEFAULT_POSTGRES_TABLE,
     filePath: null,
     load,
+    loadRoom,
     save,
+    saveRoom,
+    deleteRoom,
     clear,
   };
 }

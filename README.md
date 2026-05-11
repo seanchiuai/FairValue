@@ -152,6 +152,9 @@ cp .env.example .env
 - `FAIRVALUE_ROOM_STORE=json` keeps the default local JSON snapshot adapter; `FAIRVALUE_ROOM_STORE=postgres` uses the Neon/Postgres `fairvalue_room_snapshots` table when `DATABASE_URL` is configured.
 - `FAIRVALUE_ROOM_STORE_PATH` overrides the local durable room snapshot file. If unset, `npm run server` uses `.fairvalue/rooms.json`.
 - `FAIRVALUE_ROOM_PERSISTENCE=off` disables local room snapshots and returns to fully ephemeral in-memory room state.
+- `FAIRVALUE_LIVE_POSTGRES_SMOKE=1` lets `npm run test:persistence:live` create, read, and delete one temporary `FV**` room row in the configured `DATABASE_URL`; without it, that command only checks configuration/connectivity and table presence.
+- `FAIRVALUE_REQUIRE_DATABASE_URL=1` makes the live persistence readiness command fail when `DATABASE_URL` is missing. `FAIRVALUE_ROOM_STORE=postgres` implies that requirement.
+- `FAIRVALUE_LIVE_POSTGRES_DRIVER=postgres` can force the live readiness script to use a plain Postgres TCP client; otherwise it uses the app's Neon serverless driver for Neon hosts and the Postgres client for localhost.
 - `FAIRVALUE_IDENTITY_SECRET` signs anonymous browser identities used for durable player sessions and host authority. Set a stable private value anywhere rooms need to survive server restarts.
 
 Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, and bet idempotency receipts; AI bot intervals are not auto-resumed after a backend restart.
@@ -182,6 +185,7 @@ npm run test:e2e:mixed-traffic
 npm run test:latency:restart
 npm run test:performance:cold
 npm run test:persistence:postgres
+npm run test:persistence:live
 npm run test:a11y:assistive
 ```
 
@@ -206,6 +210,8 @@ npm run test:a11y:assistive
 `test:a11y:assistive` starts fresh backend/frontend ports, opens headed Playwright Chrome with renderer accessibility enabled, captures the macOS accessibility tree plus Playwright ARIA snapshots for join, host, settle, and player flows, and writes `docs/accessibility-assistive-tech-notes.md`. It is intentionally not part of `npm run verify` because it opens a headed browser window.
 
 `test:persistence:postgres` requires Docker. It starts a disposable `postgres:16-alpine` container, verifies the Postgres room snapshot adapter against a real database, and removes the container afterward.
+
+`test:persistence:live` is the production database readiness gate. With no `DATABASE_URL`, it records a local degraded/skip result unless `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` is set. With `DATABASE_URL` configured, it verifies live connectivity and whether `fairvalue_room_snapshots` exists. Set `FAIRVALUE_LIVE_POSTGRES_SMOKE=1` to run the non-destructive live write/read/delete path against a single temporary `FV**` room row; it never calls the whole-table snapshot replacement path against a live database.
 
 ## Project Structure
 

@@ -23,6 +23,10 @@ function createFakeSql() {
         updated_at: row.updated_at,
       }));
     }
+    if (query.startsWith('SELECT snapshot FROM fairvalue_room_snapshots WHERE room_code')) {
+      const row = rows.get(values[0]);
+      return row ? [{ snapshot: row.snapshot }] : [];
+    }
     if (query.startsWith('SELECT room_code FROM fairvalue_room_snapshots')) {
       return Array.from(rows.keys()).map((room_code) => ({ room_code }));
     }
@@ -103,6 +107,37 @@ test('postgres room persistence saves, loads, deletes stale rooms, and clears', 
   assert.equal(sql.calls.filter((call) => call.query.startsWith('CREATE TABLE')).length, 1);
 });
 
+test('postgres room persistence supports targeted room read, write, and delete', async () => {
+  const sql = createFakeSql();
+  const persistence = createPostgresRoomPersistence({ sql });
+
+  await persistence.save({
+    rooms: {
+      KEEP: { code: 'KEEP', hostToken: 'keep-host', events: [] },
+    },
+  });
+
+  await persistence.saveRoom('tmp1', {
+    code: 'TMP1',
+    hostToken: 'temp-host',
+    events: [{ sequence: 1, type: 'room_created' }],
+  });
+
+  let loaded = await persistence.load();
+  assert.deepEqual(Object.keys(loaded.rooms).sort(), ['KEEP', 'TMP1']);
+  assert.equal(loaded.rooms.TMP1.hostToken, 'temp-host');
+
+  const targeted = await persistence.loadRoom('TMP1');
+  assert.equal(targeted.hostToken, 'temp-host');
+  assert.equal(targeted.events[0].type, 'room_created');
+
+  await persistence.deleteRoom('TMP1');
+  loaded = await persistence.load();
+  assert.deepEqual(Object.keys(loaded.rooms), ['KEEP']);
+  assert.equal(loaded.rooms.KEEP.hostToken, 'keep-host');
+  assert.equal(await persistence.loadRoom('TMP1'), null);
+});
+
 test('postgres room persistence disables cleanly when the database is unavailable', async () => {
   const persistence = createPostgresRoomPersistence({
     sql: Object.assign(async () => [], { isConfigured: false }),
@@ -118,4 +153,21 @@ test('json room persistence can still be created directly for local snapshots', 
   assert.equal(persistence.enabled, true);
   assert.equal(persistence.kind, 'json');
   assert.equal(persistence.filePath, '/tmp/fairvalue-direct-json.json');
+});
+
+test('json room persistence supports targeted room read, write, and delete', () => {
+  const filePath = `/tmp/fairvalue-json-targeted-${process.pid}-${Date.now()}.json`;
+  const persistence = createJsonRoomPersistence({ filePath });
+
+  persistence.save({ rooms: { KEEP: { code: 'KEEP', hostToken: 'keep-host' } } });
+  persistence.saveRoom('tmp2', { code: 'TMP2', hostToken: 'temp-host' });
+
+  assert.equal(persistence.loadRoom('TMP2').hostToken, 'temp-host');
+  assert.deepEqual(Object.keys(persistence.load().rooms).sort(), ['KEEP', 'TMP2']);
+
+  persistence.deleteRoom('TMP2');
+  assert.equal(persistence.loadRoom('TMP2'), null);
+  assert.deepEqual(Object.keys(persistence.load().rooms), ['KEEP']);
+
+  persistence.clear();
 });
