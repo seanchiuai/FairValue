@@ -66,7 +66,14 @@ export default function CogneeChat({ propertyId, askingPrice, market, activity, 
 
       {/* Messages */}
       {(messages.length > 0 || isLoading) && (
-        <div style={s.messages} role="log" aria-live="polite" aria-relevant="additions text">
+        <div
+          style={s.messages}
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-label="AI analyst conversation"
+          tabIndex={0}
+        >
           {messages.map((msg) => (
             <MessageBubble key={msg.id} msg={msg} />
           ))}

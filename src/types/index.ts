@@ -129,10 +129,21 @@ export interface CogneeSearchResultItem {
   summary?: string;
 }
 
+export interface CogneeCitation {
+  id?: string;
+  label: string;
+  detail: string;
+}
+
 export type CogneeSearchResponse = CogneeSearchResultItem[] | {
   search_result?: string | string[];
   results?: CogneeSearchResultItem[];
   data?: CogneeSearchResultItem[];
   content?: string;
   text?: string;
+  message?: string;
+  degraded?: boolean;
+  local_analysis?: boolean;
+  citations?: CogneeCitation[];
+  limitations?: string[];
 };

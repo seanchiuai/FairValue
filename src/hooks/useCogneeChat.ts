@@ -4,9 +4,10 @@ import {
   storeLMSRState,
   searchMarketInsights,
   type LMSRState,
+  type AnalystMarketContext,
 } from '../services/cogneeService';
 import { calculateImpliedPrice } from '../lib/lmsr';
-import type { Market, ActivityEntry, PlayerData, ChatMessage, CogneeSearchResponse } from '../types';
+import type { Market, ActivityEntry, PlayerData, ChatMessage, CogneeCitation, CogneeSearchResponse } from '../types';
 
 interface UseCogneeChatProps {
   propertyId: string;
@@ -32,16 +33,36 @@ function formatCogneeResponse(data: CogneeSearchResponse | string): string {
     return JSON.stringify(data, null, 2);
   }
 
+  const evidence = formatEvidence(data.citations, data.limitations);
+
   if (data.search_result) {
-    if (Array.isArray(data.search_result) && data.search_result.length > 0) return data.search_result[0];
-    if (typeof data.search_result === 'string') return data.search_result;
+    if (Array.isArray(data.search_result) && data.search_result.length > 0) {
+      return `${data.search_result[0]}${evidence}`;
+    }
+    if (typeof data.search_result === 'string') return `${data.search_result}${evidence}`;
   }
   if (data.results) return formatCogneeResponse(data.results);
   if (data.data) return formatCogneeResponse(data.data);
-  if (data.content) return data.content;
-  if (data.text) return data.text;
+  if (data.content) return `${data.content}${evidence}`;
+  if (data.text) return `${data.text}${evidence}`;
+  if (data.message) return `${data.message}${evidence}`;
 
   return JSON.stringify(data, null, 2);
+}
+
+function formatEvidence(citations?: CogneeCitation[], limitations?: string[]) {
+  const lines: string[] = [];
+  if (citations?.length) {
+    lines.push('', 'Evidence used:');
+    citations.forEach((citation, index) => {
+      lines.push(`[${index + 1}] ${citation.label}: ${citation.detail}`);
+    });
+  }
+  if (limitations?.length) {
+    lines.push('', 'Limits:');
+    limitations.forEach((limitation) => lines.push(`- ${limitation}`));
+  }
+  return lines.length ? `\n${lines.join('\n')}` : '';
 }
 
 export function useCogneeChat({ propertyId, askingPrice, market, activity, players }: UseCogneeChatProps) {
@@ -99,11 +120,31 @@ export function useCogneeChat({ propertyId, askingPrice, market, activity, playe
         ? `${query}\n\nCurrent market: ${Math.round(market.prob_over * 100)}% think OVER, ${market.total_trades} trades, $${market.total_wagered.toFixed(0)} volume, asking price $${askingPrice.toLocaleString()}. Recent bets: ${betSummary || 'none yet'}.`
         : query;
 
-      const response = await searchMarketInsights(contextQuery, propertyId);
+      const marketContext: AnalystMarketContext | undefined = market
+        ? {
+          probability_over: market.prob_over,
+          total_trades: market.total_trades,
+          total_wagered: market.total_wagered,
+          asking_price: askingPrice,
+          implied_fair_value: calculateImpliedPrice(market.prob_over, askingPrice),
+          player_count: players.length,
+          timestamp: new Date().toISOString(),
+          recent_bets: activity
+            .filter(a => a.type === 'bet' || a.type === 'ai_trade')
+            .slice(-5)
+            .map(a => ({
+              nickname: a.nickname,
+              outcome: a.outcome,
+              wager: a.wager,
+            })),
+        }
+        : undefined;
+
+      const response = await searchMarketInsights(contextQuery, propertyId, 'GRAPH_COMPLETION', marketContext);
       const content = formatCogneeResponse(response);
       const isDegradedInsight =
-        typeof response === 'string' &&
-        (/COGNEE_API_KEY/i.test(response) || /AI Analyst is unavailable/i.test(response));
+        typeof response === 'object' && !Array.isArray(response) &&
+        Boolean(response.degraded && !response.local_analysis);
 
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

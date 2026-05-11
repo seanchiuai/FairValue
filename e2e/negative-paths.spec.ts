@@ -698,7 +698,7 @@ test('join route exposes retry metadata when server rate limit is hit', async ({
   expect(body.retry_after).toBeGreaterThan(0);
 });
 
-test('AI analyst shows degraded missing-key response instead of failing silently', async ({ page }) => {
+test('AI analyst shows cited local analysis when Cognee is not configured', async ({ page }) => {
   await page.goto('/join');
   await page.getByRole('button', { name: /Create Room/ }).click();
   await page.getByLabel('Host nickname').fill('AI Negative Host');
@@ -712,11 +712,15 @@ test('AI analyst shows degraded missing-key response instead of failing silently
     page.waitForResponse((response) =>
       response.url().includes('/api/ai/cognee/markets/') &&
       response.url().includes('/search') &&
-      response.status() === 503
+      response.status() === 200
     ),
     page.getByRole('button', { name: 'Market summary' }).click(),
   ]);
-  await expect(page.getByText('Set COGNEE_API_KEY on the server to enable Cognee analysis.')).toBeVisible({
+  await expect(page.getByText(/Local AI analyst/)).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page.getByText('Evidence used:')).toBeVisible();
+  await expect(page.getByText(/Room market snapshot/)).toBeVisible();
+  await expect(page.getByText('Limits:')).toBeVisible();
+  await expect(page.getByText(/no external comps/i)).toBeVisible();
 });

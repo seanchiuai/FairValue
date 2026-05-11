@@ -246,7 +246,6 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
   });
   const desktop = await desktopContext.newPage();
   const mobile = await mobileContext.newPage();
-  const cognee503Endpoints = new Set<string>();
 
   for (const [label, page] of [['desktop', desktop], ['mobile', mobile]] as const) {
     page.on('console', (message) => {
@@ -254,11 +253,6 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
     });
     page.on('pageerror', (error) => consoleIssues.push(`${label}: ${error.message}`));
   }
-  desktop.on('response', (response) => {
-    if (response.status() !== 503) return;
-    const endpoint = new URL(response.url()).pathname.match(/\/api\/ai\/cognee\/markets\/[^/]+\/([^/]+)$/)?.[1];
-    if (endpoint) cognee503Endpoints.add(endpoint);
-  });
 
   try {
     await desktop.goto('/');
@@ -294,13 +288,16 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
       desktop.waitForResponse((response) =>
         response.url().includes('/api/ai/cognee/markets/') &&
         response.url().includes('/search') &&
-        response.status() === 503
+        response.status() === 200
       ),
       desktop.getByRole('button', { name: 'Market summary' }).click(),
     ]);
-    await expect(desktop.getByText('Set COGNEE_API_KEY on the server to enable Cognee analysis.')).toBeVisible({
+    await expect(desktop.getByText(/Local AI analyst/)).toBeVisible({
       timeout: 15_000,
     });
+    await expect(desktop.getByText('Evidence used:')).toBeVisible();
+    await expect(desktop.getByText(/Room market snapshot/)).toBeVisible();
+    await expect(desktop.getByText('Limits:')).toBeVisible();
     await expectNoSeriousAxeViolations(desktop, 'desktop AI degraded response state');
 
     await joinRoomThroughUi(mobile, roomCode);
@@ -308,13 +305,7 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
     await expect(mobile.getByLabel('Custom wager')).toHaveValue('100');
     await expectNoSeriousAxeViolations(mobile, 'mobile player custom wager state');
 
-    const expectedCogneeResourceError =
-      'desktop: Failed to load resource: the server responded with a status of 503 (Service Unavailable)';
-    const expectedResourceErrorCount = consoleIssues.filter((issue) => issue === expectedCogneeResourceError).length;
-    const unexpectedConsoleIssues = consoleIssues.filter((issue) => issue !== expectedCogneeResourceError);
-    expect(unexpectedConsoleIssues).toEqual([]);
-    expect([...cognee503Endpoints].sort()).toEqual(['initialize', 'search', 'state']);
-    expect(expectedResourceErrorCount).toBe(cognee503Endpoints.size);
+    expect(consoleIssues).toEqual([]);
   } finally {
     await desktopContext.close();
     await mobileContext.close();
@@ -530,7 +521,6 @@ test('keyboard and screen-reader-adjacent flows stay operable', async ({
   });
   const desktop = await desktopContext.newPage();
   const mobile = await mobileContext.newPage();
-  const cognee503Endpoints = new Set<string>();
 
   for (const [label, page] of [['desktop', desktop], ['mobile', mobile]] as const) {
     page.on('console', (message) => {
@@ -538,11 +528,6 @@ test('keyboard and screen-reader-adjacent flows stay operable', async ({
     });
     page.on('pageerror', (error) => consoleIssues.push(`${label}: ${error.message}`));
   }
-  desktop.on('response', (response) => {
-    if (response.status() !== 503) return;
-    const endpoint = new URL(response.url()).pathname.match(/\/api\/ai\/cognee\/markets\/[^/]+\/([^/]+)$/)?.[1];
-    if (endpoint) cognee503Endpoints.add(endpoint);
-  });
 
   try {
     await desktop.goto('/');
@@ -605,15 +590,16 @@ test('keyboard and screen-reader-adjacent flows stay operable', async ({
       desktop.waitForResponse((response) =>
         response.url().includes('/api/ai/cognee/markets/') &&
         response.url().includes('/search') &&
-        response.status() === 503
+        response.status() === 200
       ),
       desktop.keyboard.press('Enter'),
     ]);
     await expect(
-      desktop.getByRole('alert').filter({
-        hasText: 'Set COGNEE_API_KEY on the server to enable Cognee analysis.',
-      })
+      desktop.getByText(/Local AI analyst/)
     ).toBeVisible({ timeout: 15_000 });
+    await expect(desktop.getByText('Evidence used:')).toBeVisible();
+    await expect(desktop.getByText(/Room market snapshot/)).toBeVisible();
+    await expect(desktop.getByText('Limits:')).toBeVisible();
 
     await joinRoomThroughUi(mobile, roomCode);
     const wager100 = mobile.getByRole('button', { name: 'Set wager to $100' });
@@ -622,11 +608,7 @@ test('keyboard and screen-reader-adjacent flows stay operable', async ({
     await expect(mobile.getByLabel('Custom wager')).toHaveValue('100');
     await expect(mobile.getByRole('button', { name: /Bet \$100 on OVER/ })).toBeEnabled();
 
-    const expectedCogneeResourceError =
-      'desktop: Failed to load resource: the server responded with a status of 503 (Service Unavailable)';
-    const unexpectedConsoleIssues = consoleIssues.filter((issue) => issue !== expectedCogneeResourceError);
-    expect(unexpectedConsoleIssues).toEqual([]);
-    expect([...cognee503Endpoints].sort()).toEqual(['initialize', 'search', 'state']);
+    expect(consoleIssues).toEqual([]);
   } finally {
     await desktopContext.close();
     await mobileContext.close();

@@ -837,12 +837,13 @@ app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, r
 
 const COGNEE_BASE_URL = process.env.COGNEE_BASE_URL || 'https://api.cognee.ai';
 
-function cogneeUnavailable(res) {
+function cogneeUnavailable(res, payload = {}) {
   observability.increment('ai.degraded_responses');
-  return res.status(503).json({
+  return res.status(payload.statusCode || 200).json({
     degraded: true,
     error: 'AI analyst unavailable',
-    message: 'Set COGNEE_API_KEY on the server to enable Cognee analysis.',
+    message: 'COGNEE_API_KEY is not configured; using local room-state analysis where possible.',
+    ...payload,
   });
 }
 
@@ -854,6 +855,99 @@ function safeDatasetSuffix(value) {
 function numberOrZero(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function formatMoney(value) {
+  return `$${Math.round(numberOrZero(value)).toLocaleString('en-US')}`;
+}
+
+function formatPercent(value) {
+  return `${Math.round(clampNumber(numberOrZero(value), 0, 1) * 100)}%`;
+}
+
+function normalizeAnalystContext(rawContext = {}) {
+  const context = rawContext && typeof rawContext === 'object' ? rawContext : {};
+  const probabilityOver = clampNumber(
+    numberOrZero(context.probability_over ?? context.prob_over ?? context.probOver),
+    0,
+    1
+  );
+  const askingPrice = numberOrZero(context.asking_price ?? context.askingPrice);
+  const impliedFairValue = numberOrZero(
+    context.implied_fair_value ?? context.fair_value ?? context.fairValue
+  );
+  const totalTrades = Math.max(0, Math.round(numberOrZero(context.total_trades ?? context.totalTrades)));
+  const totalWagered = Math.max(0, numberOrZero(context.total_wagered ?? context.totalWagered));
+  const playerCount = Math.max(0, Math.round(numberOrZero(context.player_count ?? context.playerCount)));
+  const recentBets = Array.isArray(context.recent_bets)
+    ? context.recent_bets.slice(-5).map((bet) => ({
+      nickname: String(bet?.nickname || 'Participant'),
+      outcome: String(bet?.outcome || 'unknown').toUpperCase(),
+      wager: Math.max(0, numberOrZero(bet?.wager)),
+    }))
+    : [];
+
+  return {
+    probabilityOver,
+    askingPrice,
+    impliedFairValue,
+    totalTrades,
+    totalWagered,
+    playerCount,
+    recentBets,
+    timestamp: String(context.timestamp || new Date().toISOString()),
+  };
+}
+
+function buildLocalAnalystResponse(propertyId, query, rawContext) {
+  const context = normalizeAnalystContext(rawContext);
+  const overPercent = formatPercent(context.probabilityOver);
+  const lean = context.probabilityOver > 0.55
+    ? 'leans OVER'
+    : context.probabilityOver < 0.45
+      ? 'leans UNDER'
+      : 'is close to neutral';
+  const recentFlow = context.recentBets.length
+    ? context.recentBets.map((bet) => `${bet.nickname} ${bet.outcome} ${formatMoney(bet.wager)}`).join('; ')
+    : 'No recent bets are in the local room snapshot yet.';
+
+  return {
+    local_analysis: true,
+    content:
+      `Local AI analyst: Cognee is not configured, so this answer is generated from the live room snapshot only.\n\n` +
+      `The market ${lean}: ${overPercent} of the LMSR probability is on OVER, with ` +
+      `${context.totalTrades} trade${context.totalTrades === 1 ? '' : 's'} and ` +
+      `${formatMoney(context.totalWagered)} in simulated volume. The room-implied fair value is ` +
+      `${formatMoney(context.impliedFairValue)} against a ${formatMoney(context.askingPrice)} asking price. ` +
+      `Recent flow: ${recentFlow}\n\n` +
+      `Question handled: ${String(query).slice(0, 240)}`,
+    citations: [
+      {
+        id: 'room-market-snapshot',
+        label: 'Room market snapshot',
+        detail: `${overPercent} OVER, ${context.totalTrades} trades, ${formatMoney(context.totalWagered)} simulated volume, captured ${context.timestamp}.`,
+      },
+      {
+        id: 'lmsr-fair-value-formula',
+        label: 'LMSR fair-value formula',
+        detail: 'asking_price + (prob_over - 0.5) * 2 * asking_price * 0.10.',
+      },
+      {
+        id: 'recent-room-flow',
+        label: 'Recent room flow',
+        detail: recentFlow,
+      },
+    ],
+    limitations: [
+      'Cognee is not configured, so no external comps, neighborhood data, listing documents, or knowledge graph memory were queried.',
+      'This is a simulated-credit market summary, not an appraisal, investment recommendation, or real-money trading instruction.',
+      `The analysis is scoped to property market ${propertyId} and the current submitted room state.`,
+    ],
+  };
 }
 
 async function cogneeRequest(path, { method = 'GET', body } = {}) {
@@ -1003,6 +1097,10 @@ app.post('/api/ai/cognee/markets/:propertyId/search', async (req, res) => {
   const propertyId = safeDatasetSuffix(req.params.propertyId);
   const query = String(req.body.query || '').trim();
   if (!query) return res.status(400).json({ error: 'Query is required' });
+
+  if (!process.env.COGNEE_API_KEY) {
+    return cogneeUnavailable(res, buildLocalAnalystResponse(propertyId, query, req.body.market_context));
+  }
 
   try {
     const data = await cogneeRequest('/api/search', {

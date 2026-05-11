@@ -146,7 +146,7 @@ cp .env.example .env
 ```
 
 - `DATABASE_URL` enables Neon-backed market persistence. If it is missing, the server boots in degraded mode and in-memory multiplayer rooms still work, while database-backed routes return DB errors.
-- `COGNEE_API_KEY` enables the AI Analyst. It must stay server-side only and must never be added as a `VITE_*` variable.
+- `COGNEE_API_KEY` enables the AI Analyst's Cognee knowledge-graph calls. It must stay server-side only and must never be added as a `VITE_*` variable. When it is missing, the host AI Analyst still returns a deterministic local room-state summary with citations to the submitted market snapshot, LMSR fair-value formula, and recent room flow, plus explicit limitations that no external comps or knowledge-graph memory were queried.
 - `COGNEE_BASE_URL` defaults to `https://api.cognee.ai`.
 - `VITE_BACKEND_PORT` defaults local frontend WebSockets to the backend on port `8000` when Vite runs on another port.
 - `VITE_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.

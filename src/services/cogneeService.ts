@@ -23,6 +23,21 @@ interface BetData {
   actualCost: number;
 }
 
+interface AnalystMarketContext {
+  probability_over: number;
+  total_trades: number;
+  total_wagered: number;
+  asking_price: number;
+  implied_fair_value: number;
+  player_count: number;
+  timestamp: string;
+  recent_bets: Array<{
+    nickname?: string;
+    outcome?: string;
+    wager?: number;
+  }>;
+}
+
 interface DegradedAIResponse {
   degraded?: boolean;
   error?: string;
@@ -48,7 +63,7 @@ async function requestAI(path: string, init?: RequestInit) {
   const contentType = response.headers.get('content-type') || '';
   const data = contentType.includes('application/json') ? await response.json() : await response.text();
 
-  if (response.status === 503 && isDegradedAIResponse(data)) {
+  if (isDegradedAIResponse(data)) {
     return data;
   }
 
@@ -76,7 +91,6 @@ export const initializeMarketGraph = async (propertyId: string, askingPrice: num
     });
 
     if (isDegradedAIResponse(data)) {
-      console.warn(data.message || 'AI analyst unavailable');
       return false;
     }
 
@@ -102,7 +116,6 @@ export const storeLMSRState = async (state: LMSRState, bet?: BetData) => {
     });
 
     if (isDegradedAIResponse(data)) {
-      console.warn(data.message || 'AI analyst unavailable');
       return false;
     }
 
@@ -120,7 +133,8 @@ export const storeLMSRState = async (state: LMSRState, bet?: BetData) => {
 export const searchMarketInsights = async (
   query: string,
   propertyId: string,
-  searchType: 'GRAPH_COMPLETION' | 'CHUNKS' | 'SUMMARIES' | 'INSIGHTS' = 'GRAPH_COMPLETION'
+  searchType: 'GRAPH_COMPLETION' | 'CHUNKS' | 'SUMMARIES' | 'INSIGHTS' = 'GRAPH_COMPLETION',
+  marketContext?: AnalystMarketContext
 ) => {
   try {
     const data = await requestAI(`/api/ai/cognee/markets/${encodeURIComponent(propertyId)}/search`, {
@@ -128,12 +142,9 @@ export const searchMarketInsights = async (
       body: JSON.stringify({
         query,
         search_type: searchType,
+        ...(marketContext ? { market_context: marketContext } : {}),
       }),
     });
-
-    if (isDegradedAIResponse(data)) {
-      return data.message || 'AI Analyst is unavailable until COGNEE_API_KEY is configured on the server.';
-    }
 
     return data;
   } catch (error) {
@@ -178,4 +189,4 @@ export const visualizeMarketGraph = async (outputPath?: string) => {
   }
 };
 
-export type { LMSRState, BetData };
+export type { LMSRState, BetData, AnalystMarketContext };
