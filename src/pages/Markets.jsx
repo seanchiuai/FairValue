@@ -85,7 +85,7 @@ function Markets() {
     : null;
 
   if (loading) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#8E8E93', fontSize: 16 }}>Loading properties...</div>;
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#55565C', fontSize: 16 }}>Loading properties...</div>;
   }
 
   return (
@@ -104,13 +104,14 @@ function Markets() {
             <Search className="search-icon" size={18} />
             <input
               type="text"
+              aria-label="Search properties"
               placeholder="Search by address, city, or brokerage..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
             />
             {searchQuery && (
-              <button className="search-clear" onClick={() => setSearchQuery('')}>
+              <button className="search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">
                 <X size={14} />
               </button>
             )}
@@ -268,7 +269,7 @@ function Markets() {
         .logo-text { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
         .header-center { flex: 1; max-width: 420px; margin: 0 32px; }
         .search-container { position: relative; display: flex; align-items: center; }
-        .search-icon { position: absolute; left: 12px; color: #AEAEB2; }
+        .search-icon { position: absolute; left: 12px; color: #55565C; }
         .search-input {
           width: 100%;
           padding: 8px 32px 8px 36px;
@@ -280,14 +281,14 @@ function Markets() {
           outline: none;
           transition: all 0.2s ease;
         }
-        .search-input::placeholder { color: #AEAEB2; }
+        .search-input::placeholder { color: #55565C; }
         .search-input:focus { background: #FFF; border-color: #D2D2D7; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
         .search-clear {
           position: absolute;
           right: 8px;
           background: none;
           border: none;
-          color: #AEAEB2;
+          color: #55565C;
           cursor: pointer;
           padding: 4px;
           display: flex;
@@ -310,7 +311,7 @@ function Markets() {
           transition: all 0.2s ease;
         }
         .map-toggle svg { color: #636366; }
-        .map-toggle:hover { border-color: #AEAEB2; }
+        .map-toggle:hover { border-color: #55565C; }
         .map-toggle.active {
           color: #0D5C2D;
           background: #F2FBF4;
@@ -352,25 +353,25 @@ function Markets() {
           background: transparent;
           border: 1px solid #E8E8ED;
           border-radius: 980px;
-          color: #8E8E93;
+          color: #55565C;
           font-size: 12px;
           font-weight: 500;
           cursor: pointer;
           white-space: nowrap;
           transition: all 0.2s ease;
         }
-        .clear-btn:hover { background: rgba(255,59,48,0.06); border-color: rgba(255,59,48,0.3); color: #FF3B30; }
+        .clear-btn:hover { background: rgba(180,35,24,0.08); border-color: rgba(180,35,24,0.3); color: #B42318; }
 
         .filters-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
         .sort-dropdown { position: relative; }
-        .sort-label { color: #AEAEB2; font-size: 12px; margin-right: 6px; }
+        .sort-label { color: #55565C; font-size: 12px; margin-right: 6px; }
         .sort-trigger {
           display: flex; align-items: center; gap: 6px; padding: 6px 12px;
           background: #FFF; border: 1px solid #E8E8ED; border-radius: 8px;
           color: #1D1D1F; font-size: 12px; font-weight: 500; cursor: pointer;
         }
         .sort-trigger:hover { border-color: #D2D2D7; }
-        .sort-trigger svg { transition: transform 0.2s ease; color: #AEAEB2; }
+        .sort-trigger svg { transition: transform 0.2s ease; color: #55565C; }
         .sort-trigger svg.open { transform: rotate(180deg); }
         .sort-menu {
           position: absolute; top: 100%; right: 0; margin-top: 6px; min-width: 180px;
@@ -385,7 +386,7 @@ function Markets() {
         .sort-option:hover { background: #F5F5F7; color: #1D1D1F; }
         .sort-option.active { color: #0071E3; }
         .sort-option .check { color: #0071E3; font-weight: 600; }
-        .results-count { color: #AEAEB2; font-size: 12px; font-weight: 500; }
+        .results-count { color: #55565C; font-size: 12px; font-weight: 600; }
 
         .results-layout {
           display: flex;
@@ -422,13 +423,13 @@ function Markets() {
 
         .empty-state {
           display: flex; flex-direction: column; align-items: center;
-          padding: 80px 24px; color: #AEAEB2; text-align: center;
+          padding: 80px 24px; color: #55565C; text-align: center;
         }
         .empty-icon { color: #D2D2D7; margin-bottom: 16px; }
         .empty-state h3 { font-size: 17px; color: #1D1D1F; margin-bottom: 6px; font-weight: 600; }
         .empty-state p { font-size: 14px; }
 
-        .footer { padding: 32px; text-align: center; color: #AEAEB2; font-size: 12px; }
+        .footer { padding: 32px; text-align: center; color: #55565C; font-size: 12px; }
 
         @media (max-width: 768px) {
           .header { padding: 0 16px; height: 52px; }

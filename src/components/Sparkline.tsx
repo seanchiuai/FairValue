@@ -10,7 +10,7 @@ export default function Sparkline({ data, width = 280, height = 48 }: SparklineP
   if (!data || data.length < 2) {
     return (
       <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 11, color: '#AEAEB2' }}>Waiting for trades...</span>
+        <span style={{ fontSize: 11, color: '#55565C' }}>Waiting for trades...</span>
       </div>
     );
   }
@@ -45,7 +45,7 @@ export default function Sparkline({ data, width = 280, height = 48 }: SparklineP
   const current = data[data.length - 1];
   const prev = data[data.length - 2];
   const trending = current >= prev ? 'up' : 'down';
-  const lineColor = trending === 'up' ? '#34C759' : '#FF3B30';
+  const lineColor = trending === 'up' ? '#0B6F32' : '#B42318';
 
   const gradientId = `spark-${Math.random().toString(36).slice(2, 8)}`;
 

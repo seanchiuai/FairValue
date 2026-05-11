@@ -171,11 +171,12 @@ const s: Record<string, React.CSSProperties> = {
   cancel: {
     flex: 1,
     padding: '10px',
-    background: 'var(--bg-input)',
-    border: '1px solid var(--border-subtle)',
+    background: '#FFFFFF',
+    border: '1px solid rgba(0, 0, 0, 0.18)',
     borderRadius: 8,
-    color: 'var(--text-secondary)',
+    color: 'var(--text-primary)',
     fontSize: 14,
+    fontWeight: 600,
     cursor: 'pointer',
   },
   confirm: {

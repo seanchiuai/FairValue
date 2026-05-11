@@ -60,7 +60,7 @@ export function MarketThumbnail({ imageUrl, title }) {
           aspect-ratio: 16 / 9;
           background: linear-gradient(135deg, #F0F0F2 0%, #E8E8ED 100%);
           border-radius: 12px 12px 0 0;
-          color: #AEAEB2;
+          color: #55565C;
         }
       `}</style>
     </div>

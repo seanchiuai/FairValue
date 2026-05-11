@@ -162,19 +162,19 @@ function MarketCard({ property, chartData }) {
           display: flex;
           align-items: center;
           gap: 3px;
-          color: #AEAEB2;
+          color: #55565C;
           font-size: 12px;
           margin-bottom: 8px;
         }
 
         .card-zestimate {
           font-size: 12px;
-          color: #8E8E93;
+          color: #55565C;
           padding-top: 8px;
           border-top: 1px solid #F0F0F2;
         }
-        .zest-up { color: #34C759; font-weight: 600; }
-        .zest-down { color: #FF3B30; font-weight: 600; }
+        .zest-up { color: #0B6F32; font-weight: 700; }
+        .zest-down { color: #B42318; font-weight: 700; }
       `}</style>
     </Link>
   );

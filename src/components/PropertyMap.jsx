@@ -7,7 +7,7 @@ import 'leaflet/dist/leaflet.css';
 const PRICE_PIN_BUCKETS = [
   { id: 'light-green', label: 'Light Green', color: '#A5D6A7', textColor: '#1B4332' },
   { id: 'dark-green', label: 'Dark Green', color: '#1B5E20', textColor: '#FFFFFF' },
-  { id: 'grey', label: 'Grey', color: '#9E9E9E', textColor: '#FFFFFF' },
+  { id: 'grey', label: 'Grey', color: '#55565C', textColor: '#FFFFFF' },
   { id: 'light-red', label: 'Light Red', color: '#EF9A9A', textColor: '#4A1F1F' },
   { id: 'dark-red', label: 'Dark Red', color: '#B71C1C', textColor: '#FFFFFF' },
 ];
@@ -146,10 +146,10 @@ function PropertyMap({ properties }) {
           font-size: 12px; color: #636366;
         }
         .map-popup-specs {
-          font-size: 11px; color: #8E8E93;
+          font-size: 11px; color: #55565C;
         }
         .map-popup-link {
-          font-size: 12px; color: #007AFF;
+          font-size: 12px; color: #005FCC;
           text-decoration: none; font-weight: 600;
           margin-top: 4px;
         }
