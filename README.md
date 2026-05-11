@@ -175,6 +175,7 @@ npm run test:e2e:matrix
 npm run test:e2e:restart
 npm run test:e2e:restart:matrix
 npm run test:e2e:soak
+npm run test:latency:restart
 npm run test:persistence:postgres
 ```
 
@@ -187,6 +188,8 @@ npm run test:persistence:postgres
 `test:e2e:restart:matrix` runs that same restart/load recovery proof across Chromium, Firefox, and WebKit, using `/tmp/fairvalue-browser-restart-matrix-rooms.json`.
 
 `test:e2e:soak` starts fresh backend/frontend ports (`8031`/`3031`) and runs a longer API/WebSocket join-bet wave profile against `/tmp/fairvalue-e2e-soak-rooms.json`, including idempotency replay, settlement, and snapshot reconciliation.
+
+`test:latency:restart` starts a real backend on a free local port, drives create/join/bet/state traffic through a backend restart, records latency percentiles plus restart/recovery timing, and fails if the local latency budgets regress.
 
 `test:persistence:postgres` requires Docker. It starts a disposable `postgres:16-alpine` container, verifies the Postgres room snapshot adapter against a real database, and removes the container afterward.
 
