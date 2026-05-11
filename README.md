@@ -181,6 +181,14 @@ This currently runs a client secret scan, server integration tests, the non-watc
 
 `npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 760 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
 
+For a deployment environment gate, run:
+
+```bash
+npm run check:production
+```
+
+This prints a JSON report and exits non-zero until production-critical variables are set: `DATABASE_URL`, `FAIRVALUE_ROOM_STORE=postgres`, positive `FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS`, non-default `FAIRVALUE_IDENTITY_SECRET`, enabled room persistence, and `FAIRVALUE_OPS_TOKEN`. Missing `COGNEE_API_KEY` is reported as a warning because the AI analyst can intentionally run degraded.
+
 For browser flow coverage, run:
 
 ```bash

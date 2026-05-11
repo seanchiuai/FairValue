@@ -38,6 +38,7 @@
     "test:persistence:live": "node scripts/smoke-live-postgres-room-persistence.js",
     "test:a11y:assistive": "node scripts/capture-assistive-tech-notes.js",
     "check:bundle": "node scripts/check-bundle-size.js",
+    "check:production": "node scripts/check-production-readiness.js",
     "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
     "verify": "npm run scan:secrets && npm run test:server && npm test && npm run build && npm run check:bundle"
