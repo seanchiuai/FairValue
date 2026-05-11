@@ -165,6 +165,8 @@ Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room 
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
 
+HTTP hardening note: the Express server disables `X-Powered-By` and emits baseline browser security headers on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
+
 ## Operations
 
 - `GET /healthz` returns a minimal process health payload and is safe for basic uptime checks.
