@@ -48,6 +48,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run verify` now includes a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
 - Assistive-technology evidence now also covers the browse route, sort menu, property detail route, host AI degraded alert, and settled host/player result states; dense browse/detail routes use bounded Playwright ARIA evidence while room/dialog/player states still capture macOS AX.
+- Accessibility edge states now expose field-level `aria-invalid` / `aria-describedby` semantics for create/join validation errors and settlement errors; map pins have accessible names and map popup contrast is gated by axe.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
@@ -92,6 +93,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 mixed traffic pass: `npm run test:e2e:mixed-traffic` passed with room `6PD9`, 4 throttled rendered mobile players, 12 API churn players, 18 state reads, 17 persisted players including host, 16 trades, 65 events, 419 total wagered, join/churn 127295ms, rendered slow bets 780ms, settlement 510ms, total 129663ms; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 live Postgres readiness path pass: `npm run test:persistence:live` passed in no-credential degraded/skip mode, `npm run test:server` passed 26 server tests including targeted room persistence methods, `npm run test:persistence:postgres` passed against Docker `postgres:16-alpine` on local port `60192`, and `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 expanded assistive route coverage pass: `npm run test:a11y:assistive` passed with room `TFKC` on frontend `57887` / backend `57886`, recording PASS for browse, sort menu, property detail, join pick, create-room form, host dashboard, AI degraded alert, settle modal, player join, betting controls, host settled result, and player settled result; `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 accessibility edge-state pass: focused edge E2E first caught serious Leaflet popup contrast failures, then passed after popup styling fixes; full `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 5 Chromium tests, full `npm run test:e2e:isolated` passed 10 Chromium tests, and `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -103,7 +105,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, and settled-result states; it still needs a human-listened VoiceOver rotor/audio pass and deeper edge-state coverage such as map popups, toasts, and every validation branch.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, and map-popup states; it still needs a human-listened VoiceOver rotor/audio pass and deeper edge-state coverage such as toasts and every possible validation branch.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -115,6 +117,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 
 ## Iteration History
+
+### 2026-05-11 - Accessibility Edge-State Semantics
+
+- Added `aria-invalid` and `aria-describedby` wiring for create-room and join-room validation alerts.
+- Changed the settle modal from silently ignoring empty/invalid actual prices to showing alert text, marking the actual-price input invalid, and describing it with the alert.
+- Marked the error-boundary fallback as an assertive alert.
+- Added accessible names to map price pins and hardened Leaflet popup foreground/background colors after the new axe test exposed serious color-contrast failures in the popup state.
+- Added a Playwright edge-state test for create/join validation, settle validation, map marker accessible names, map popup link visibility, and serious axe checks.
 
 ### 2026-05-11 - Expanded Assistive Route Coverage
 
@@ -622,6 +632,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Follow-up `npm run test:a11y:assistive` runs exposed truthful AX-name mismatches for the host degraded-AI response, the settlement confirm button, and split `OVER` / `WINS` static text; expected names now match the actual platform tree.
 - Final `npm run test:a11y:assistive` -> passed with room `TFKC`, frontend `57887`, backend `57886`, and 12 PASS surfaces across browse, sort, property detail, join, host, AI degraded alert, settle modal, player betting, and settled results.
 - `npm run verify` after expanded assistive coverage -> passed: `scan:secrets`, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- Focused `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts -g "validation, settlement error, and map popup"` first failed on serious Leaflet popup color-contrast violations for price, address, and View Details link text.
+- Focused `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts -g "validation, settlement error, and map popup"` after map popup color fixes -> passed 1 Chromium edge-state test.
+- `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` after edge-state semantics -> passed 5 Chromium tests.
+- `npm run verify` after edge-state semantics -> passed: `scan:secrets`, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npm run test:e2e:isolated` after edge-state semantics -> passed 10 Chromium tests including host/player flow, resilience/accessibility edge states, keyboard flow, and negative paths.
 
 ## Screens And Routes Verified
 
@@ -663,6 +678,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Mixed-traffic E2E verified `/join`, `/host/:roomCode`, and throttled rendered `/play/:roomCode` clients while concurrent API clients joined/bet and state reads churned, ending with settlement broadcast and snapshot reconciliation using room `6PD9`.
 - Live persistence readiness verified the local no-credential production database path reports degraded/skip truthfully, and disposable Postgres verified targeted room persistence plus whole-snapshot compatibility against `fairvalue_room_snapshots`.
 - Expanded assistive-tech capture verified `/`, `/market/440298192`, `/join`, `/host/:roomCode`, and `/play/:roomCode` across browse, sort, property detail, create-room, host dashboard, AI degraded alert, settle modal, betting controls, and settled host/player states using room `TFKC`.
+- Accessibility edge-state E2E verified `/join` create/join validation alerts with field-level invalid/described-by semantics, `/host/:roomCode` settle validation alerts, `/` map marker accessible labels, and Leaflet popup link/contrast behavior.
 
 ## Screenshots Or Traces
 
@@ -728,6 +744,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `d92de55` - Add mixed traffic resilience profile.
 - `97b6235` - Add live Postgres readiness smoke.
 - `4777bec` - Expand assistive technology route coverage.
+- `e6c71fe` - Harden accessibility edge states.
 
 ## Next Action Queue
 
