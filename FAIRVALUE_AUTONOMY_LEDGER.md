@@ -19,6 +19,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Runtime dependencies are now separated from CRA/test/type tooling; `npm audit --omit=dev` reports zero vulnerabilities after removing the unused `codex` package and applying compatibility-safe overrides.
 - Rooms, room event logs, settlement state, and bet idempotency receipts now survive local backend restarts through file-backed JSON snapshots at `.fairvalue/rooms.json` by default, with `FAIRVALUE_ROOM_STORE_PATH` and `FAIRVALUE_ROOM_PERSISTENCE=off` controls.
 - CRA dev proxying now honors the same backend target env as the WebSocket client, so `/api` and `/ws` both point at the intended backend when fresh E2E/dev servers run on non-default ports.
+- Browser E2E now has an isolated fresh-server script, a multiplayer burst/API/WebSocket test, and a serious axe accessibility gate over join, host, and mobile player surfaces.
+- Accessibility pass tightened the app color tokens and added missing names for the AI send button, public URL input, QR SVG, and host settle button contrast.
 
 ## Current Test Status
 
@@ -35,6 +37,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 post-E2E pass: `npm run verify` passed: client secret scan, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-10 dependency audit pass: `npm audit --omit=dev --json` reported 0 vulnerabilities; full `npm audit --json` reported only 2 moderate dev-only findings from CRA's `webpack-dev-server`; `npm run verify` and `npm run test:e2e` passed.
 - 2026-05-10 durable room snapshot pass: `npm run test:server` passed 14 server tests, `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build, and fresh-port `npm run test:e2e` passed on frontend `3010` / backend `8010` with file-backed room snapshots enabled.
+- 2026-05-10 load/accessibility pass: `npm run test:e2e:isolated` passed 3 Chromium tests on fresh frontend `3010` / backend `8010`; `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean.
 
 ## Current Known Risks
 
@@ -44,15 +47,17 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - The current room snapshot store is a local single-process JSON file, not a production distributed store with locking, retention, corruption recovery, or encryption-at-rest.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
+- Load coverage is still a bounded synthetic burst, not a sustained soak, k6-style latency profile, or multi-browser matrix.
+- Accessibility coverage currently gates serious/critical axe violations on core room surfaces, not every route, every modal state, or manual screen-reader behavior.
 - Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
-- Load, accessibility, broader E2E matrix coverage, and deeper security test layers are still missing.
+- Sustained load, broader accessibility, wider E2E matrix coverage, and deeper security test layers are still missing.
 
 ## Current Backlog Ranked By Impact
 
-1. Replace local JSON room snapshots with a production-grade durable room/event adapter, including locking or single-writer guarantees.
-2. Add load and accessibility checks around the multiplayer room loop.
-3. Expand Playwright beyond the happy path to auth failures, rate limits, degraded AI, and restart recovery.
-4. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+1. Expand Playwright beyond the happy path to auth failures, rate limits, degraded AI, and restart recovery.
+2. Replace local JSON room snapshots with a production-grade durable room/event adapter, including locking or single-writer guarantees.
+3. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+4. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
 5. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
 ## Iteration History
@@ -155,6 +160,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Fixed CRA `setupProxy.js` so `/api` and `/ws` both honor `REACT_APP_BACKEND_PORT`, `BACKEND_PORT`, `REACT_APP_API_BASE_URL`, or `BACKEND_TARGET`; this fixed a fresh-port E2E split-brain between API creation and WebSocket connection.
 - Added server coverage for file-backed restore of room state, event sequence, duplicate bet replay, settlement, and the restart edge where a stale `aiEnabled` snapshot must not claim a running AI interval.
 
+### 2026-05-10 - Multiplayer Load And Accessibility Gate
+
+- Added `@axe-core/playwright` and `e2e/multiplayer-resilience.spec.ts`.
+- Added a room API/WebSocket burst test with 12 players, 12 concurrent-ish bets, WebSocket join/bet broadcast assertions, state reconciliation, and duplicate bet idempotency replay.
+- Added a serious/critical axe accessibility gate across the join pick screen, active host screen, and active mobile player screen, with console/page-error assertions.
+- Added `npm run test:e2e:isolated`, which forces fresh backend/frontend servers on `8010`/`3010`, disables Playwright server reuse, and uses `/tmp/fairvalue-e2e-rooms.json` for snapshot-backed E2E evidence.
+- Exposed `E2E_REUSE_EXISTING=false` in Playwright config so future E2E runs can avoid accidentally proving against stale local servers.
+- Fixed real axe findings by naming the AI analyst input/send control, adding QR SVG title text, wiring the public URL label/input, changing the settle button to white-on-warning, and darkening primary/success/warning/muted tokens to meet contrast on the room surfaces.
+- Documented the isolated E2E path in README.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -221,6 +236,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-rooms.json E2E_BACKEND_PORT=8010 E2E_FRONTEND_PORT=3010 npm run test:e2e` before the CRA proxy fix -> failed because the frontend API proxy still targeted backend `8000` while the WebSocket client targeted backend `8010`, leaving the host UI reconnecting.
 - `FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-rooms.json E2E_BACKEND_PORT=8010 E2E_FRONTEND_PORT=3010 npm run test:e2e` after the CRA proxy fix -> passed 1 Chromium host/player room-flow test on isolated frontend/backend ports.
 - `/tmp/fairvalue-e2e-rooms.json` snapshot probe after the final fresh-port E2E -> one room `XRZO`, 25 persisted events, 2 bet receipts, settled `true`, and `aiEnabled` `false`.
+- Browser plugin fallback -> Browser skill was available, but tool discovery did not expose the required Node REPL JavaScript browser-control tool; used the repo Playwright path instead.
+- `npm install -D @axe-core/playwright` -> added axe Playwright support; full audit remained at the known 2 moderate dev-only `webpack-dev-server` findings.
+- `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` initial run -> burst test passed, accessibility test failed on host-screen unlabeled AI send button, low-contrast host labels/metrics, and QR SVG missing text alternative.
+- `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` second run -> host screen passed, player screen failed on primary/success contrast for room badge, probability label, preset button, and OVER button.
+- `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` final run -> passed 2 Chromium tests: burst API/WebSocket loop and serious axe accessibility checks without console errors.
+- `npm run test:e2e:isolated` final run -> passed 3 Chromium tests: original host/player room flow, burst API/WebSocket loop, and serious axe accessibility checks.
+- `npm run verify` after load/accessibility patch -> passed: `scan:secrets`, 14 server tests, 5 React/Jest suites / 41 tests, and production build. Jest emitted the Watchman recrawl warning, not a test failure.
+- `npm audit --omit=dev --json` after adding axe -> 0 vulnerabilities.
+- `npm audit --json` after adding axe -> unchanged 2 moderate dev-only findings through `react-scripts` -> `webpack-dev-server`.
+- `/tmp/fairvalue-e2e-rooms.json` after full isolated E2E -> three rooms `IM8M`, `MP3I`, `QYZQ`; event counts `21`, `27`, `11`; one settled room; receipt counts `2`, `12`, `0`.
 
 ## Screens And Routes Verified
 
@@ -235,6 +260,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Playwright E2E verified `/join` -> `/host/:roomCode` on a 1440x900 desktop viewport and two `/join` -> `/play/:roomCode` player sessions on 390x844 mobile viewports.
 - Playwright E2E verified host stats, leaderboard, activity feed, AI toggle, refreshed player state recovery, settlement modal, and settled result rendering.
 - Fresh-port Playwright E2E verified the same host/player loop through managed `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend with `FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-rooms.json`.
+- Isolated E2E verified join, host, and mobile player surfaces with serious/critical axe checks and no captured console/page errors.
+- Isolated E2E verified a 12-player / 12-bet API burst while a live room WebSocket observed all join and bet broadcasts.
 
 ## Screenshots Or Traces
 
@@ -264,10 +291,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `2551685` - Reduce dependency audit surface.
 - `d787971` - Record dependency audit evidence.
 - `76814c8` - Add durable local room snapshots.
+- `ee356b4` - Record durable room snapshot evidence.
+- `61a27a6` - Add multiplayer load and accessibility E2E.
 
 ## Next Action Queue
 
-1. Add load and accessibility checks around the multiplayer room loop.
-2. Expand Playwright to auth failures, rate limits, degraded AI, and restart recovery.
-3. Design the production durable room/event adapter that can replace the local JSON snapshot store.
-4. Start the next loop with `npm run verify`, then add the smallest load/accessibility harness that exercises the existing host/player flow.
+1. Expand Playwright to auth failures, rate limits, degraded AI, and restart recovery.
+2. Design the production durable room/event adapter that can replace the local JSON snapshot store.
+3. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+4. Start the next loop with `npm run verify`, then add negative-path Playwright coverage for host-token failures, bad room codes, rate-limit feedback, and missing Cognee key behavior.
