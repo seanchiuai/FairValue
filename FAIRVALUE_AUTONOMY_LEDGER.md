@@ -25,6 +25,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host capability errors now distinguish missing host tokens from invalid host tokens so UI feedback can tell the host what actually failed.
 - Server verification now includes a real backend child-process restart test that creates a room, joins, places a bet, kills and restarts the backend against the same snapshot file, proves restored state/idempotency, settles, then restarts again to prove settlement recovery.
 - Browser restart recovery now has a dedicated Playwright harness that owns fresh backend/frontend child processes, keeps rendered host/player pages open, restarts the real backend against `/tmp/fairvalue-browser-restart-rooms.json`, and proves reconnect, post-restart betting, settlement, and settled reload.
+- Room persistence now has an adapter boundary: JSON remains the default local store, while `FAIRVALUE_ROOM_STORE=postgres` targets a Neon/Postgres `fairvalue_room_snapshots` table and startup can await async room loads before listening.
 
 ## Current Test Status
 
@@ -45,13 +46,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 negative-path pass: `npm run test:e2e:isolated` passed 7 Chromium tests on fresh frontend `3010` / backend `8010`; `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean.
 - 2026-05-10 real backend restart recovery pass: `node --test server/__tests__/restartPersistence.test.js` passed 1 child-process restart test, and `npm run verify` passed client secret scan, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-10 browser restart recovery pass: `npm run test:e2e:restart` passed 1 Chromium host/player backend-restart test; `npx playwright test --list` confirmed the default suite remains 7 tests in 3 files; `npm run verify` passed client secret scan, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-10 persistence adapter pass: `npm run test:server` passed 19 server tests including fake-Postgres adapter coverage; `npm run test:e2e:restart` passed 1 browser restart test; `npm run verify` passed client secret scan, 19 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Current Known Risks
 
 - Rotate the Cognee key that was previously committed in client code; treat it as compromised.
 - Host-only settlement and AI toggles now require a room host capability token, but durable user identity is still missing.
 - Room connections, rate-limit buckets, and AI bot intervals are still process-local; restored rooms intentionally do not auto-resume AI intervals after restart.
-- The current room snapshot store is a local single-process JSON file, not a production distributed store with locking, retention, corruption recovery, or encryption-at-rest.
+- The Postgres snapshot adapter is covered by fake-SQL tests, but it has not been smoke-tested against a live Neon database in this environment.
+- Room snapshot persistence still lacks retention policy, corruption recovery, encryption-at-rest, and response-critical write acknowledgment for every mutation.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
 - Load coverage is still a bounded synthetic burst, not a sustained soak, k6-style latency profile, or multi-browser matrix.
@@ -62,7 +65,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Replace local JSON room snapshots with a production-grade durable room/event adapter, including locking or single-writer guarantees.
+1. Prove the Postgres room snapshot adapter against live Neon or a disposable Postgres, then make critical mutations fail honestly if durable writes fail.
 2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
 3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
 4. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
@@ -207,6 +210,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Default Playwright config now ignores the restart spec so `npm run test:e2e` / `test:e2e:isolated` keep their normal managed-server scope while the restart path stays explicit.
 - Documented the restart E2E command and proof model in `README.md`.
 
+### 2026-05-10 - Room Persistence Adapter Boundary
+
+- Reworked `server/roomPersistence.js` into a real adapter factory with disabled, local JSON, and Postgres/Neon modes.
+- Kept local JSON as the default store and preserved `FAIRVALUE_ROOM_STORE_PATH` plus `FAIRVALUE_ROOM_PERSISTENCE=off`.
+- Added explicit `FAIRVALUE_ROOM_STORE=postgres` support for the `fairvalue_room_snapshots` table, including create-if-missing schema setup, load, upsert, stale-room deletion, and clear operations.
+- Updated server startup so async room loads can complete before the backend starts listening.
+- Added a persistence write queue for non-JSON adapters so async snapshot writes preserve order instead of racing prior writes.
+- Added deterministic fake-SQL tests for the Postgres adapter and factory behavior without requiring live Neon credentials.
+- Documented the new env switch in `README.md` and `.env.example`, including the warning that Postgres snapshots contain the same sensitive host-token payload as local JSON snapshots.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -298,6 +311,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-browser-restart-rooms.json` after the restart E2E -> room `30BP`, 30 persisted events, 2 bet receipts, 2 players, settled `true`, and `aiEnabled` `false`.
 - `npx playwright test --list` after adding the restart config -> default Playwright suite remains 7 tests in 3 files, excluding `restart-recovery.spec.ts`.
 - `npm run verify` after browser restart patch -> passed: `scan:secrets`, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm run test:server` after adding the persistence adapter boundary -> passed 19 server tests, including fake-Postgres save/load/stale-delete/clear coverage.
+- `npm run test:e2e:restart` after async startup/persistence wiring -> passed 1 Chromium browser restart test in 21.8s; the test body took 6.0s.
+- `/tmp/fairvalue-browser-restart-rooms.json` after the adapter-boundary restart E2E -> room `76OO`, 24 persisted events, 2 bet receipts, 2 players, settled `true`, and `aiEnabled` `false`.
+- `FAIRVALUE_ROOM_STORE=postgres DATABASE_URL='' node -e "..."` -> reported `{"kind":"postgres","enabled":false,"reason":"DATABASE_URL is not configured"}`, proving explicit Postgres mode degrades honestly without credentials.
+- `npm run verify` after persistence adapter patch -> passed: `scan:secrets`, 19 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Screens And Routes Verified
 
@@ -317,6 +335,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Negative-path E2E verified `/join` malformed code feedback, `/join` nonexistent room feedback, `/host/:roomCode` fake-token settlement rejection, join route rate limiting, and host AI Analyst missing-key fallback.
 - Backend child-process restart test verified `/api/rooms`, `/join`, `/bet`, `/state`, and `/settle` across two real backend restarts using the same local snapshot file.
 - Restart E2E verified rendered `/join`, `/host/:roomCode`, and `/play/:roomCode` pages through a real backend restart, post-restart bet, settlement, second restart, and reload recovery on fresh dynamic local ports.
+- Persistence adapter tests verified Postgres snapshot save/load/delete/clear semantics through a deterministic fake tagged SQL client.
 
 ## Screenshots Or Traces
 
@@ -352,10 +371,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `cfe26ff` - Add negative path Playwright coverage.
 - `dc0f37f` - Add backend restart persistence test.
 - `f3ee986` - Add browser restart recovery E2E.
+- `4d9d3ba` - Add room persistence adapter boundary.
 
 ## Next Action Queue
 
-1. Design the production durable room/event adapter that can replace the local JSON snapshot store.
+1. Prove the Postgres room snapshot adapter against live Neon or a disposable Postgres, then make critical mutations fail honestly if durable writes fail.
 2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
 3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
-4. Start the next loop with `npm run verify`, then inspect `server/db.js`, `server/roomPersistence.js`, and the Neon table assumptions before adding a real durable adapter boundary.
+4. Start the next loop with `npm run verify`, then inspect whether a local disposable Postgres is available before adding live adapter smoke coverage.
