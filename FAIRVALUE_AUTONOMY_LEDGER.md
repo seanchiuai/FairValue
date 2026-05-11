@@ -56,6 +56,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
+- Backend operations now expose `GET /healthz`, `GET /readyz`, and token-guarded `GET /api/ops/metrics` with in-memory request, latency, room lifecycle, WebSocket, rate-limit, database-error, persistence-failure, and AI degraded/error counters.
 
 ## Current Test Status
 
@@ -102,6 +103,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 encrypted snapshot pass: `node --test server/__tests__/restartPersistence.test.js` passed plaintext and encrypted child-process restart restore cases; `FAIRVALUE_ROOM_SNAPSHOT_SECRET=playwright-encrypted-restart npm run test:e2e:restart` passed the Chromium repeated-backend-restart harness with encrypted local snapshots; final `npm run verify` passed client secret scan, 29 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 local retention pass: `npm run test:server` passed 30 server tests including settled-room retention pruning; `npm run test:e2e:restart` passed the Chromium repeated-backend-restart harness; `npm run verify` passed client secret scan, 30 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 Postgres retention pass: `node --test server/__tests__/roomPersistence.test.js` passed 10 targeted persistence tests; `npm run test:persistence:postgres` passed against Docker `postgres:16-alpine` with `retentionPruned: true`; `npm run test:server` passed 31 server tests; `npm run verify` passed client secret scan, 31 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 backend observability pass: baseline `npm run verify` passed before the loop; `node --test server/__tests__/observability.test.js` passed 3 focused ops tests; `npm run test:server` passed 34 server tests; final `npm run verify` passed client secret scan, 34 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -113,6 +115,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
+- Operations metrics are now visible locally and token-guarded for production, but they are still process-local/in-memory and need an external metrics/log sink before multi-instance deployment.
 - Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, and map-popup states; it still needs a human-listened VoiceOver rotor/audio pass and deeper edge-state coverage such as toasts and every possible validation branch.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing.
@@ -124,8 +127,18 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 4. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
+5. Add an external metrics/log sink or dashboard path for production multi-instance operations.
 
 ## Iteration History
+
+### 2026-05-11 - Backend Observability Readiness
+
+- Added `server/observability.js`, a small in-memory metrics collector for request counts/status classes/latency, room lifecycle counters, WebSocket counters, rate-limit rejections, persistence failures, database errors, and AI degraded/error counts.
+- Added `GET /healthz` for minimal process health and `GET /readyz` for dependency-aware readiness that treats local degraded mode as ready unless a database is explicitly required.
+- Added `GET /api/ops/metrics`, guarded by `FAIRVALUE_OPS_TOKEN` when configured and mandatory in production if the token is missing.
+- Kept metrics free of room host tokens and player payloads; the snapshot reports aggregate room/player/connection counts only.
+- Documented the operations endpoints and `FAIRVALUE_OPS_TOKEN` in `README.md` and `.env.example`.
+- Added server tests proving health/readiness behavior, degraded Postgres readiness, lifecycle metrics, secret non-leakage, and token-gated metrics access.
 
 ### 2026-05-11 - Postgres Snapshot Retention
 
@@ -684,6 +697,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run test:persistence:postgres` after Postgres retention -> passed against Docker `postgres:16-alpine` with `retentionPruned: true`, adapter `postgres`, table `fairvalue_room_snapshots`, and local port `61953`.
 - `npm run test:server` after Postgres retention -> passed 31 server tests.
 - `npm run verify` after Postgres retention -> passed: `scan:secrets`, 31 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- Baseline `npm run verify` before backend observability -> passed: `scan:secrets`, 31 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `node --test server/__tests__/observability.test.js` -> passed 3 focused ops tests covering `/healthz`, `/readyz`, degraded Postgres readiness, lifecycle metrics, metrics secret non-leakage, and token-gated access.
+- `npm run test:server` after backend observability -> passed 34 server tests.
+- `npm run verify` after backend observability -> passed: `scan:secrets`, 34 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Screens And Routes Verified
 
@@ -730,6 +747,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Encrypted snapshot evidence verified local JSON snapshots omit host token/address plaintext when `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, wrong/missing secrets fail closed, encrypted child-process restart restores the room, and the rendered restart harness passes with encrypted snapshots enabled.
 - Local retention evidence verified an expired settled room is removed from the JSON snapshot, recent settled and old active rooms remain, rendered restart recovery still works, and full verify remains green.
 - Postgres retention evidence verified an expired settled row is deleted from `fairvalue_room_snapshots`, recent settled and old active rows remain, targeted expired-row loads return `null`, expired targeted saves are skipped, disposable Docker Postgres stays green, and full verify remains green.
+- Backend observability evidence verified `/healthz`, `/readyz`, and `/api/ops/metrics`; the metrics snapshot tracks aggregate room lifecycle/request/dependency counters, omits host tokens, requires the configured ops token, and remains covered by full verify.
 
 ## Screenshots Or Traces
 
@@ -800,6 +818,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `e4a099a` - Encrypt local room snapshots.
 - `ac11618` - Prune expired local room snapshots.
 - `4994643` - Prune expired Postgres room snapshots.
+- `5430ddc` - Add backend observability endpoints.
 
 ## Next Action Queue
 
@@ -807,4 +826,5 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 4. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-5. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
+5. Add an external metrics/log sink or dashboard path for production multi-instance operations.
+6. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
