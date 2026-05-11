@@ -27,6 +27,15 @@ export interface Property {
   longitude: number;
   county: string;
   propertyTaxRate: number | null;
+  listingDataSource: string | null;
+  listingSource: string | null;
+  attributionInfo: {
+    mlsName?: string | null;
+    mlsId?: string | null;
+    lastChecked?: string | null;
+    lastUpdated?: string | null;
+    brokerName?: string | null;
+  } | null;
   schools: { name: string; rating: number | null; distance: number; level: string; link: string }[];
   priceHistory: { date: string; event: string; price: number; source: string }[];
 }
@@ -66,6 +75,15 @@ interface RawPropertyData {
   longitude?: number;
   county?: string;
   propertyTaxRate?: number;
+  listingDataSource?: string;
+  listingSource?: string;
+  attributionInfo?: {
+    mlsName?: string | null;
+    mlsId?: string | null;
+    lastChecked?: string | null;
+    lastUpdated?: string | null;
+    brokerName?: string | null;
+  };
   schools?: Array<{ name?: string; rating?: number; distance?: number; level?: string; link?: string }>;
   priceHistory?: Array<{ date?: string; event?: string; price?: number; source?: string }>;
 }
@@ -106,6 +124,9 @@ function mapRaw(rawData: RawPropertyData[]): Property[] {
       longitude: item.longitude || 0,
       county: item.county || '',
       propertyTaxRate: item.propertyTaxRate ?? null,
+      listingDataSource: item.listingDataSource || null,
+      listingSource: item.listingSource || null,
+      attributionInfo: item.attributionInfo || null,
       schools: (item.schools || []).map((s) => ({
         name: s.name || '',
         rating: s.rating ?? null,

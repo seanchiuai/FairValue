@@ -12,6 +12,9 @@ import {
   Home,
   DollarSign,
   GraduationCap,
+  Info,
+  Database,
+  ShieldCheck,
   TrendingUp,
   TrendingDown,
   Gavel
@@ -38,6 +41,17 @@ type RoomJoinResponse = {
 
 async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
+}
+
+function formatDataTimestamp(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value.replace(' ', 'T'));
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 const MarketPage: React.FC = () => {
@@ -137,6 +151,18 @@ const MarketPage: React.FC = () => {
     ? property.zestimate - property.price : null;
   const priceDiffPct = priceDiff !== null && property.price
     ? ((priceDiff / property.price) * 100).toFixed(1) : null;
+  const provenanceSource = property.attributionInfo?.mlsName
+    || property.listingDataSource
+    || property.listingSource
+    || property.priceHistory.find((entry) => entry.source)?.source
+    || 'Zillow property snapshot';
+  const freshnessDate = formatDataTimestamp(
+    property.attributionInfo?.lastChecked
+      || property.attributionInfo?.lastUpdated
+      || property.priceHistory[0]?.date
+      || null
+  );
+  const freshnessLabel = freshnessDate ? ` Checked ${freshnessDate}.` : '';
 
   return (
     <div className="market-page">
@@ -213,6 +239,51 @@ const MarketPage: React.FC = () => {
           </div>
           <div ref={chartRef} className="chart-container" style={{ width: '100%', height: 260 }} />
         </div>
+
+        {/* Market Trust */}
+        <section className="detail-section market-trust-section" aria-labelledby="market-trust-title" data-testid="market-trust-section">
+          <div className="market-trust-head">
+            <h2 id="market-trust-title" className="section-title"><ShieldCheck size={18} /> Market Trust</h2>
+            <span className="market-trust-pill">Simulation market</span>
+          </div>
+          <div className="market-trust-list">
+            <div className="market-trust-row">
+              <Info size={17} aria-hidden="true" />
+              <div>
+                <span className="trust-row-title">Simulation credits</span>
+                <p>FairValue balances and wagers are play-money credits for a valuation game, not real-money trades or investment products.</p>
+              </div>
+            </div>
+            <div className="market-trust-row">
+              <TrendingUp size={17} aria-hidden="true" />
+              <div>
+                <span className="trust-row-title">LMSR probability</span>
+                <p>The blue Over % is the LMSR market probability that the final value settles above the asking price.</p>
+              </div>
+            </div>
+            <div className="market-trust-row">
+              <DollarSign size={17} aria-hidden="true" />
+              <div>
+                <span className="trust-row-title">Implied fair value</span>
+                <p>The green fair-value line translates that probability around the {formatPrice(property.price)} asking price. It is market-implied, not an appraisal.</p>
+              </div>
+            </div>
+            <div className="market-trust-row">
+              <Database size={17} aria-hidden="true" />
+              <div>
+                <span className="trust-row-title">Listing provenance</span>
+                <p>Property context comes from {provenanceSource}.{freshnessLabel} Zestimate, rent, tax, and school values are reference data, not settlement authority.</p>
+              </div>
+            </div>
+            <div className="market-trust-row">
+              <Gavel size={17} aria-hidden="true" />
+              <div>
+                <span className="trust-row-title">Settlement evidence</span>
+                <p>In multiplayer rooms, the host settles with an actual appraisal or sale price; room events preserve joins, bets, and settlement for replay.</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Financial Highlights */}
         <div className="detail-section">

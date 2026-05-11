@@ -321,6 +321,42 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
   }
 });
 
+test('market detail explains simulated market mechanics and data provenance', async ({
+  browser,
+}: {
+  browser: Browser;
+}) => {
+  const desktopContext = await browser.newContext({ viewport: hostViewport });
+  const mobileContext = await browser.newContext({
+    viewport: playerViewport,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const desktop = await desktopContext.newPage();
+  const mobile = await mobileContext.newPage();
+
+  try {
+    await desktop.goto('/market/440298192');
+    await expect(desktop.getByTestId('market-trust-section')).toContainText('Market Trust', { timeout: 15_000 });
+    await expect(desktop.getByTestId('market-trust-section')).toContainText('play-money credits');
+    await expect(desktop.getByTestId('market-trust-section')).toContainText('LMSR market probability');
+    await expect(desktop.getByTestId('market-trust-section')).toContainText('not an appraisal');
+    await expect(desktop.getByTestId('market-trust-section')).toContainText('MLSListings Inc');
+    await expect(desktop.getByTestId('market-trust-section')).toContainText('Checked Feb');
+    await expect(desktop.getByTestId('market-trust-section')).toContainText('room events preserve joins, bets, and settlement');
+    await expectNoSeriousAxeViolations(desktop, 'desktop market trust explainer');
+
+    await mobile.goto('/market/440298192');
+    await expect(mobile.getByTestId('market-trust-section')).toContainText('Simulation market', { timeout: 15_000 });
+    await expect(mobile.getByTestId('market-trust-section')).toContainText('play-money credits');
+    await expect(mobile.getByTestId('market-trust-section')).toContainText('LMSR market probability');
+    await expectNoSeriousAxeViolations(mobile, 'mobile market trust explainer');
+  } finally {
+    await desktopContext.close();
+    await mobileContext.close();
+  }
+});
+
 test('validation, settlement error, and map popup states expose accessible semantics', async ({
   browser,
 }: {
