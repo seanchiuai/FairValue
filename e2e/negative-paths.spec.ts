@@ -66,7 +66,8 @@ test('join flow reports malformed and nonexistent room codes', async ({ page }) 
     ),
     page.getByRole('button', { name: /^Join Room$/ }).click(),
   ]);
-  await expect(page.getByText('Room not found')).toBeVisible();
+  await expect(page.locator('#join-room-error')).toContainText('Room not found');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Room not found' })).toBeVisible();
 });
 
 test('direct player join announces missing nickname before submitting', async ({ page, request }) => {
@@ -85,6 +86,39 @@ test('direct player join announces missing nickname before submitting', async ({
   await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
   await expect(page.getByRole('button', { name: 'Dismiss error notification: Enter your name' })).toBeVisible();
   expect(joinRequestCount).toBe(0);
+});
+
+test('create room API failure is visible on the join page', async ({ page }) => {
+  await page.route('**/api/rooms', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'Room persistence failed' }),
+    });
+  });
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Create Room/ }).click();
+  await page.getByLabel('Host nickname').fill('Create Failure Host');
+  await page.getByLabel('Property address').fill(property.address);
+  await page.getByLabel('Asking price').fill(String(property.askingPrice));
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/rooms') &&
+      response.request().method() === 'POST' &&
+      response.status() === 503
+    ),
+    page.getByRole('button', { name: /^Create Room$/ }).click(),
+  ]);
+
+  await expect(page.locator('#create-room-error')).toContainText('Room persistence failed');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Room persistence failed' })).toBeVisible();
+  await expect(page).toHaveURL(/\/join$/);
+  await expectNoSeriousAxeViolations(page, 'create-room API failure notification state');
 });
 
 test('market detail room creation failure is visible to the host', async ({ page }) => {

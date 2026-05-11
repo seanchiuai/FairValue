@@ -2,7 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
+import { useToast } from '../contexts/ToastContext';
 import { Home, Users, Plus, LogIn } from 'lucide-react';
+
+type RoomCreateResponse = {
+  room_code?: string;
+  host_token?: string;
+  error?: string;
+};
+
+type RoomJoinResponse = {
+  error?: string;
+};
+
+async function readJson<T>(response: Response): Promise<T> {
+  return response.json().catch(() => ({})) as Promise<T>;
+}
 
 export default function JoinPage() {
   const navigate = useNavigate();
@@ -13,6 +28,7 @@ export default function JoinPage() {
     identityError,
     ensureIdentity,
   } = useSession();
+  const { showToast } = useToast();
   const [mode, setMode] = useState<'pick' | 'create' | 'join'>('pick');
   const [name, setName] = useState(nickname);
   const [address, setAddress] = useState('');
@@ -75,8 +91,9 @@ export default function JoinPage() {
           host_user_id: identity.user_id,
         }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await readJson<RoomCreateResponse>(res);
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to create room');
+      if (!data.room_code || !data.host_token) throw new Error('Room creation response was invalid');
 
       saveNickname(cleanName);
       saveHostToken(data.room_code, data.host_token);
@@ -94,12 +111,14 @@ export default function JoinPage() {
           nickname: cleanName,
         }),
       });
-      const joinData = await joinRes.json();
-      if (joinData.error) throw new Error(joinData.error);
+      const joinData = await readJson<RoomJoinResponse>(joinRes);
+      if (!joinRes.ok || joinData.error) throw new Error(joinData.error || 'Failed to join room as host');
 
       navigate(`/host/${data.room_code}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create room');
+      const message = err instanceof Error ? err.message : 'Failed to create room';
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -133,13 +152,15 @@ export default function JoinPage() {
           nickname: cleanName,
         }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await readJson<RoomJoinResponse>(res);
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to join room');
 
       saveNickname(cleanName);
       navigate(`/play/${cleanCode}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to join room');
+      const message = err instanceof Error ? err.message : 'Failed to join room';
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setSubmitting(false);
     }
