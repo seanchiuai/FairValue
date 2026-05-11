@@ -93,10 +93,16 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(host.getByTestId('activity-feed')).toContainText('OVER');
     await expect(host.getByTestId('activity-feed')).toContainText('UNDER');
 
-    await host.getByRole('button', { name: /AI bot disabled/i }).click();
-    await expect(host.getByRole('button', { name: /AI bot enabled/i })).toHaveAttribute('aria-pressed', 'true');
-    await host.getByRole('button', { name: /AI bot enabled/i }).click();
-    await expect(host.getByRole('button', { name: /AI bot disabled/i })).toHaveAttribute('aria-pressed', 'false');
+    await host.getByRole('button', { name: 'AI bot disabled', exact: true }).click();
+    await expect(host.getByRole('button', { name: 'AI bot enabled', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await host.getByRole('button', { name: 'AI bot enabled', exact: true }).click();
+    await expect(host.getByRole('button', { name: 'AI bot disabled', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
 
     await playerOne.reload();
     await expectConnected(playerOne);

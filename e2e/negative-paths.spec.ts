@@ -72,6 +72,32 @@ test('fake host token cannot settle a room from the host UI', async ({ page, req
   expect(state.settled).toBe(false);
 });
 
+test('fake host token cannot toggle AI and announces the host action failure', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.addInitScript((code) => {
+    window.sessionStorage.setItem(`fv_host_token_${code}`, 'fake-host-token');
+  }, roomCode);
+
+  await page.goto(`/host/${roomCode}`);
+  await expectConnected(page);
+  const toggleButton = page.getByRole('button', { name: /AI bot disabled/i });
+  await expect(toggleButton).toBeEnabled();
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/toggle-ai`) && response.status() === 403
+    ),
+    toggleButton.click(),
+  ]);
+  await expect(page.getByRole('alert')).toContainText('Invalid host token');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Invalid host token' })).toBeVisible();
+  await expect(toggleButton).toHaveAttribute('aria-pressed', 'false');
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.ai_enabled).toBe(false);
+});
+
 test('join route exposes retry metadata when server rate limit is hit', async ({ request }) => {
   const { room_code: roomCode } = await createRoom(request);
   const attempts = await Promise.all(

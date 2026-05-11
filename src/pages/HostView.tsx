@@ -14,6 +14,7 @@ import QRCard from '../components/host/QRCard';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
+import { useToast } from '../contexts/ToastContext';
 import { Users, Bot, Gavel, Trophy } from 'lucide-react';
 
 export default function HostView() {
@@ -49,6 +50,7 @@ export default function HostView() {
   const hasHostAuthority = Boolean(canUseHostIdentity || hostToken);
   const wasConnectedRef = useRef(false);
   const settleButtonRef = useRef<HTMLButtonElement>(null);
+  const { showToast } = useToast();
   if (connectionState === 'connected') wasConnectedRef.current = true;
 
   // Chart
@@ -87,7 +89,7 @@ export default function HostView() {
   const handleToggleAI = useCallback(async () => {
     if (!roomCode) return;
     if (!hasHostAuthority) {
-      console.error('Toggle AI failed: missing host authority');
+      showToast('Host authority is missing for this room.', 'error');
       return;
     }
     try {
@@ -97,14 +99,16 @@ export default function HostView() {
       });
       const data = await res.json();
       if (data.error) {
-        console.error('Toggle AI failed:', data.error);
+        showToast(data.error, 'error');
         return;
       }
       setAiEnabled(data.ai_enabled);
+      showToast(`AI bot ${data.ai_enabled ? 'enabled' : 'disabled'}.`, 'success');
     } catch (err) {
-      console.error('Toggle AI failed:', err);
+      const message = err instanceof Error ? err.message : 'Unable to toggle AI bot';
+      showToast(message, 'error');
     }
-  }, [roomCode, hasHostAuthority, hostAuthHeaders, setAiEnabled]);
+  }, [roomCode, hasHostAuthority, hostAuthHeaders, setAiEnabled, showToast]);
 
   const handleNgrokChange = useCallback((url: string) => {
     setNgrokUrl(url);
