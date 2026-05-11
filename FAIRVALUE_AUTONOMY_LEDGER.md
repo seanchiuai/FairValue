@@ -26,6 +26,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Server verification now includes a real backend child-process restart test that creates a room, joins, places a bet, kills and restarts the backend against the same snapshot file, proves restored state/idempotency, settles, then restarts again to prove settlement recovery.
 - Browser restart recovery now has a dedicated Playwright harness that owns fresh backend/frontend child processes, keeps rendered host/player pages open, restarts the real backend against `/tmp/fairvalue-browser-restart-rooms.json`, and proves reconnect, post-restart betting, settlement, and settled reload.
 - Room persistence now has an adapter boundary: JSON remains the default local store, while `FAIRVALUE_ROOM_STORE=postgres` targets a Neon/Postgres `fairvalue_room_snapshots` table and startup can await async room loads before listening.
+- Postgres room persistence now has a Docker-backed smoke command that verifies the adapter against a real disposable `postgres:16-alpine` database and removes the container afterward.
 
 ## Current Test Status
 
@@ -47,13 +48,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 real backend restart recovery pass: `node --test server/__tests__/restartPersistence.test.js` passed 1 child-process restart test, and `npm run verify` passed client secret scan, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-10 browser restart recovery pass: `npm run test:e2e:restart` passed 1 Chromium host/player backend-restart test; `npx playwright test --list` confirmed the default suite remains 7 tests in 3 files; `npm run verify` passed client secret scan, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-10 persistence adapter pass: `npm run test:server` passed 19 server tests including fake-Postgres adapter coverage; `npm run test:e2e:restart` passed 1 browser restart test; `npm run verify` passed client secret scan, 19 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-10 disposable Postgres smoke pass: `npm run test:persistence:postgres` passed against Docker `postgres:16-alpine`; `npm run verify` passed client secret scan, 19 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean and full audit stayed at the known 2 moderate CRA dev findings.
 
 ## Current Known Risks
 
 - Rotate the Cognee key that was previously committed in client code; treat it as compromised.
 - Host-only settlement and AI toggles now require a room host capability token, but durable user identity is still missing.
 - Room connections, rate-limit buckets, and AI bot intervals are still process-local; restored rooms intentionally do not auto-resume AI intervals after restart.
-- The Postgres snapshot adapter is covered by fake-SQL tests, but it has not been smoke-tested against a live Neon database in this environment.
+- The Postgres snapshot adapter is covered by fake-SQL tests and disposable local Postgres, but not by a live Neon smoke in this environment.
 - Room snapshot persistence still lacks retention policy, corruption recovery, encryption-at-rest, and response-critical write acknowledgment for every mutation.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
@@ -65,7 +67,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Prove the Postgres room snapshot adapter against live Neon or a disposable Postgres, then make critical mutations fail honestly if durable writes fail.
+1. Make critical room mutations fail honestly or report degraded durability when the configured durable snapshot write fails.
 2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
 3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
 4. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
@@ -220,6 +222,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Added deterministic fake-SQL tests for the Postgres adapter and factory behavior without requiring live Neon credentials.
 - Documented the new env switch in `README.md` and `.env.example`, including the warning that Postgres snapshots contain the same sensitive host-token payload as local JSON snapshots.
 
+### 2026-05-10 - Disposable Postgres Persistence Smoke
+
+- Added `scripts/smoke-postgres-room-persistence.js`.
+- Added dev-only `postgres` so the smoke can use a real tagged-template Postgres client against a local disposable database.
+- Added `npm run test:persistence:postgres`.
+- The smoke command starts Docker if already available, runs `postgres:16-alpine` on a free local port, waits for readiness, creates/uses the adapter table, saves and loads a room snapshot with host token, player, receipt, and event payloads, replaces it with a second snapshot to prove stale-room deletion, clears the table, and removes the container.
+- Documented the Docker-backed persistence smoke in `README.md`.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -316,6 +326,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-browser-restart-rooms.json` after the adapter-boundary restart E2E -> room `76OO`, 24 persisted events, 2 bet receipts, 2 players, settled `true`, and `aiEnabled` `false`.
 - `FAIRVALUE_ROOM_STORE=postgres DATABASE_URL='' node -e "..."` -> reported `{"kind":"postgres","enabled":false,"reason":"DATABASE_URL is not configured"}`, proving explicit Postgres mode degrades honestly without credentials.
 - `npm run verify` after persistence adapter patch -> passed: `scan:secrets`, 19 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `open -a Docker` then `docker info` -> Docker daemon became ready for disposable database smoke.
+- `npm install -D postgres` -> added one dev dependency; full audit stayed at the known 2 moderate CRA dev-server findings.
+- `npm run test:persistence:postgres` -> passed against `postgres:16-alpine` on local port `54801`, adapter `postgres`, table `fairvalue_room_snapshots`.
+- `npm run verify` after adding the disposable Postgres smoke -> passed: `scan:secrets`, 19 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm audit --omit=dev --json` after adding `postgres` -> 0 vulnerabilities.
+- `npm audit --json` after adding `postgres` -> unchanged 2 moderate dev-only findings through `react-scripts` -> `webpack-dev-server`.
+- `docker ps --filter name=fairvalue-room-postgres` -> no leftover smoke containers.
 
 ## Screens And Routes Verified
 
@@ -336,6 +353,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Backend child-process restart test verified `/api/rooms`, `/join`, `/bet`, `/state`, and `/settle` across two real backend restarts using the same local snapshot file.
 - Restart E2E verified rendered `/join`, `/host/:roomCode`, and `/play/:roomCode` pages through a real backend restart, post-restart bet, settlement, second restart, and reload recovery on fresh dynamic local ports.
 - Persistence adapter tests verified Postgres snapshot save/load/delete/clear semantics through a deterministic fake tagged SQL client.
+- Disposable Postgres smoke verified the same snapshot adapter semantics against a real local Postgres container.
 
 ## Screenshots Or Traces
 
@@ -372,10 +390,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `dc0f37f` - Add backend restart persistence test.
 - `f3ee986` - Add browser restart recovery E2E.
 - `4d9d3ba` - Add room persistence adapter boundary.
+- `aa0f78c` - Add disposable Postgres persistence smoke.
 
 ## Next Action Queue
 
-1. Prove the Postgres room snapshot adapter against live Neon or a disposable Postgres, then make critical mutations fail honestly if durable writes fail.
+1. Make critical room mutations fail honestly or report degraded durability when the configured durable snapshot write fails.
 2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
 3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
-4. Start the next loop with `npm run verify`, then inspect whether a local disposable Postgres is available before adding live adapter smoke coverage.
+4. Start the next loop with `npm run verify`, then inspect the mutation routes and persistence queue to decide where write acknowledgments should become user-visible durability status.
