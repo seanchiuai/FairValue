@@ -34,6 +34,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Player join and bet requests now send authenticated user IDs from the browser and reject forged token/session mismatches when a user token is present.
 - AI bot interval trades now wait for configured room snapshot persistence before broadcasting; persistence failures disable the bot, stop its interval, expose `durability_error`, and emit a room durability failure event.
 - Host-only auth/audit errors now wait for durable room error-event persistence; if persistence fails, the response returns `503 Room persistence failed` instead of claiming a normal `403` authorization result.
+- Browser E2E now has explicit matrix and soak commands: `test:e2e:matrix` runs the rendered host/player flow across Chromium, Firefox, and WebKit, while `test:e2e:soak` runs a 24-player API/WebSocket wave profile with idempotency replay, settlement, and snapshot reconciliation.
+- Connected room clients now perform low-frequency state reconciliation while WebSocket remains primary, so rendered state can heal if a browser misses an otherwise successful broadcast.
 
 ## Current Test Status
 
@@ -60,6 +62,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 durable identity pass: `npm run verify` passed client secret scan, 22 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed 1 Chromium restart test.
 - 2026-05-11 sustained restart pass: `npm run test:e2e:restart` passed the 3-context / 3-cycle restart recovery test; `npm run verify` passed client secret scan, 22 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 AI/audit durability pass: `npm run test:server` passed 24 server tests; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed the sustained restart test.
+- 2026-05-11 browser matrix/soak pass: `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run test:e2e:soak` passed the 24-player wave profile; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed the sustained restart test.
 
 ## Current Known Risks
 
@@ -70,19 +73,28 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshot persistence still lacks retention policy, corruption recovery, and encryption-at-rest.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
-- Load coverage is still a bounded synthetic burst, not a sustained soak, k6-style latency profile, or multi-browser matrix.
+- Load coverage now includes a bounded synthetic burst and a 24-player wave soak, but not a k6-style latency profile, browser-driven high-concurrency soak, or production-like traffic mix.
 - Accessibility coverage currently gates serious/critical axe violations on core room surfaces, not every route, every modal state, or manual screen-reader behavior.
 - Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
-- Sustained load, broader accessibility, wider E2E matrix coverage, and deeper security test layers are still missing.
-- Restart recovery is proven for one rendered Chromium host/two-player path across repeated backend restarts, but not yet for browser-engine matrices, long soak windows, or restart/load combinations under heavier traffic.
+- Broader accessibility, restart/load combination coverage, and deeper security test layers are still missing.
+- Restart recovery is proven for one rendered Chromium host/two-player path across repeated backend restarts; the normal rendered host/player flow now has browser-engine matrix coverage, but restart recovery itself is not yet multi-engine or combined with heavier traffic.
 
 ## Current Backlog Ranked By Impact
 
-1. Expand restart/load coverage into browser-engine matrices and longer soak profiles.
-2. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
+1. Add restart/load combination coverage with heavier traffic during backend restart cycles and, if practical, a browser-engine restart matrix.
+2. Expand load/accessibility coverage into more routes, modals, responsive states, and manual screen-reader-adjacent checks.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
 ## Iteration History
+
+### 2026-05-11 - Browser Matrix And Load Soak Coverage
+
+- Added `playwright.matrix.config.ts` and `npm run test:e2e:matrix` for the rendered host/player room flow across Chromium, Firefox, and WebKit.
+- Added `playwright.soak.config.ts`, `npm run test:e2e:soak`, and `e2e/load-soak.spec.ts` for 4 waves / 24 players, 24 bets, WebSocket broadcast counts, idempotency replay, settlement, and snapshot reconciliation.
+- Kept the default Playwright config focused by excluding the heavier soak spec from `test:e2e` / `test:e2e:isolated`.
+- Made the host/player E2E fixture Firefox-compatible by using touch-capable player contexts without Firefox's unsupported `isMobile` option.
+- Added connected-state room reconciliation in `useRoom` so rendered pages recover from rare missed broadcasts while keeping WebSocket as the primary realtime path.
+- Documented the new matrix and soak commands in `README.md`.
 
 ### 2026-05-11 - AI And Audit Durability Status
 
@@ -404,6 +416,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run test:e2e:isolated` after AI/audit durability patch -> passed 7 Chromium tests.
 - `npm run test:e2e:restart` after AI/audit durability patch -> passed 1 Chromium sustained restart test in 16.2s.
 - `/tmp/fairvalue-browser-restart-rooms.json` after AI/audit durability patch -> room `DEOB`, 45 persisted events, 3 players, 3 receipts, 3 total trades, settled `true`, `aiEnabled` `false`, and `durabilityError` `null`.
+- `npx playwright install firefox webkit` before matrix coverage -> passed.
+- `npx playwright test --list -c playwright.matrix.config.ts` -> listed 3 tests: Chromium, Firefox, and WebKit host/player flow.
+- `npx playwright test --list -c playwright.soak.config.ts` -> listed 1 Chromium load-soak test.
+- Initial `npm run test:e2e:matrix` exposed the Firefox `isMobile` fixture incompatibility and a missed-broadcast/stale-render risk; the E2E fixture and connected-state reconciliation were updated before final verification.
+- Final `npm run test:e2e:matrix` -> passed 3 projects in 20.2s: Chromium, Firefox, and WebKit.
+- Final `npm run test:e2e:soak` -> passed 1 Chromium load-soak test in 6.4s.
+- `npm run verify` after matrix/soak patch -> passed: `scan:secrets`, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm run test:e2e:isolated` after matrix/soak patch -> passed 7 Chromium tests in 32.9s.
+- `npm run test:e2e:restart` after matrix/soak patch -> passed 1 Chromium sustained restart test in 33.7s.
+- Snapshot probe after matrix/soak patch -> matrix rooms `MHWR`, `YWAI`, and `TU8I` each had 3 players, 2 trades, 2 receipts, settled true, and no durability error; soak room `BMXD` had 24 players, 24 trades, 24 receipts, 52 events, settled true, and no durability error; restart room `G43J` had 3 players, 3 trades, 3 receipts, 41 events, settled true, and no durability error.
 
 ## Screens And Routes Verified
 
@@ -430,6 +452,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Isolated E2E verified durable identity migration did not regress host/player happy path, accessibility/load checks, or fake host-token UI rejection.
 - Restart E2E verified one rendered host context plus two rendered player contexts through three consecutive backend restart/reconnect cycles before settlement and another restart/reload after settlement.
 - Server tests verified AI bot durability failure status and host-only audit error durable `503` behavior.
+- Matrix E2E verified the rendered `/join` -> `/host/:roomCode` plus two `/play/:roomCode` player flow across Chromium, Firefox, and WebKit.
+- Soak E2E verified a 24-player / 24-bet API and WebSocket wave profile with idempotency replay, settlement, and persisted snapshot reconciliation.
 
 ## Screenshots Or Traces
 
@@ -473,10 +497,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `2687d54` - Expand restart recovery E2E coverage.
 - `ed2fa3a` - Record sustained restart evidence.
 - `c9148e5` - Surface AI and audit durability failures.
+- `864c81b` - Record AI audit durability evidence.
+- `6f63ffa` - Add browser matrix and soak E2E coverage.
 
 ## Next Action Queue
 
-1. Expand restart/load coverage into browser-engine matrices and longer soak profiles.
-2. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
+1. Add restart/load combination coverage with heavier traffic during backend restart cycles and, if practical, a browser-engine restart matrix.
+2. Expand load/accessibility coverage into more routes, modals, responsive states, and manual screen-reader-adjacent checks.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
-4. Start the next loop with `npm run verify`, then inspect browser-engine matrix or longer restart/load soak gaps.
+4. Start the next loop with `npm run verify`, then inspect restart/load combination gaps in `e2e/restart-recovery.spec.ts` and `e2e/load-soak.spec.ts`.
