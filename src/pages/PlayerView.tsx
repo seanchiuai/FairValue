@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
+import RoomLoadError from '../components/RoomLoadError';
 import { RateLimiter } from '../lib/rateLimiter';
 import { useToast } from '../contexts/ToastContext';
 
@@ -33,6 +34,7 @@ export default function PlayerView() {
     settleResult,
     connectionState,
     loading,
+    loadError,
     placeBet,
     joinRoom,
   } = useRoom(roomCode || '', sessionId, userToken);
@@ -118,12 +120,8 @@ export default function PlayerView() {
     );
   }
 
-  if (!house || !market) {
-    return (
-      <div style={s.page}>
-        <div style={s.loading}>Room not found</div>
-      </div>
-    );
+  if (loadError || !house || !market) {
+    return <RoomLoadError roomCode={roomCode} message={loadError || 'Room not found'} />;
   }
 
   // Player hasn't joined yet — show nickname form

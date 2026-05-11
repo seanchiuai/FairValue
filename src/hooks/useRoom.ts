@@ -24,6 +24,7 @@ type RoomMutationResponse = {
   player?: PlayerData;
   house?: House;
   activity?: ActivityEntry[];
+  ai_enabled?: boolean;
   host_user_id?: string | null;
   settled?: boolean;
   settlement?: SettleResult;
@@ -39,6 +40,16 @@ async function readRoomMutationResponse(response: Response): Promise<RoomMutatio
   return response.json().catch(() => ({}));
 }
 
+function isValidRoomState(data: RoomMutationResponse) {
+  return Boolean(data.market && data.house && Array.isArray(data.players));
+}
+
+function getRoomStateError(response: Response, data: RoomMutationResponse) {
+  if (!response.ok || data.error) return data.error || 'Room state unavailable';
+  if (!isValidRoomState(data)) return 'Room state response was invalid';
+  return '';
+}
+
 export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   const [market, setMarket] = useState<Market | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
@@ -49,6 +60,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   const [settled, setSettled] = useState(false);
   const [settleResult, setSettleResult] = useState<SettleResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const initialFetchDone = useRef(false);
 
   // Fetch initial state (with offline cache fallback)
@@ -76,28 +88,31 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     } catch { /* ignore corrupt cache */ }
 
     fetch(`/api/rooms/${roomCode}/state`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setMarket(data.market);
-          setPlayers(data.players);
-          setHouse(data.house);
-          setActivity(data.activity || []);
-          setAiEnabled(data.ai_enabled);
-          setHostUserId(data.host_user_id || null);
-          setSettled(data.settled);
-          if (data.settlement) setSettleResult(data.settlement);
-          // Persist to cache
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
-          } catch { /* quota exceeded */ }
+      .then(async (r) => {
+        const data = await readRoomMutationResponse(r);
+        const error = getRoomStateError(r, data);
+        if (error) {
+          setLoadError(error);
+          return;
         }
-        setLoading(false);
+        setLoadError('');
+        setMarket(data.market || null);
+        setPlayers(data.players || []);
+        setHouse(data.house || null);
+        setActivity(data.activity || []);
+        setAiEnabled(Boolean(data.ai_enabled));
+        setHostUserId(data.host_user_id || null);
+        setSettled(Boolean(data.settled));
+        if (data.settlement) setSettleResult(data.settlement);
+        // Persist to cache
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+        } catch { /* quota exceeded */ }
       })
       .catch(() => {
-        console.warn('Failed to load room state');
-        setLoading(false);
-      });
+        setLoadError('Room state unavailable');
+      })
+      .finally(() => setLoading(false));
   }, [roomCode]);
 
   const updatePlayerInList = useCallback((updatedPlayer: PlayerData) => {
@@ -112,89 +127,87 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     });
   }, []);
 
-  const onBet = useCallback(
-    (data: WsBetMessage) => {
-      setMarket(data.market);
-      if (data.player) updatePlayerInList(data.player);
-      if (data.activity) {
-        const entry = data.activity;
-        setActivity((prev) => [...prev, entry]);
-      }
-    },
-    [updatePlayerInList]
-  );
-
-  const onJoin = useCallback((data: WsJoinMessage) => {
-    if (data.player) {
-      const player = data.player;
-      setPlayers((prev) => {
-        if (prev.find((p) => p.session_id === player.session_id)) return prev;
-        return [...prev, player];
-      });
-    }
-    if (data.activity) {
-      const entry = data.activity;
-      setActivity((prev) => [...prev, entry]);
-    }
-  }, []);
-
-  const onAiTrade = useCallback((data: WsAiTradeMessage) => {
-    setMarket(data.market);
-    if (data.activity) {
-      const entry = data.activity;
-      setActivity((prev) => [...prev, entry]);
-    }
-  }, []);
-
-  const onSettle = useCallback((data: WsSettleMessage) => {
-    setSettled(true);
-    setSettleResult({
-      winning_outcome: data.winning_outcome,
-      actual_price: data.actual_price,
-      results: data.results,
-    });
-    if (data.activity) {
-      const entry = data.activity;
-      setActivity((prev) => [...prev, entry]);
-    }
-    if (data.results) {
-      setPlayers((prev) =>
-        prev.map((p) => {
-          const result = data.results.find((r: SettleResultEntry) => r.nickname === p.nickname);
-          if (result) return { ...p, balance: result.final_balance };
-          return p;
-        })
-      );
-    }
-  }, []);
+  const applyFreshRoomState = useCallback((data: RoomMutationResponse) => {
+    if (!isValidRoomState(data)) return false;
+    setMarket(data.market || null);
+    setPlayers(data.players || []);
+    setHouse(data.house || null);
+    setActivity(data.activity || []);
+    setAiEnabled(Boolean(data.ai_enabled));
+    setHostUserId(data.host_user_id || null);
+    if (data.settled) setSettled(true);
+    if (data.settlement) setSettleResult(data.settlement);
+    try {
+      localStorage.setItem(`fv_room_${roomCode}`, JSON.stringify({ data, ts: Date.now() }));
+    } catch { /* quota exceeded */ }
+    return true;
+  }, [roomCode]);
 
   const fetchRoomState = useCallback(() => {
     if (!roomCode) return;
     fetch(`/api/rooms/${roomCode}/state`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setMarket(data.market);
-          setPlayers(data.players);
-          setActivity(data.activity || []);
-          setAiEnabled(data.ai_enabled);
-          setHostUserId(data.host_user_id || null);
-          if (data.settled) setSettled(true);
-          if (data.settlement) setSettleResult(data.settlement);
-          try {
-            localStorage.setItem(`fv_room_${roomCode}`, JSON.stringify({ data, ts: Date.now() }));
-          } catch { /* quota exceeded */ }
-        }
+      .then(async (r) => {
+        const data = await readRoomMutationResponse(r);
+        if (!r.ok || data.error) return;
+        applyFreshRoomState(data);
       })
-      .catch(() => console.warn('Failed to refresh room state'));
-  }, [roomCode]);
+      .catch(() => {});
+  }, [roomCode, applyFreshRoomState]);
 
   const { connected, connectionState, send } = useWebSocket({
     roomCode,
-    onBet,
-    onJoin,
-    onAiTrade,
-    onSettle,
+    onBet: useCallback(
+      (data: WsBetMessage) => {
+        setMarket(data.market);
+        if (data.player) updatePlayerInList(data.player);
+        if (data.activity) {
+          const entry = data.activity;
+          setActivity((prev) => [...prev, entry]);
+        }
+      },
+      [updatePlayerInList]
+    ),
+    onJoin: useCallback((data: WsJoinMessage) => {
+      if (data.player) {
+        const player = data.player;
+        setPlayers((prev) => {
+          if (prev.find((p) => p.session_id === player.session_id)) return prev;
+          return [...prev, player];
+        });
+      }
+      if (data.activity) {
+        const entry = data.activity;
+        setActivity((prev) => [...prev, entry]);
+      }
+    }, []),
+    onAiTrade: useCallback((data: WsAiTradeMessage) => {
+      setMarket(data.market);
+      if (data.activity) {
+        const entry = data.activity;
+        setActivity((prev) => [...prev, entry]);
+      }
+    }, []),
+    onSettle: useCallback((data: WsSettleMessage) => {
+      setSettled(true);
+      setSettleResult({
+        winning_outcome: data.winning_outcome,
+        actual_price: data.actual_price,
+        results: data.results,
+      });
+      if (data.activity) {
+        const entry = data.activity;
+        setActivity((prev) => [...prev, entry]);
+      }
+      if (data.results) {
+        setPlayers((prev) =>
+          prev.map((p) => {
+            const result = data.results.find((r: SettleResultEntry) => r.nickname === p.nickname);
+            if (result) return { ...p, balance: result.final_balance };
+            return p;
+          })
+        );
+      }
+    }, []),
     onReconnected: fetchRoomState,
   });
 
@@ -210,22 +223,15 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     if (connected || !roomCode) return;
     const interval = setInterval(() => {
       fetch(`/api/rooms/${roomCode}/state`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (!data.error) {
-            setMarket(data.market);
-            setPlayers(data.players);
-            setActivity(data.activity || []);
-            setAiEnabled(data.ai_enabled);
-            setHostUserId(data.host_user_id || null);
-            if (data.settled) setSettled(true);
-            if (data.settlement) setSettleResult(data.settlement);
-          }
+        .then(async (r) => {
+          const data = await readRoomMutationResponse(r);
+          if (!r.ok || data.error) return;
+          applyFreshRoomState(data);
         })
-        .catch(() => console.warn('Polling fallback: failed to fetch room state'));
+        .catch(() => {});
     }, 3000);
     return () => clearInterval(interval);
-  }, [connected, roomCode]);
+  }, [connected, roomCode, applyFreshRoomState]);
 
   const myPlayer = players.find((p) => p.session_id === sessionId) || null;
 
@@ -340,6 +346,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     connected,
     connectionState,
     loading,
+    loadError,
     placeBet,
     joinRoom,
     send,

@@ -16,7 +16,11 @@ type RoomResponse = {
 
 async function createRoom(request: APIRequestContext): Promise<RoomResponse> {
   const response = await request.post(`${apiBaseUrl}/api/rooms`, {
-    data: { address: property.address, asking_price: property.askingPrice },
+    data: {
+      address: property.address,
+      asking_price: property.askingPrice,
+      session_id: `negative-room-factory-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    },
   });
   expect(response.status()).toBe(200);
   const body = await response.json();
@@ -166,6 +170,59 @@ test('malformed identity success is announced before direct player join', async 
   const state = await stateResponse.json();
   expect(state.players).toHaveLength(0);
   await expectNoSeriousAxeViolations(page, 'malformed identity direct player join notification state');
+});
+
+test('host room state outage shows a retryable room load error', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.route(`**/api/rooms/${roomCode}/state`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'state store unavailable',
+    });
+  });
+
+  await page.goto(`/host/${roomCode}`);
+
+  await expect(page.getByTestId('room-load-error')).toContainText('Room temporarily unavailable');
+  await expect(page.getByTestId('room-load-error')).toContainText(roomCode);
+  await expect(page.getByTestId('room-load-error')).toContainText('Room state unavailable');
+  await expect(page.getByRole('button', { name: /Retry/ })).toBeVisible();
+  await expect(page.getByText('Room not found')).not.toBeVisible();
+  await expectNoSeriousAxeViolations(page, 'host room state outage error state');
+});
+
+test('player malformed room state response shows a non-mutating load error', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.route(`**/api/rooms/${roomCode}/state`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ players: [] }),
+    });
+  });
+
+  await page.goto(`/play/${roomCode}`);
+
+  await expect(page.getByTestId('room-load-error')).toContainText('Room temporarily unavailable');
+  await expect(page.getByTestId('room-load-error')).toContainText(roomCode);
+  await expect(page.getByTestId('room-load-error')).toContainText('Room state response was invalid');
+  await expect(page.getByRole('button', { name: /Retry/ })).toBeVisible();
+  await expect(page.getByLabel('Player nickname')).not.toBeVisible();
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'player malformed room state load error state');
 });
 
 test('direct player join API failure is announced without blaming the nickname', async ({ page, request }) => {

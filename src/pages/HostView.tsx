@@ -15,6 +15,7 @@ import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
+import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
 import { Users, Bot, Gavel, Trophy, ShieldAlert } from 'lucide-react';
 
@@ -44,6 +45,7 @@ export default function HostView() {
     settleResult,
     connectionState,
     loading,
+    loadError,
   } = useRoom(roomCode || '', sessionId, userToken);
 
   const [showSettleModal, setShowSettleModal] = useState(false);
@@ -158,12 +160,8 @@ export default function HostView() {
     );
   }
 
-  if (!house || !market) {
-    return (
-      <div style={s.page}>
-        <div style={s.loadingText}>Room not found</div>
-      </div>
-    );
+  if (loadError || !house || !market) {
+    return <RoomLoadError roomCode={roomCode} message={loadError || 'Room not found'} />;
   }
 
   const probPercent = Math.round(market.prob_over * 100);
