@@ -27,7 +27,7 @@ function getFreePort() {
   });
 }
 
-function startBackend({ port, storePath }) {
+function startBackend({ port, storePath, snapshotSecret = '' }) {
   const logs = [];
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: repoRoot,
@@ -37,6 +37,7 @@ function startBackend({ port, storePath }) {
       DATABASE_URL: '',
       FAIRVALUE_ROOM_STORE_PATH: storePath,
       FAIRVALUE_ROOM_PERSISTENCE: 'on',
+      FAIRVALUE_ROOM_SNAPSHOT_SECRET: snapshotSecret,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -180,4 +181,52 @@ test('backend restart restores rooms from the local snapshot file', { timeout: 4
     settledState.data.activity.map((entry) => entry.type),
     ['join', 'bet', 'settle']
   );
+});
+
+test('backend restart restores rooms from an encrypted local snapshot file', { timeout: 45_000 }, async (t) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fairvalue-encrypted-restart-store-'));
+  const storePath = path.join(tempDir, 'rooms.json');
+  const port = await getFreePort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const snapshotSecret = 'restart-encrypted-room-secret';
+  let activeBackend = null;
+
+  t.after(async () => {
+    if (activeBackend) await stopBackend(activeBackend.child);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  activeBackend = startBackend({ port, storePath, snapshotSecret });
+  await waitForBackend({ port, ...activeBackend });
+
+  const created = await api(baseUrl, '/api/rooms', {
+    method: 'POST',
+    body: { address: '808 Encrypted Restart Ave', asking_price: 720000 },
+  });
+  assert.equal(created.status, 200);
+  const roomCode = created.data.room_code;
+  const hostToken = created.data.host_token;
+
+  const joined = await api(baseUrl, `/api/rooms/${roomCode}/join`, {
+    method: 'POST',
+    body: { session_id: 'encrypted-restart-player', nickname: 'Encrypted Player' },
+  });
+  assert.equal(joined.status, 200);
+
+  const rawSnapshot = fs.readFileSync(storePath, 'utf8');
+  const envelope = JSON.parse(rawSnapshot);
+  assert.equal(envelope.format, 'fairvalue.roomSnapshot.encrypted.v1');
+  assert.equal(envelope.algorithm, 'aes-256-gcm');
+  assert.equal(rawSnapshot.includes(hostToken), false);
+  assert.equal(rawSnapshot.includes('808 Encrypted Restart Ave'), false);
+
+  await stopBackend(activeBackend.child);
+  activeBackend = startBackend({ port, storePath, snapshotSecret });
+  await waitForBackend({ port, ...activeBackend });
+  assert.match(activeBackend.logs.join(''), /Restored 1 room/);
+
+  const restoredState = await api(baseUrl, `/api/rooms/${roomCode}/state`);
+  assert.equal(restoredState.status, 200);
+  assert.equal(restoredState.data.house.address, '808 Encrypted Restart Ave');
+  assert.equal(restoredState.data.players[0].nickname, 'Encrypted Player');
 });

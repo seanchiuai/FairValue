@@ -8,6 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { performance } = require('node:perf_hooks');
 const { chromium } = require('@playwright/test');
+const { createJsonRoomPersistence } = require('../server/roomPersistence');
 
 const repoRoot = path.resolve(__dirname, '..');
 const distRoot = path.join(repoRoot, 'dist');
@@ -36,6 +37,13 @@ const budgets = {
   bet_to_host_sync_ms: envNumber('FAIRVALUE_COLD_BET_SYNC_MS', DEFAULT_BUDGETS.bet_to_host_sync_ms),
   settle_broadcast_ms: envNumber('FAIRVALUE_COLD_SETTLE_BROADCAST_MS', DEFAULT_BUDGETS.settle_broadcast_ms),
 };
+
+function loadRoomSnapshot(filePath) {
+  return createJsonRoomPersistence({
+    filePath,
+    encryptionSecret: process.env.FAIRVALUE_ROOM_SNAPSHOT_SECRET || '',
+  }).load();
+}
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -371,7 +379,7 @@ async function main() {
       expectBudget(timings[label], budget, label);
     }
 
-    const snapshot = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+    const snapshot = loadRoomSnapshot(storePath);
     const snapshotRoom = snapshot.rooms[roomCode];
     assert.ok(snapshotRoom);
     assert.equal(Object.keys(snapshotRoom.players).length, 2);

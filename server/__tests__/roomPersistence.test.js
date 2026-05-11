@@ -200,3 +200,41 @@ test('json room persistence quarantines malformed snapshots and can save again',
     fs.rmSync(dirPath, { recursive: true, force: true });
   }
 });
+
+test('json room persistence can encrypt local snapshots with a configured secret', () => {
+  const dirPath = fs.mkdtempSync(path.join(os.tmpdir(), 'fairvalue-encrypted-room-'));
+  const filePath = path.join(dirPath, 'rooms.json');
+
+  try {
+    const persistence = createJsonRoomPersistence({
+      filePath,
+      encryptionSecret: 'local-test-secret',
+    });
+
+    assert.equal(persistence.encrypted, true);
+    persistence.saveRoom('LOCK', { code: 'LOCK', hostToken: 'hidden-host-token' });
+
+    const rawSnapshot = fs.readFileSync(filePath, 'utf8');
+    const envelope = JSON.parse(rawSnapshot);
+    assert.equal(envelope.format, 'fairvalue.roomSnapshot.encrypted.v1');
+    assert.equal(envelope.algorithm, 'aes-256-gcm');
+    assert.equal(rawSnapshot.includes('hidden-host-token'), false);
+
+    const reloaded = createJsonRoomPersistence({
+      filePath,
+      encryptionSecret: 'local-test-secret',
+    });
+    assert.equal(reloaded.loadRoom('LOCK').hostToken, 'hidden-host-token');
+
+    const missingSecret = createJsonRoomPersistence({ filePath });
+    assert.throws(() => missingSecret.load(), /FAIRVALUE_ROOM_SNAPSHOT_SECRET/);
+
+    const wrongSecret = createJsonRoomPersistence({
+      filePath,
+      encryptionSecret: 'wrong-secret',
+    });
+    assert.throws(() => wrongSecret.load(), /Encrypted room snapshot could not be decrypted/);
+  } finally {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  }
+});

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
-import fs from 'node:fs';
 import WebSocket from 'ws';
+import { loadRoomSnapshot } from './snapshot';
 
 const backendPort = process.env.E2E_BACKEND_PORT || '8031';
 const apiBaseUrl = `http://127.0.0.1:${backendPort}`;
@@ -170,7 +170,7 @@ test('room API and WebSocket loop survives sustained join and bet waves', async 
     expect(finalState.market.total_wagered).toBe(expectedWagered);
 
     if (storePath) {
-      const snapshot = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+      const snapshot = loadRoomSnapshot(storePath);
       expect(snapshot.rooms[roomCode]).toBeTruthy();
       expect(Object.keys(snapshot.rooms[roomCode].players)).toHaveLength(joinedPlayers);
       expect(snapshot.rooms[roomCode].market.total_trades).toBe(placedBets);

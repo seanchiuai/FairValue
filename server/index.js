@@ -74,7 +74,11 @@ function resolveRoomPersistenceOptions() {
 
   const filePath = process.env.FAIRVALUE_ROOM_STORE_PATH ||
     (require.main === module ? path.join(process.cwd(), '.fairvalue', 'rooms.json') : null);
-  return { mode: 'json', filePath };
+  return {
+    mode: 'json',
+    filePath,
+    encryptionSecret: process.env.FAIRVALUE_ROOM_SNAPSHOT_SECRET || '',
+  };
 }
 
 function generateRoomCode() {

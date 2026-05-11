@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import fs from 'node:fs';
+import { loadRoomSnapshot } from './snapshot';
 
 const hostViewport = { width: 1440, height: 900 };
 const playerViewport = { width: 390, height: 844 };
@@ -162,7 +162,7 @@ test('rendered host plus many mobile players survive concurrent joins, bets, and
     expect(consoleIssues).toEqual([]);
 
     if (storePath) {
-      const snapshot = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+      const snapshot = loadRoomSnapshot(storePath);
       const snapshotRoom = snapshot.rooms[roomCode];
       expect(snapshotRoom).toBeTruthy();
       expect(Object.keys(snapshotRoom.players)).toHaveLength(renderedPlayerCount + 1);

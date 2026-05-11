@@ -1,8 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const SNAPSHOT_VERSION = 1;
 const DEFAULT_POSTGRES_TABLE = 'fairvalue_room_snapshots';
+const ENCRYPTED_SNAPSHOT_FORMAT = 'fairvalue.roomSnapshot.encrypted.v1';
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -33,11 +35,58 @@ function normalizeRoomCode(value) {
   return code;
 }
 
-function createJsonRoomPersistence({ filePath } = {}) {
+function createJsonRoomPersistence({ filePath, encryptionSecret } = {}) {
   if (!filePath) return createDisabledRoomPersistence({ kind: 'json', reason: 'No room snapshot file configured' });
 
   const enabled = true;
   const resolvedPath = filePath ? path.resolve(filePath) : null;
+  const snapshotSecret = typeof encryptionSecret === 'string' ? encryptionSecret.trim() : '';
+
+  function deriveEncryptionKey(salt) {
+    return crypto.scryptSync(snapshotSecret, salt, 32);
+  }
+
+  function encryptSnapshotJson(snapshotJson) {
+    const salt = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(12);
+    const key = deriveEncryptionKey(salt);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const ciphertext = Buffer.concat([cipher.update(snapshotJson, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `${JSON.stringify({
+      format: ENCRYPTED_SNAPSHOT_FORMAT,
+      version: 1,
+      algorithm: 'aes-256-gcm',
+      kdf: 'scrypt',
+      salt: salt.toString('base64'),
+      iv: iv.toString('base64'),
+      tag: tag.toString('base64'),
+      ciphertext: ciphertext.toString('base64'),
+    }, null, 2)}\n`;
+  }
+
+  function decryptSnapshotJson(envelope) {
+    if (!snapshotSecret) {
+      throw new Error('Room snapshot is encrypted but FAIRVALUE_ROOM_SNAPSHOT_SECRET is not configured');
+    }
+
+    try {
+      const salt = Buffer.from(envelope.salt || '', 'base64');
+      const iv = Buffer.from(envelope.iv || '', 'base64');
+      const tag = Buffer.from(envelope.tag || '', 'base64');
+      const ciphertext = Buffer.from(envelope.ciphertext || '', 'base64');
+      const key = deriveEncryptionKey(salt);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+    } catch (error) {
+      throw new Error(`Encrypted room snapshot could not be decrypted: ${error.message}`);
+    }
+  }
+
+  function isEncryptedSnapshot(parsed) {
+    return parsed && typeof parsed === 'object' && parsed.format === ENCRYPTED_SNAPSHOT_FORMAT;
+  }
 
   function quarantineCorruptSnapshot(parseError) {
     const baseCorruptPath = `${resolvedPath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
@@ -78,6 +127,10 @@ function createJsonRoomPersistence({ filePath } = {}) {
       return quarantineCorruptSnapshot(error);
     }
 
+    if (isEncryptedSnapshot(parsed)) {
+      parsed = JSON.parse(decryptSnapshotJson(parsed));
+    }
+
     if (!parsed || typeof parsed !== 'object') return { version: SNAPSHOT_VERSION, rooms: {} };
     return {
       version: parsed.version || SNAPSHOT_VERSION,
@@ -96,7 +149,8 @@ function createJsonRoomPersistence({ filePath } = {}) {
 
     fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
     const tempPath = `${resolvedPath}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`);
+    const snapshotJson = JSON.stringify(payload, null, 2);
+    fs.writeFileSync(tempPath, snapshotSecret ? encryptSnapshotJson(snapshotJson) : `${snapshotJson}\n`);
     fs.renameSync(tempPath, resolvedPath);
   }
 
@@ -130,6 +184,7 @@ function createJsonRoomPersistence({ filePath } = {}) {
     kind: 'json',
     enabled,
     filePath: resolvedPath,
+    encrypted: Boolean(snapshotSecret),
     load,
     loadRoom,
     save,
@@ -257,7 +312,7 @@ function createPostgresRoomPersistence({ sql } = {}) {
   };
 }
 
-function createRoomPersistence({ mode = 'json', filePath, sql } = {}) {
+function createRoomPersistence({ mode = 'json', filePath, sql, encryptionSecret } = {}) {
   const normalizedMode = String(mode || 'json').trim().toLowerCase();
   if (['0', 'false', 'off', 'disabled', 'none'].includes(normalizedMode)) {
     return createDisabledRoomPersistence();
@@ -266,7 +321,7 @@ function createRoomPersistence({ mode = 'json', filePath, sql } = {}) {
     return createPostgresRoomPersistence({ sql });
   }
   if (['json', 'file', 'local'].includes(normalizedMode)) {
-    return createJsonRoomPersistence({ filePath });
+    return createJsonRoomPersistence({ filePath, encryptionSecret });
   }
   throw new Error(`Unknown room persistence mode: ${mode}`);
 }

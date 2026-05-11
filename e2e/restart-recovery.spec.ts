@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { loadRoomSnapshot } from './snapshot';
 
 const repoRoot = path.resolve(__dirname, '..');
 const hostViewport = { width: 1440, height: 900 };
@@ -459,7 +460,7 @@ test('rendered multi-player room sustains repeated real backend restarts', async
     await expect(host.getByTestId('activity-feed')).toContainText('Market settled');
 
     expect(pageErrors).toEqual([]);
-    const snapshotRoom = JSON.parse(fs.readFileSync(storePath, 'utf8')).rooms[roomCode];
+    const snapshotRoom = loadRoomSnapshot(storePath).rooms[roomCode];
     expect(snapshotRoom).toBeTruthy();
     expect(Object.keys(snapshotRoom.players)).toHaveLength(expectedPlayers);
     expect(snapshotRoom.market.total_trades).toBe(expectedTrades);
