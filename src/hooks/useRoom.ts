@@ -17,10 +17,26 @@ import type {
 
 const CONNECTED_RECONCILE_INTERVAL_MS = 5000;
 
+type RoomMutationResponse = {
+  error?: string;
+  market?: Market;
+  players?: PlayerData[];
+  player?: PlayerData;
+  house?: House;
+  activity?: ActivityEntry[];
+  host_user_id?: string | null;
+  settled?: boolean;
+  settlement?: SettleResult;
+};
+
 function generateBetIdempotencyKey() {
   const randomUUID = window.crypto?.randomUUID;
   if (typeof randomUUID === 'function') return randomUUID.call(window.crypto);
   return `bet-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+async function readRoomMutationResponse(response: Response): Promise<RoomMutationResponse> {
+  return response.json().catch(() => ({}));
 }
 
 export function useRoom(roomCode: string, sessionId: string, userToken = '') {
@@ -233,8 +249,8 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
           nickname,
         }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await readRoomMutationResponse(res);
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to join room');
       if (data.market) setMarket(data.market);
       if (data.players) setPlayers(data.players);
       if (data.house) setHouse(data.house);
@@ -289,12 +305,12 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
             wager,
           }),
         });
-        const data = await res.json();
-        if (data.error) {
+        const data = await readRoomMutationResponse(res);
+        if (!res.ok || data.error || !data.market || !data.player) {
           // Rollback on error
           if (prevMarket) setMarket(prevMarket);
           setPlayers(prevPlayers);
-          throw new Error(data.error);
+          throw new Error(data.error || (res.ok ? 'Bet response was invalid' : 'Bet failed'));
         }
         // Server response overwrites optimistic state (corrects for concurrent bets)
         setMarket(data.market);

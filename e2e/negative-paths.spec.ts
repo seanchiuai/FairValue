@@ -121,6 +121,56 @@ test('create room API failure is visible on the join page', async ({ page }) => 
   await expectNoSeriousAxeViolations(page, 'create-room API failure notification state');
 });
 
+test('player bet API failure rolls back and is announced', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.goto(`/play/${roomCode}`);
+  await page.getByLabel('Player nickname').fill('Bet Failure Player');
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/join`) && response.status() === 200
+    ),
+    page.getByRole('button', { name: /^Join Room$/ }).click(),
+  ]);
+  await expectConnected(page);
+  await expect(page.getByTestId('player-balance')).toHaveText('1,000');
+
+  await page.route(`**/api/rooms/${roomCode}/bet`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'temporary persistence outage',
+    });
+  });
+
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/bet`) &&
+      response.request().method() === 'POST' &&
+      response.status() === 503
+    ),
+    page.getByRole('button', { name: /Bet \$25 on OVER/ }).click(),
+  ]);
+
+  await expect(page.getByTestId('bet-error')).toContainText('Bet failed');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Bet failed' })).toBeVisible();
+  await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-describedby', 'player-bet-error');
+  await expect(page.getByTestId('player-balance')).toHaveText('1,000');
+  await expect(page.getByTestId('player-positions')).toHaveCount(0);
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.market.total_trades).toBe(0);
+  expect(state.players).toHaveLength(1);
+  expect(state.players[0].balance).toBe(1000);
+  await expectNoSeriousAxeViolations(page, 'player bet API failure notification state');
+});
+
 test('market detail room creation failure is visible to the host', async ({ page }) => {
   await page.route('**/api/rooms', async (route) => {
     if (route.request().method() !== 'POST') {

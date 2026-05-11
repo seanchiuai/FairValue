@@ -212,7 +212,7 @@ export default function PlayerView() {
         </div>
         <div style={s.balanceBox}>
           <DollarSign size={14} color="var(--accent-warning)" />
-          <span style={s.balanceValue}>
+          <span style={s.balanceValue} data-testid="player-balance">
             {myPlayer ? myPlayer.balance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '1,000'}
           </span>
         </div>
