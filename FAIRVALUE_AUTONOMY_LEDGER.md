@@ -65,6 +65,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host AI toggle and settlement responses now require OK status plus valid success payload shape before showing success; malformed 200 responses keep state unchanged, stay visible to the operator, and are announced through accessible error toasts.
 - Host pages opened without the original host authority now render a visible warning and link disabled AI/Settle controls to that warning with `aria-describedby`, so missing capability is explained without requiring hover.
 - Browser identity minting now treats non-JSON outages and malformed 200 responses as controlled identity errors, so create/join flows show stable inline/toast messages instead of JSON parser internals and do not mutate rooms without a valid signed identity.
+- Initial host/player room state loads now validate HTTP status and payload shape, show a retryable room-load alert for transient or malformed state failures, keep genuine missing rooms as `Room not found`, and ignore invalid refresh/poll payloads instead of mutating rendered room state.
 - The unused `useCloudFairValue` hook and `cloudPersistence` stub were removed so the client no longer carries a fake `api.fairvalue.io` fair-value sync surface or mock/stub cloud logging path.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
@@ -143,6 +144,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 malformed host action response pass: focused malformed-response E2E passed 3 Chromium tests after first catching and fixing toast contrast over the settlement modal, `npm test -- ToastContainer` passed 1 file / 2 tests, full `npm run test:e2e:isolated` passed 23 Chromium tests, rendered visual probe on room `0D8A` confirmed settlement/AI malformed-response toasts with zero console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.65 kB / 240.00 kB and total JS 665.89 kB / 760.00 kB, and `smoke:boot` room `IH9I`.
 - 2026-05-11 missing host authority controls pass: focused E2E passed 1 Chromium test for `/host/:roomCode` without host authority, full `npm run test:e2e:isolated` passed 24 Chromium tests, rendered visual probe on room `CFHB` confirmed the warning and disabled-control descriptions with zero console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.65 kB / 240.00 kB and total JS 667.13 kB / 760.00 kB, and `smoke:boot` room `TGHR`.
 - 2026-05-11 identity failure handling pass: focused identity E2E passed 2 Chromium tests, full `npm run test:e2e:isolated` passed 26 Chromium tests, rendered visual probe on room `XEPD` confirmed create-room identity outage and malformed player-join identity states with 2 expected `/api/identity` 503 resource console entries and zero unexpected console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.72 kB / 240.00 kB and total JS 667.20 kB / 760.00 kB, and `smoke:boot` room `REAG`.
+- 2026-05-11 room state load failure pass: focused room-state E2E passed 2 Chromium tests; the first full isolated run caught an anonymous create-room rate-limit harness issue, the helper was fixed to send a unique `session_id`, the rerun passed 28 Chromium tests, a rendered visual probe on rooms `I39X` and `XON8` confirmed host state-outage and player malformed-state alerts with 1 expected state `503` resource error and zero unexpected console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.71 kB / 240.00 kB and total JS 669.25 kB / 760.00 kB, and `smoke:boot` room `P6T9`.
 
 ## Current Known Risks
 
@@ -156,7 +158,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, identity-minting failure, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, identity-minting failure, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, identity-minting failure, room-state load failure, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, identity-minting failure, room-state load failure, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 - Market detail and multiplayer entry/settlement surfaces now make simulated-credit and non-appraisal authority explicit; future share, invite, public recap, or exported-result surfaces still need the same trust language when they exist.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
@@ -165,7 +167,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
@@ -173,6 +175,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Room State Load Failures
+
+- Hardened `useRoom` initial state loading so non-OK, non-JSON, and malformed `GET /api/rooms/:roomCode/state` responses produce stable room-load errors instead of parser noise or misleading not-found states.
+- Added a shared `RoomLoadError` surface for host/player routes with retry support for transient state failures and the existing no-retry `Room not found` copy for genuine missing rooms.
+- Added host/player negative-path E2E for state-store outage and malformed state response branches, and fixed the E2E room factory to use unique session identities so the expanded suite no longer exhausts the anonymous create-room rate bucket.
 
 ### 2026-05-11 - Identity Failure Handling
 
@@ -1030,6 +1038,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - First strict rendered visual probe correctly failed on the expected browser resource console entries from forced `/api/identity` 503s; the rerun filtered those expected outage entries and reported zero unexpected console/page errors.
 - Rendered visual probe against temporary `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend verified create-room identity outage and malformed direct-player identity success states on mobile viewports, with room `XEPD`; screenshots saved at `/tmp/fairvalue-identity-outage-create.png` and `/tmp/fairvalue-malformed-identity-player.png`.
 - Final `npm run verify` after identity failure handling patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.72 kB / 240.00 kB, total JS 667.20 kB / 760.00 kB, largest CSS 14.74 kB / 25.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:64841`, room `REAG`.
+- `git diff --check` after room-state load failure patch -> passed.
+- `npm run typecheck` after room-state load failure patch -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "room state"` after adding state-load failure branches -> passed 2 Chromium tests.
+- First full `npm run test:e2e:isolated` after room-state load failure patch -> failed after 26 passed because the negative-path `createRoom` helper exhausted the anonymous room-creation rate limit; failure traces were retained at `test-results/e2e-artifacts/negative-paths-join-route--02189-en-server-rate-limit-is-hit-chromium/trace.zip` and `test-results/e2e-artifacts/negative-paths-AI-analyst--293b5-instead-of-failing-silently-chromium/trace.zip`.
+- Updated the negative-path room factory to send a unique `session_id` for each helper-created room, then reran full `npm run test:e2e:isolated` -> passed 28 Chromium tests.
+- Browser plugin fallback for room-state load visual QA -> Browser skill was available, but tool discovery exposed Playwright MCP only and not the required Node REPL JavaScript execution tool; shell Playwright was used for the rendered probe.
+- Rendered visual probe against temporary `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend verified `/host/I39X` forced state-store `503` and `/play/XON8` malformed state JSON branches, with 1 expected `/api/rooms/:code/state` `503` resource error, zero unexpected console/page errors, and screenshots at `/tmp/fairvalue-host-room-state-outage.png` and `/tmp/fairvalue-player-malformed-room-state.png`.
+- Final `npm run verify` after room-state load failure patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.71 kB / 240.00 kB, total JS 669.25 kB / 760.00 kB, largest CSS 14.74 kB / 25.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:56230`, room `P6T9`.
 
 ## Screens And Routes Verified
 
@@ -1100,6 +1116,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Malformed host action evidence verified `/host/0D8A` with real host token and intercepted malformed 200 responses: settlement stayed in the modal with `Settlement response was invalid`, AI toggle stayed off with `AI toggle response was invalid`, server state stayed unsettled/AI-disabled, and rendered toast/modal states had zero console/page errors.
 - Missing host authority evidence verified `/host/CFHB` without the original host browser authority renders `Host controls unavailable`, keeps AI and Settle disabled with `aria-describedby="host-authority-warning"`, leaves `ai_enabled=false` and `settled=false`, and passes serious/critical axe checks with zero console/page errors.
 - Identity failure evidence verified `/join` create-room identity outage shows `Identity unavailable` inline and in the toast without sending `POST /api/rooms`, while `/play/XEPD` malformed identity success shows `Identity response was invalid` inline and in the toast without sending the room join mutation; both pass serious/critical axe checks.
+- Room-state load failure evidence verified `/host/I39X` forced state-store `503` renders a retryable `Room temporarily unavailable` alert with `Room state unavailable`, while `/play/XON8` malformed state JSON renders `Room state response was invalid`, hides the player join form, leaves the real room with zero players, and passes serious/critical axe checks.
 
 ## Screenshots Or Traces
 
@@ -1123,6 +1140,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-host-authority-warning.png`
 - `/tmp/fairvalue-identity-outage-create.png`
 - `/tmp/fairvalue-malformed-identity-player.png`
+- `/tmp/fairvalue-host-room-state-outage.png`
+- `/tmp/fairvalue-player-malformed-room-state.png`
+- `test-results/e2e-artifacts/negative-paths-join-route--02189-en-server-rate-limit-is-hit-chromium/trace.zip`
+- `test-results/e2e-artifacts/negative-paths-AI-analyst--293b5-instead-of-failing-silently-chromium/trace.zip`
 - Playwright E2E is configured to retain screenshots, traces, and videos on failure under `test-results/e2e-artifacts`; the passing run produced no failure screenshots/videos.
 - `playwright-report/index.html` was generated locally for the passing E2E run and is ignored by git.
 - `docs/accessibility-assistive-tech-notes.md` records the macOS AX and Playwright ARIA excerpts from the headed assistive-tech pass.
@@ -1230,11 +1251,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `9af7d26` - Explain missing host authority.
 - `17e720c` - Record missing host authority evidence.
 - `8014a2a` - Harden identity failure handling.
+- `f150b59` - Record identity failure evidence.
+- `f782c28` - Explain room state load failures.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 3. Extend the same trust/risk language to future share, invite, public recap, or exported-result surfaces once those surfaces exist.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
