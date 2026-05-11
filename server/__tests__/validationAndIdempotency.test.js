@@ -1,6 +1,6 @@
 const { after, afterEach, before, test } = require('node:test');
 const assert = require('node:assert/strict');
-const { server, rooms } = require('../index');
+const { server, rooms, configureRoomPersistence, roomEventStore } = require('../index');
 
 let baseUrl;
 
@@ -45,6 +45,8 @@ async function createHostedRoom() {
 before(listen);
 
 afterEach(() => {
+  configureRoomPersistence(null);
+  roomEventStore.clearAll();
   for (const room of Object.values(rooms)) {
     if (room.aiInterval) clearInterval(room.aiInterval);
   }
@@ -236,4 +238,73 @@ test('join route rate limits repeated submissions', async () => {
   const retryAfter = Number(limited.headers.get('retry-after'));
   assert.ok(retryAfter >= 1 && retryAfter <= 60);
   assert.match(limited.data.error, /Too many/);
+});
+
+function createFailingPersistenceSql() {
+  async function sql(strings) {
+    const query = strings.join('?').replace(/\s+/g, ' ').trim();
+    if (query.startsWith('CREATE TABLE')) return [];
+    if (query.startsWith('SELECT room_code')) return [];
+    if (query.startsWith('INSERT INTO fairvalue_room_snapshots')) {
+      throw new Error('forced durable write failure');
+    }
+    return [];
+  }
+  sql.isConfigured = true;
+  return sql;
+}
+
+test('configured durable room persistence failures return a 503 for critical mutations', async () => {
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const failedCreate = await request('/api/rooms', {
+    method: 'POST',
+    body: { address: '503 Persistence Lane', asking_price: 600000 },
+  });
+  assert.equal(failedCreate.status, 503);
+  assert.equal(failedCreate.data.error, 'Room persistence failed');
+
+  configureRoomPersistence(null);
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const failedJoin = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'durability-player', nickname: 'Durable Player' },
+  });
+  assert.equal(failedJoin.status, 503);
+  assert.equal(failedJoin.data.error, 'Room persistence failed');
+
+  configureRoomPersistence(null);
+  const joined = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'durability-player', nickname: 'Durable Player' },
+  });
+  assert.equal(joined.status, 200);
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const failedBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'durability-failure-bet' },
+    body: { session_id: 'durability-player', outcome: 'over', wager: 25 },
+  });
+  assert.equal(failedBet.status, 503);
+  assert.equal(failedBet.data.error, 'Room persistence failed');
+
+  configureRoomPersistence(null);
+  const cleanRoom = await createHostedRoom();
+  const cleanJoin = await request(`/api/rooms/${cleanRoom.room_code}/join`, {
+    method: 'POST',
+    body: { session_id: 'settle-player', nickname: 'Settle Player' },
+  });
+  assert.equal(cleanJoin.status, 200);
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const failedSettle = await request(`/api/rooms/${cleanRoom.room_code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': cleanRoom.host_token },
+    body: { actual_price: 650000 },
+  });
+  assert.equal(failedSettle.status, 503);
+  assert.equal(failedSettle.data.error, 'Room persistence failed');
 });

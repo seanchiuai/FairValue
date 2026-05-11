@@ -52,6 +52,11 @@ function isPromiseLike(value) {
   return value && typeof value.then === 'function';
 }
 
+function tagRoomPersistenceError(error) {
+  error.roomPersistenceFailed = true;
+  return error;
+}
+
 function resolveRoomPersistenceOptions() {
   const mode = String(process.env.FAIRVALUE_ROOM_PERSISTENCE || '').toLowerCase();
   const storeMode = String(process.env.FAIRVALUE_ROOM_STORE || '').toLowerCase();
@@ -144,16 +149,74 @@ function persistRooms() {
       .then(write)
       .catch((error) => {
         console.error(`Room persistence (${roomPersistence.kind}) save failed:`, error.message);
+        throw tagRoomPersistenceError(error);
       });
+    roomPersistenceWriteQueue.catch(() => {});
     return roomPersistenceWriteQueue;
   } catch (error) {
     console.error(`Room persistence (${roomPersistence.kind}) save failed:`, error.message);
+    throw tagRoomPersistenceError(error);
   }
+}
+
+async function waitForRoomPersistence(persistenceResult) {
+  if (isPromiseLike(persistenceResult)) await persistenceResult;
+}
+
+function roomPersistenceError(res, error) {
+  if (!error?.roomPersistenceFailed) throw error;
+  return res.status(503).json({
+    error: 'Room persistence failed',
+    message: 'Configured room persistence could not save this room mutation.',
+  });
+}
+
+function runAiBotInterval(room) {
+  room.aiInterval = setInterval(() => {
+    if (!room.aiEnabled || room.settled) { clearInterval(room.aiInterval); room.aiInterval = null; return; }
+
+    const probOver = priceOver(room.market.q_over, room.market.q_under, room.market.b);
+    const contrarianStrength = 0.6;
+    const noise = gaussianRandom() * 0.15;
+    let pBetOver = (1 - probOver) * contrarianStrength + 0.5 * (1 - contrarianStrength) + noise;
+    pBetOver = Math.max(0.05, Math.min(0.95, pBetOver));
+
+    const outcome = Math.random() < pBetOver ? 'over' : 'under';
+    const shareOptions = [1, 2, 3, 5, 8, 10, 15, 20];
+    const weights = [25, 20, 15, 12, 8, 8, 7, 5];
+    const shares = weightedRandom(shareOptions, weights);
+
+    const execution = applyTrade(room.market, outcome, shares, 'AI');
+    room.market = execution.market;
+    const trade = execution.trade;
+
+    const marketState = execution.publicMarket;
+    const { event: aiEvent, activityEntry } = appendRoomEvent(room, EVENT_TYPES.AI_TRADE, {
+      outcome,
+      wager: trade.wager,
+      shares: execution.shares,
+      trade,
+      market: marketState,
+    });
+
+    broadcast(room, {
+      type: 'ai_trade',
+      outcome,
+      wager: trade.wager,
+      trade,
+      market: marketState,
+      activity: activityEntry,
+      event_sequence: aiEvent.sequence,
+    });
+
+    persistTrade(room.marketId, trade, shares);
+    updateMarketState(room.marketId, room.market);
+  }, 5000);
 }
 
 function persistRoom(room) {
   if (!room || !rooms[room.code]) return;
-  persistRooms();
+  return persistRooms();
 }
 
 function hydratePersistedRooms(snapshot) {
@@ -345,10 +408,11 @@ async function createRoom(house, roomCode) {
   }
 
   rooms[code] = room;
-  appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
+  const { persistence } = appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
     house: room.house,
     market: getPublicMarketState(room.market),
   });
+  await waitForRoomPersistence(persistence);
   return room;
 }
 
@@ -372,8 +436,13 @@ function appendRoomEvent(room, type, payload = {}, req) {
   });
   const activityEntry = roomEventToActivity(event);
   if (activityEntry) room.activity.push(activityEntry);
-  persistRoom(room);
-  return { event, activityEntry };
+  let persistence;
+  try {
+    persistence = persistRoom(room);
+  } catch (error) {
+    persistence = Promise.reject(error);
+  }
+  return { event, activityEntry, persistence };
 }
 
 function recordRoomError(room, action, message, status, req) {
@@ -682,11 +751,15 @@ app.post('/api/rooms', limitRequests('rooms:create', { max: 20 }), async (req, r
   if (validated.error) return validationError(res, validated.error);
 
   const house = validated.value;
-  const room = await createRoom(house);
-  res.json({ room_code: room.code, host_token: room.hostToken, house });
+  try {
+    const room = await createRoom(house);
+    res.json({ room_code: room.code, host_token: room.hostToken, house });
+  } catch (error) {
+    return roomPersistenceError(res, error);
+  }
 });
 
-app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), (req, res) => {
+app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
 
@@ -698,31 +771,42 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), (req
 
   const { session_id, nickname } = validated.value;
   let player = room.players[session_id];
+  let joinBroadcast = null;
+  let persistence = null;
   if (player) {
     player.nickname = nickname;
-    appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
+    ({ persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
       session_id,
       nickname,
       player: cloneJson(player),
       source: 'join',
-    }, req);
+    }, req));
   } else {
     player = { session_id, nickname, balance: 1000, bets: [] };
     room.players[session_id] = player;
-    const { activityEntry } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
+    const { activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
       session_id,
       nickname,
       player: cloneJson(player),
       player_count: Object.keys(room.players).length,
     }, req);
-    broadcast(room, {
+    persistence = joinPersistence;
+    joinBroadcast = {
       type: 'join',
       nickname,
       player,
       player_count: Object.keys(room.players).length,
       activity: activityEntry,
-    });
+    };
   }
+
+  try {
+    await waitForRoomPersistence(persistence);
+  } catch (error) {
+    return roomPersistenceError(res, error);
+  }
+
+  if (joinBroadcast) broadcast(room, joinBroadcast);
 
   const state = getRoomStatePayload(room);
   res.json({
@@ -845,6 +929,22 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     idempotency_key: idempotencyKey,
   }, req);
 
+  // Persist to DB in background (don't block response)
+  persistTrade(room.marketId, trade, shares);
+  updateMarketState(room.marketId, room.market);
+
+  const response = { trade, market: marketState, player, event_sequence: event.sequence };
+  room.betReceipts.set(idempotencyKey, {
+    fingerprint,
+    response: cloneJson(response),
+    createdAt: Date.now(),
+  });
+  try {
+    await waitForRoomPersistence(persistRoom(room));
+  } catch (error) {
+    return roomPersistenceError(res, error);
+  }
+
   broadcast(room, {
     type: 'bet',
     nickname: player.nickname,
@@ -857,22 +957,10 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     event_sequence: event.sequence,
   });
 
-  // Persist to DB in background (don't block response)
-  persistTrade(room.marketId, trade, shares);
-  updateMarketState(room.marketId, room.market);
-
-  const response = { trade, market: marketState, player, event_sequence: event.sequence };
-  room.betReceipts.set(idempotencyKey, {
-    fingerprint,
-    response: cloneJson(response),
-    createdAt: Date.now(),
-  });
-  persistRoom(room);
-
   res.json(response);
 });
 
-app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), (req, res) => {
+app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!requireHostCapability(req, res, room)) return;
@@ -896,7 +984,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   const { results } = settlement;
 
   room.settlement = { winning_outcome: winningOutcome, actual_price, results };
-  const { event, activityEntry } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
+  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
     actual_price,
     winning_outcome: winningOutcome,
     results,
@@ -904,12 +992,18 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
     players: Object.values(room.players).map((player) => cloneJson(player)),
   }, req);
 
+  try {
+    await waitForRoomPersistence(persistence);
+  } catch (error) {
+    return roomPersistenceError(res, error);
+  }
+
   broadcast(room, { type: 'settle', ...room.settlement, activity: activityEntry, event_sequence: event.sequence });
 
   res.json({ ...room.settlement, event_sequence: event.sequence });
 });
 
-app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 20 }), (req, res) => {
+app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 20 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!requireHostCapability(req, res, room)) return;
@@ -919,52 +1013,19 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
   }
 
   room.aiEnabled = !room.aiEnabled;
-  const { event } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
+  const { event, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
     phase: 'ai_toggled',
     ai_enabled: room.aiEnabled,
   }, req);
 
+  try {
+    await waitForRoomPersistence(persistence);
+  } catch (error) {
+    return roomPersistenceError(res, error);
+  }
+
   if (room.aiEnabled) {
-    room.aiInterval = setInterval(() => {
-      if (!room.aiEnabled || room.settled) { clearInterval(room.aiInterval); room.aiInterval = null; return; }
-
-      const probOver = priceOver(room.market.q_over, room.market.q_under, room.market.b);
-      const contrarianStrength = 0.6;
-      const noise = gaussianRandom() * 0.15;
-      let pBetOver = (1 - probOver) * contrarianStrength + 0.5 * (1 - contrarianStrength) + noise;
-      pBetOver = Math.max(0.05, Math.min(0.95, pBetOver));
-
-      const outcome = Math.random() < pBetOver ? 'over' : 'under';
-      const shareOptions = [1, 2, 3, 5, 8, 10, 15, 20];
-      const weights = [25, 20, 15, 12, 8, 8, 7, 5];
-      const shares = weightedRandom(shareOptions, weights);
-
-      const execution = applyTrade(room.market, outcome, shares, 'AI');
-      room.market = execution.market;
-      const trade = execution.trade;
-
-      const marketState = execution.publicMarket;
-      const { event: aiEvent, activityEntry } = appendRoomEvent(room, EVENT_TYPES.AI_TRADE, {
-        outcome,
-        wager: trade.wager,
-        shares: execution.shares,
-        trade,
-        market: marketState,
-      });
-
-      broadcast(room, {
-        type: 'ai_trade',
-        outcome,
-        wager: trade.wager,
-        trade,
-        market: marketState,
-        activity: activityEntry,
-        event_sequence: aiEvent.sequence,
-      });
-
-      persistTrade(room.marketId, trade, shares);
-      updateMarketState(room.marketId, room.market);
-    }, 5000);
+    runAiBotInterval(room);
   } else {
     if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   }
