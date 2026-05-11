@@ -88,6 +88,45 @@ test('direct player join announces missing nickname before submitting', async ({
   expect(joinRequestCount).toBe(0);
 });
 
+test('direct player join API failure is announced without blaming the nickname', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.route(`**/api/rooms/${roomCode}/join`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'temporary join outage',
+    });
+  });
+
+  await page.goto(`/play/${roomCode}`);
+  await page.getByLabel('Player nickname').fill('Join Failure Player');
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/join`) &&
+      response.request().method() === 'POST' &&
+      response.status() === 503
+    ),
+    page.getByRole('button', { name: /^Join Room$/ }).click(),
+  ]);
+
+  await expect(page.locator('#player-join-error')).toContainText('Failed to join room');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Failed to join room' })).toBeVisible();
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
+  await expect(page.getByLabel('Player nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByRole('button', { name: /^Join Room$/ })).toBeEnabled();
+  await expect(page).toHaveURL(new RegExp(`/play/${roomCode}$`));
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'direct player join API failure notification state');
+});
+
 test('create room API failure is visible on the join page', async ({ page }) => {
   await page.route('**/api/rooms', async (route) => {
     if (route.request().method() !== 'POST') {

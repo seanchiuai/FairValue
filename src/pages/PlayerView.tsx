@@ -127,6 +127,8 @@ export default function PlayerView() {
 
   // Player hasn't joined yet — show nickname form
   if (!myPlayer) {
+    const displayedJoinError = joinError || identityError;
+    const joinNameInvalid = joinError === 'Enter your name';
     const handleJoin = async () => {
       const sanitized = joinName.trim().replace(/<[^>]*>/g, '').slice(0, 20);
       if (!sanitized) {
@@ -174,8 +176,8 @@ export default function PlayerView() {
               value={joinName}
               onChange={(e) => setJoinName(e.target.value)}
               aria-label="Player nickname"
-              aria-describedby={(joinError || identityError) ? playerJoinErrorId : undefined}
-              aria-invalid={Boolean(joinError || identityError) || undefined}
+              aria-describedby={displayedJoinError ? playerJoinErrorId : undefined}
+              aria-invalid={joinNameInvalid || undefined}
               placeholder="Enter your name"
               maxLength={20}
               aria-required="true"
@@ -183,9 +185,9 @@ export default function PlayerView() {
               onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
             />
           </div>
-          {(joinError || identityError) && (
+          {displayedJoinError && (
             <div id={playerJoinErrorId} style={s.joinError} role="alert" aria-live="assertive">
-              {joinError || identityError}
+              {displayedJoinError}
             </div>
           )}
           <button
