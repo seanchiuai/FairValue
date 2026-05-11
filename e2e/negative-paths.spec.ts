@@ -160,6 +160,42 @@ test('create room API failure is visible on the join page', async ({ page }) => 
   await expectNoSeriousAxeViolations(page, 'create-room API failure notification state');
 });
 
+test('join page room-code API failure is announced without blaming input', async ({ page }) => {
+  await page.route('**/api/rooms/FAIL/join', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'temporary join outage',
+    });
+  });
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Join Room/ }).click();
+  await page.getByLabel('Player nickname').fill('Join Page Failure');
+  await page.getByLabel('Room code').fill('FAIL');
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes('/api/rooms/FAIL/join') &&
+      response.request().method() === 'POST' &&
+      response.status() === 503
+    ),
+    page.getByRole('button', { name: /^Join Room$/ }).click(),
+  ]);
+
+  await expect(page.locator('#join-room-error')).toContainText('Failed to join room');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Failed to join room' })).toBeVisible();
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'join-room-error');
+  await expect(page.getByLabel('Room code')).toHaveAttribute('aria-describedby', 'join-room-error');
+  await expect(page.getByLabel('Player nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Room code')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page).toHaveURL(/\/join$/);
+  await expectNoSeriousAxeViolations(page, 'join page room-code API failure notification state');
+});
+
 test('player bet API failure rolls back and is announced', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.goto(`/play/${roomCode}`);
