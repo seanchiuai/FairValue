@@ -24,6 +24,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Negative-path browser coverage now exercises malformed/nonexistent room-code errors, fake host-token settlement rejection, join rate-limit retry metadata, and missing Cognee-key AI Analyst degradation.
 - Host capability errors now distinguish missing host tokens from invalid host tokens so UI feedback can tell the host what actually failed.
 - Server verification now includes a real backend child-process restart test that creates a room, joins, places a bet, kills and restarts the backend against the same snapshot file, proves restored state/idempotency, settles, then restarts again to prove settlement recovery.
+- Browser restart recovery now has a dedicated Playwright harness that owns fresh backend/frontend child processes, keeps rendered host/player pages open, restarts the real backend against `/tmp/fairvalue-browser-restart-rooms.json`, and proves reconnect, post-restart betting, settlement, and settled reload.
 
 ## Current Test Status
 
@@ -43,6 +44,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 load/accessibility pass: `npm run test:e2e:isolated` passed 3 Chromium tests on fresh frontend `3010` / backend `8010`; `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean.
 - 2026-05-10 negative-path pass: `npm run test:e2e:isolated` passed 7 Chromium tests on fresh frontend `3010` / backend `8010`; `npm run verify` passed client secret scan, 14 server tests, 5 React/Jest suites / 41 tests, and production build; production audit stayed clean.
 - 2026-05-10 real backend restart recovery pass: `node --test server/__tests__/restartPersistence.test.js` passed 1 child-process restart test, and `npm run verify` passed client secret scan, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-10 browser restart recovery pass: `npm run test:e2e:restart` passed 1 Chromium host/player backend-restart test; `npx playwright test --list` confirmed the default suite remains 7 tests in 3 files; `npm run verify` passed client secret scan, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Current Known Risks
 
@@ -56,13 +58,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Accessibility coverage currently gates serious/critical axe violations on core room surfaces, not every route, every modal state, or manual screen-reader behavior.
 - Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
 - Sustained load, broader accessibility, wider E2E matrix coverage, and deeper security test layers are still missing.
-- Browser restart-recovery coverage is still missing; current restart proof is backend/API-level through a real child process plus snapshot-backed E2E artifacts.
+- Restart recovery is proven for one rendered Chromium host/player path, but not yet for multi-browser matrices, long reconnect windows, or sustained restart/load combinations.
 
 ## Current Backlog Ranked By Impact
 
-1. Add browser-level restart recovery coverage for local room snapshots.
-2. Replace local JSON room snapshots with a production-grade durable room/event adapter, including locking or single-writer guarantees.
-3. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+1. Replace local JSON room snapshots with a production-grade durable room/event adapter, including locking or single-writer guarantees.
+2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
 4. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
 5. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
@@ -195,6 +197,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Settled the restored room with the original host capability token, killed and restarted the backend again, and verified the settled state plus join/bet/settle activity survived.
 - Fixed the restart-test shutdown helper so child stdout/stderr pipes close cleanly after SIGTERM instead of hanging the Node test runner.
 
+### 2026-05-10 - Browser Restart Recovery E2E
+
+- Added `e2e/restart-recovery.spec.ts` and `playwright.restart.config.ts`.
+- Added `npm run test:e2e:restart` for a dedicated browser restart harness that does not piggyback on Playwright's opaque managed backend.
+- The restart harness starts backend/frontend child processes on free local ports, verifies the frontend is the actual CRA app before opening pages, and enables snapshots at `/tmp/fairvalue-browser-restart-rooms.json`.
+- The rendered host creates a room, the rendered mobile player joins and places a bet, both pages show reconnecting while the backend is stopped, then both recover after backend restart with room state intact.
+- The same browser test places a second bet after reconnect, settles with the persisted host capability token, restarts the backend again, reloads both pages, and verifies settled host/player UI plus activity.
+- Default Playwright config now ignores the restart spec so `npm run test:e2e` / `test:e2e:isolated` keep their normal managed-server scope while the restart path stays explicit.
+- Documented the restart E2E command and proof model in `README.md`.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -281,6 +293,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `node --test server/__tests__/restartPersistence.test.js` initial run -> exposed a shutdown helper hang after the assertions finished; stale child test processes were killed and the helper was updated to clear its force-kill timer and destroy stdio streams on exit.
 - `node --test server/__tests__/restartPersistence.test.js` final run -> passed 1 child-process restart test in 722 ms.
 - `npm run verify` after restart-recovery patch -> passed: `scan:secrets`, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm run test:e2e:restart` initial run -> failed after the default 30s timeout because the fixed frontend port `3020` was already serving an unrelated Next.js 404 page; the harness was changed to use free ports by default, assert explicit ports are free, verify the CRA shell before proceeding, and use a 120s restart-test timeout.
+- `npm run test:e2e:restart` final run -> passed 1 Chromium browser restart test in 29.1s; the test body took 8.9s.
+- `/tmp/fairvalue-browser-restart-rooms.json` after the restart E2E -> room `30BP`, 30 persisted events, 2 bet receipts, 2 players, settled `true`, and `aiEnabled` `false`.
+- `npx playwright test --list` after adding the restart config -> default Playwright suite remains 7 tests in 3 files, excluding `restart-recovery.spec.ts`.
+- `npm run verify` after browser restart patch -> passed: `scan:secrets`, 15 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Screens And Routes Verified
 
@@ -299,6 +316,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Isolated E2E verified a 12-player / 12-bet API burst while a live room WebSocket observed all join and bet broadcasts.
 - Negative-path E2E verified `/join` malformed code feedback, `/join` nonexistent room feedback, `/host/:roomCode` fake-token settlement rejection, join route rate limiting, and host AI Analyst missing-key fallback.
 - Backend child-process restart test verified `/api/rooms`, `/join`, `/bet`, `/state`, and `/settle` across two real backend restarts using the same local snapshot file.
+- Restart E2E verified rendered `/join`, `/host/:roomCode`, and `/play/:roomCode` pages through a real backend restart, post-restart bet, settlement, second restart, and reload recovery on fresh dynamic local ports.
 
 ## Screenshots Or Traces
 
@@ -333,10 +351,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `ffbea1d` - Record load and accessibility evidence.
 - `cfe26ff` - Add negative path Playwright coverage.
 - `dc0f37f` - Add backend restart persistence test.
+- `f3ee986` - Add browser restart recovery E2E.
 
 ## Next Action Queue
 
-1. Add browser-level restart recovery coverage around the local room snapshot store.
-2. Design the production durable room/event adapter that can replace the local JSON snapshot store.
-3. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
-4. Start the next loop with `npm run verify`, then drive a rendered host/player room through a backend restart and UI recovery path.
+1. Design the production durable room/event adapter that can replace the local JSON snapshot store.
+2. Add authenticated durable user identity instead of room-local session IDs and host capability tokens.
+3. Expand restart/load coverage into multi-browser and sustained reconnect profiles.
+4. Start the next loop with `npm run verify`, then inspect `server/db.js`, `server/roomPersistence.js`, and the Neon table assumptions before adding a real durable adapter boundary.
