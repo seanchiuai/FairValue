@@ -32,6 +32,7 @@
     "test:e2e:browser-load": "rm -f /tmp/fairvalue-browser-load-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-browser-load-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8032 E2E_FRONTEND_PORT=3032 playwright test -c playwright.browser-load.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:latency:restart": "node scripts/profile-restart-latency.js",
+    "test:performance:cold": "node scripts/profile-cold-production-flow.js",
     "test:persistence:postgres": "node scripts/smoke-postgres-room-persistence.js",
     "test:a11y:assistive": "node scripts/capture-assistive-tech-notes.js",
     "check:bundle": "node scripts/check-bundle-size.js",

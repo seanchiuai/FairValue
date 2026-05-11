@@ -179,6 +179,7 @@ npm run test:e2e:restart:matrix
 npm run test:e2e:soak
 npm run test:e2e:browser-load
 npm run test:latency:restart
+npm run test:performance:cold
 npm run test:persistence:postgres
 npm run test:a11y:assistive
 ```
@@ -196,6 +197,8 @@ npm run test:a11y:assistive
 `test:e2e:browser-load` starts fresh backend/frontend ports (`8032`/`3032`) and runs a rendered browser load profile: one desktop host plus 10 mobile player pages join concurrently, bet concurrently, receive settlement, and reconcile the persisted snapshot. Set `FAIRVALUE_BROWSER_LOAD_PLAYERS=4..16` to tune the rendered player count locally.
 
 `test:latency:restart` starts a real backend on a free local port, drives create/join/bet/state traffic through a backend restart, records latency percentiles plus restart/recovery timing, and fails if the local latency budgets regress.
+
+`test:performance:cold` builds the production Vite bundle with a fresh backend port, serves `dist` through a local static/proxy server, then drives cold `/join` room creation, cold `/play/:roomCode` player join, bet sync, and settlement broadcast timing through headless Chromium with explicit local budgets.
 
 `test:a11y:assistive` starts fresh backend/frontend ports, opens headed Playwright Chrome with renderer accessibility enabled, captures the macOS accessibility tree plus Playwright ARIA snapshots for join, host, settle, and player flows, and writes `docs/accessibility-assistive-tech-notes.md`. It is intentionally not part of `npm run verify` because it opens a headed browser window.
 
