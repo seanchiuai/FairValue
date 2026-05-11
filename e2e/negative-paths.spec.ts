@@ -408,6 +408,48 @@ test('fake host token cannot settle a room from the host UI', async ({ page, req
   expect(state.settled).toBe(false);
 });
 
+test('malformed settlement success stays visible and is announced', async ({ page, request }) => {
+  const { room_code: roomCode, host_token: hostToken } = await createRoom(request);
+  await page.addInitScript(({ code, token }) => {
+    window.sessionStorage.setItem(`fv_host_token_${code}`, token);
+  }, { code: roomCode, token: hostToken });
+  await page.route(`**/api/rooms/${roomCode}/settle`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  await page.goto(`/host/${roomCode}`);
+  await expectConnected(page);
+  await page.getByRole('button', { name: /Settle/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
+  await page.getByLabel('Actual price').fill('700000');
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/settle`) &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    page.getByRole('button', { name: /Confirm Settlement/ }).click(),
+  ]);
+
+  await expect(page.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
+  await expect(page.locator('#settle-error')).toContainText('Settlement response was invalid');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Settlement response was invalid' })).toBeVisible();
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.settled).toBe(false);
+  await expectNoSeriousAxeViolations(page, 'malformed settlement success notification state');
+});
+
 test('fake host token cannot toggle AI and announces the host action failure', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.addInitScript((code) => {
@@ -432,6 +474,47 @@ test('fake host token cannot toggle AI and announces the host action failure', a
   expect(stateResponse.status()).toBe(200);
   const state = await stateResponse.json();
   expect(state.ai_enabled).toBe(false);
+});
+
+test('malformed AI toggle success is announced without changing state', async ({ page, request }) => {
+  const { room_code: roomCode, host_token: hostToken } = await createRoom(request);
+  await page.addInitScript(({ code, token }) => {
+    window.sessionStorage.setItem(`fv_host_token_${code}`, token);
+  }, { code: roomCode, token: hostToken });
+  await page.route(`**/api/rooms/${roomCode}/toggle-ai`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  await page.goto(`/host/${roomCode}`);
+  await expectConnected(page);
+  const toggleButton = page.getByRole('button', { name: /AI bot disabled/i });
+  await expect(toggleButton).toBeEnabled();
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/toggle-ai`) &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    toggleButton.click(),
+  ]);
+
+  await expect(page.getByRole('alert')).toContainText('AI toggle response was invalid');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: AI toggle response was invalid' })).toBeVisible();
+  await expect(toggleButton).toHaveAttribute('aria-pressed', 'false');
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.ai_enabled).toBe(false);
+  await expectNoSeriousAxeViolations(page, 'malformed AI toggle success notification state');
 });
 
 test('join route exposes retry metadata when server rate limit is hit', async ({ request }) => {

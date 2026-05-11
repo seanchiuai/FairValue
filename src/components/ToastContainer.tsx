@@ -9,9 +9,9 @@ const ICONS: Record<ToastType, React.ReactNode> = {
 };
 
 const BG_COLORS: Record<ToastType, string> = {
-  success: 'rgba(52, 199, 89, 0.08)',
-  error: 'rgba(255, 59, 48, 0.08)',
-  info: 'rgba(0, 122, 255, 0.08)',
+  success: '#F0FFF4',
+  error: '#FFF1F0',
+  info: '#EFF6FF',
 };
 
 const BORDER_COLORS: Record<ToastType, string> = {
@@ -80,8 +80,6 @@ const s: Record<string, React.CSSProperties> = {
     padding: '12px 14px',
     borderRadius: 12,
     border: '1px solid',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
     boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
     pointerEvents: 'auto',
     animation: 'toastSlideIn 0.25s ease-out',

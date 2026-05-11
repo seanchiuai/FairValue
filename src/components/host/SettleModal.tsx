@@ -12,6 +12,17 @@ interface SettleModalProps {
   onClose: () => void;
 }
 
+type SettlementResponse = {
+  actual_price?: number;
+  error?: string;
+  results?: unknown[];
+  winning_outcome?: string;
+};
+
+async function readJson<T>(response: Response): Promise<T> {
+  return response.json().catch(() => ({})) as Promise<T>;
+}
+
 export default function SettleModal({ house, roomCode, hostToken, userToken, onClose }: SettleModalProps) {
   const [actualPrice, setActualPrice] = useState('');
   const [settling, setSettling] = useState(false);
@@ -54,10 +65,21 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
         },
         body: JSON.stringify({ actual_price: price }),
       });
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-        showToast(data.error, 'error');
+      const data = await readJson<SettlementResponse>(res);
+      if (!res.ok || data.error) {
+        const message = data.error || 'Settlement failed';
+        setError(message);
+        showToast(message, 'error');
+        return;
+      }
+      const hasValidSettlement =
+        (data.winning_outcome === 'over' || data.winning_outcome === 'under') &&
+        typeof data.actual_price === 'number' &&
+        Array.isArray(data.results);
+      if (!hasValidSettlement) {
+        const message = 'Settlement response was invalid';
+        setError(message);
+        showToast(message, 'error');
         return;
       }
       showToast('Market settled.', 'success');

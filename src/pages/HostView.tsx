@@ -18,6 +18,15 @@ import TrustNotice from '../components/TrustNotice';
 import { useToast } from '../contexts/ToastContext';
 import { Users, Bot, Gavel, Trophy } from 'lucide-react';
 
+type ToggleAIResponse = {
+  ai_enabled?: boolean;
+  error?: string;
+};
+
+async function readJson<T>(response: Response): Promise<T> {
+  return response.json().catch(() => ({})) as Promise<T>;
+}
+
 export default function HostView() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const { sessionId, userToken, identityReady } = useSession();
@@ -98,16 +107,19 @@ export default function HostView() {
         method: 'POST',
         headers: hostAuthHeaders,
       });
-      const data = await res.json();
-      if (data.error) {
-        showToast(data.error, 'error');
+      const data = await readJson<ToggleAIResponse>(res);
+      if (!res.ok || data.error) {
+        showToast(data.error || 'Unable to toggle AI bot', 'error');
+        return;
+      }
+      if (typeof data.ai_enabled !== 'boolean') {
+        showToast('AI toggle response was invalid', 'error');
         return;
       }
       setAiEnabled(data.ai_enabled);
       showToast(`AI bot ${data.ai_enabled ? 'enabled' : 'disabled'}.`, 'success');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unable to toggle AI bot';
-      showToast(message, 'error');
+    } catch {
+      showToast('Unable to toggle AI bot', 'error');
     }
   }, [roomCode, hasHostAuthority, hostAuthHeaders, setAiEnabled, showToast]);
 
