@@ -436,7 +436,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `4d9d3ba` - Add room persistence adapter boundary.
 - `aa0f78c` - Add disposable Postgres persistence smoke.
 - `4fe4f09` - Surface durable room persistence failures.
-- `bd43d21` - Add durable browser identity auth.
+- `6bae782` - Add durable browser identity auth.
 
 ## Next Action Queue
 
