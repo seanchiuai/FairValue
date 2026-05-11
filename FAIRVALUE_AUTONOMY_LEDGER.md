@@ -63,6 +63,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host AI toggle failures now use the global toast system instead of console-only errors, so invalid/missing host authority is visible and announced to room operators; AI toggle success also emits a polite status notification.
 - Host settlement failures now preserve the modal inline error while also using the global toast system for announced, message-specific failure feedback; successful settlement emits a polite status toast.
 - Host AI toggle and settlement responses now require OK status plus valid success payload shape before showing success; malformed 200 responses keep state unchanged, stay visible to the operator, and are announced through accessible error toasts.
+- Host pages opened without the original host authority now render a visible warning and link disabled AI/Settle controls to that warning with `aria-describedby`, so missing capability is explained without requiring hover.
 - The unused `useCloudFairValue` hook and `cloudPersistence` stub were removed so the client no longer carries a fake `api.fairvalue.io` fair-value sync surface or mock/stub cloud logging path.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
@@ -139,6 +140,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 market trust explainer pass: focused E2E passed desktop/mobile market-trust assertions with serious/critical axe checks, full `npm run test:e2e:isolated` passed 20 Chromium tests, a rendered visual probe on `http://127.0.0.1:3010/market/440298192` confirmed desktop/mobile visibility and no console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.76 kB / 240.00 kB and total JS 662.87 kB / 760.00 kB, and `smoke:boot` room `BPII`.
 - 2026-05-11 multiplayer trust notes pass: focused E2E passed host/player room-entry and settlement-recap trust-note assertions with serious/critical axe checks, full `npm run test:e2e:isolated` passed 21 Chromium tests, a rendered visual probe on room `PL34` confirmed host/player entry, active room, settlement modal, and settled recaps with zero console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.76 kB / 240.00 kB and total JS 665.59 kB / 760.00 kB, and `smoke:boot` room `RLDH`.
 - 2026-05-11 malformed host action response pass: focused malformed-response E2E passed 3 Chromium tests after first catching and fixing toast contrast over the settlement modal, `npm test -- ToastContainer` passed 1 file / 2 tests, full `npm run test:e2e:isolated` passed 23 Chromium tests, rendered visual probe on room `0D8A` confirmed settlement/AI malformed-response toasts with zero console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.65 kB / 240.00 kB and total JS 665.89 kB / 760.00 kB, and `smoke:boot` room `IH9I`.
+- 2026-05-11 missing host authority controls pass: focused E2E passed 1 Chromium test for `/host/:roomCode` without host authority, full `npm run test:e2e:isolated` passed 24 Chromium tests, rendered visual probe on room `CFHB` confirmed the warning and disabled-control descriptions with zero console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.65 kB / 240.00 kB and total JS 667.13 kB / 760.00 kB, and `smoke:boot` room `TGHR`.
 
 ## Current Known Risks
 
@@ -152,7 +154,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, malformed host-action success, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, and malformed host-action response paths.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 - Market detail and multiplayer entry/settlement surfaces now make simulated-credit and non-appraisal authority explicit; future share, invite, public recap, or exported-result surfaces still need the same trust language when they exist.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
@@ -161,7 +163,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
@@ -169,6 +171,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Missing Host Authority Controls
+
+- Added a visible host-authority warning on `/host/:roomCode` when the browser has neither the durable host identity nor the legacy host token.
+- Linked disabled AI and Settle controls to the warning with `aria-describedby`, preserving the existing disabled state while making the reason visible and screen-reader-described.
+- Added focused negative-path E2E and visual probe evidence proving the missing-authority state stays non-mutating, axe-clean, and console-error-free.
 
 ### 2026-05-11 - Malformed Host Action Responses
 
@@ -999,6 +1007,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Browser plugin fallback for malformed host action visual QA -> Browser skill was available, but tool discovery did not expose the required Node REPL JavaScript execution tool; shell Playwright was used for the rendered probe.
 - Rendered visual probe against temporary `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend verified room `0D8A` malformed settlement response keeps the modal open with inline/toast errors, malformed AI-toggle response leaves room state unchanged with a toast, and console/page errors were zero; screenshots saved at `/tmp/fairvalue-malformed-settlement-toast.png` and `/tmp/fairvalue-malformed-ai-toggle-toast.png`.
 - Final `npm run verify` after malformed host action response patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.65 kB / 240.00 kB, total JS 665.89 kB / 760.00 kB, largest CSS 14.74 kB / 25.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:52244`, room `IH9I`.
+- `git diff --check` after missing host authority controls patch -> passed.
+- `npm run typecheck` after missing host authority controls patch -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "host page without authority"` after adding missing-authority warning coverage -> passed 1 Chromium test.
+- Full `npm run test:e2e:isolated` after missing host authority controls patch -> passed 24 Chromium tests.
+- Browser plugin fallback for missing host authority visual QA -> Browser skill was available, but tool discovery did not expose the required Node REPL JavaScript execution tool; shell Playwright was used for the rendered probe.
+- Rendered visual probe against temporary `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend verified room `CFHB` shows `Host controls unavailable`, links both AI and Settle controls to `host-authority-warning`, leaves server state `ai_enabled=false` and `settled=false`, and had zero console/page errors; screenshot saved at `/tmp/fairvalue-host-authority-warning.png`.
+- Final `npm run verify` after missing host authority controls patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.65 kB / 240.00 kB, total JS 667.13 kB / 760.00 kB, largest CSS 14.74 kB / 25.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:57797`, room `TGHR`.
 
 ## Screens And Routes Verified
 
@@ -1067,6 +1082,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Market trust evidence verified `/market/440298192` renders a desktop/mobile trust explainer for play-money credits, LMSR Over probability, market-implied fair value, `MLSListings Inc` provenance with `Checked Feb 7, 2026`, and host settlement/event replay evidence, with serious/critical axe coverage and no console/page errors in the rendered visual probe.
 - Multiplayer trust evidence verified `/host/PL34` and `/play/PL34` render trust notes across host active room, direct player entry, active player room, settlement modal, host settled recap, and player settled recap, covering simulation credits, non-appraisal authority, LMSR probability, actual sale/appraisal settlement evidence, and event-history replay with serious/critical axe coverage.
 - Malformed host action evidence verified `/host/0D8A` with real host token and intercepted malformed 200 responses: settlement stayed in the modal with `Settlement response was invalid`, AI toggle stayed off with `AI toggle response was invalid`, server state stayed unsettled/AI-disabled, and rendered toast/modal states had zero console/page errors.
+- Missing host authority evidence verified `/host/CFHB` without the original host browser authority renders `Host controls unavailable`, keeps AI and Settle disabled with `aria-describedby="host-authority-warning"`, leaves `ai_enabled=false` and `settled=false`, and passes serious/critical axe checks with zero console/page errors.
 
 ## Screenshots Or Traces
 
@@ -1087,6 +1103,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-room-trust-player-settled.png`
 - `/tmp/fairvalue-malformed-settlement-toast.png`
 - `/tmp/fairvalue-malformed-ai-toggle-toast.png`
+- `/tmp/fairvalue-host-authority-warning.png`
 - Playwright E2E is configured to retain screenshots, traces, and videos on failure under `test-results/e2e-artifacts`; the passing run produced no failure screenshots/videos.
 - `playwright-report/index.html` was generated locally for the passing E2E run and is ignored by git.
 - `docs/accessibility-assistive-tech-notes.md` records the macOS AX and Playwright ARIA excerpts from the headed assistive-tech pass.
@@ -1190,11 +1207,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `a12fe61` - Carry trust notes through room flow.
 - `177e331` - Record multiplayer trust evidence.
 - `f1829bc` - Harden malformed host action responses.
+- `35cce6c` - Record malformed host action evidence.
+- `9af7d26` - Explain missing host authority.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, and malformed host-action response paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 3. Extend the same trust/risk language to future share, invite, public recap, or exported-result surfaces once those surfaces exist.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
