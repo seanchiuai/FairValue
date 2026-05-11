@@ -3,7 +3,9 @@ import { cloudPersistence } from '../services/cloudPersistence';
 
 // Constants for cloud sync
 const SYNC_INTERVAL = 3000; // Sync every 3 seconds
-const COGNEE_API_URL = process.env.REACT_APP_COGNEE_API_URL || 'https://api.fairvalue.io/v1';
+const COGNEE_API_URL =
+  import.meta.env.VITE_COGNEE_API_URL ||
+  'https://api.fairvalue.io/v1';
 
 interface FairValueUpdate {
   marketId: string;

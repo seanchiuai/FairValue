@@ -130,7 +130,8 @@ let fetchPromise: Promise<Property[]> | null = null;
 function fetchProperties(): Promise<Property[]> {
   if (cached) return Promise.resolve(cached);
   if (fetchPromise) return fetchPromise;
-  fetchPromise = fetch(`${process.env.PUBLIC_URL}/data/properties.json`)
+  const publicBase = import.meta.env.BASE_URL.replace(/\/$/, '');
+  fetchPromise = fetch(`${publicBase}/data/properties.json`)
     .then(res => res.json())
     .then((raw: RawPropertyData[]) => {
       cached = mapRaw(raw);

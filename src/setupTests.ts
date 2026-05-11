@@ -2,5 +2,5 @@
 import { TextEncoder, TextDecoder } from 'util';
 Object.assign(global, { TextEncoder, TextDecoder });
 
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-import '@testing-library/jest-dom';
+// jest-dom adds custom Vitest matchers for asserting on DOM nodes.
+import '@testing-library/jest-dom/vitest';

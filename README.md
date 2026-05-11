@@ -15,7 +15,7 @@ A host creates a room and selects a property. Players join via QR code or room c
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19, TypeScript, Create React App |
+| Frontend | React 19, TypeScript, Vite |
 | Backend | Node.js, Express 5 |
 | Database | Neon / Qdrant |
 | Real-time | WebSocket (`ws`) |
@@ -38,7 +38,7 @@ npm install
 # Start the backend (port 8000)
 npm run server
 
-# In another terminal, start the frontend (port 3000)
+# In another terminal, start the frontend (Vite defaults to port 5173)
 npm start
 ```
 
@@ -82,7 +82,7 @@ Browser (React)
 - Cost function: `b * ln(e^(qOver/b) + e^(qUnder/b))`
 - Default liquidity parameter `b = 100`
 - Binary search to find shares for a given dollar budget
-- Shared between frontend (solo mode) and backend (multiplayer)
+- Browser wrapper is parity-tested against the canonical backend market engine
 
 ### Database Schema
 
@@ -145,10 +145,10 @@ cp .env.example .env
 ```
 
 - `DATABASE_URL` enables Neon-backed market persistence. If it is missing, the server boots in degraded mode and in-memory multiplayer rooms still work, while database-backed routes return DB errors.
-- `COGNEE_API_KEY` enables the AI Analyst. It must stay server-side only and must never be added as a `REACT_APP_*` variable.
+- `COGNEE_API_KEY` enables the AI Analyst. It must stay server-side only and must never be added as a `VITE_*` variable.
 - `COGNEE_BASE_URL` defaults to `https://api.cognee.ai`.
-- `REACT_APP_BACKEND_PORT` defaults local frontend WebSockets to the backend on port `8000` when CRA runs on another port.
-- `REACT_APP_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.
+- `VITE_BACKEND_PORT` defaults local frontend WebSockets to the backend on port `8000` when Vite runs on another port.
+- `VITE_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.
 - `FAIRVALUE_ROOM_STORE=json` keeps the default local JSON snapshot adapter; `FAIRVALUE_ROOM_STORE=postgres` uses the Neon/Postgres `fairvalue_room_snapshots` table when `DATABASE_URL` is configured.
 - `FAIRVALUE_ROOM_STORE_PATH` overrides the local durable room snapshot file. If unset, `npm run server` uses `.fairvalue/rooms.json`.
 - `FAIRVALUE_ROOM_PERSISTENCE=off` disables local room snapshots and returns to fully ephemeral in-memory room state.

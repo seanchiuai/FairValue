@@ -41,7 +41,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: `BROWSER=none PORT=${frontendPort} REACT_APP_BACKEND_PORT=${backendPort} npm start`,
+      command: `VITE_BACKEND_PORT=${backendPort} npm start -- --host 127.0.0.1 --port ${frontendPort}`,
       url: `http://127.0.0.1:${frontendPort}`,
       reuseExistingServer,
       timeout: 180_000,

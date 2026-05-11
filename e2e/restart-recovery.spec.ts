@@ -165,17 +165,15 @@ async function restartBackend() {
 }
 
 async function startFrontend() {
-  frontend = startProcess('frontend', 'npm', ['start'], {
-    BROWSER: 'none',
-    PORT: String(frontendPort),
-    REACT_APP_BACKEND_PORT: String(backendPort),
+  frontend = startProcess('frontend', 'npm', ['start', '--', '--host', '127.0.0.1', '--port', String(frontendPort)], {
+    VITE_BACKEND_PORT: String(backendPort),
     BACKEND_PORT: String(backendPort),
   });
   await waitForHttp(
     frontendBaseUrl,
     frontend,
     120_000,
-    (response, body) => response.ok && body.includes('<title>React App</title>') && body.includes('<div id="root"></div>')
+    (response, body) => response.ok && body.includes('<title>FairValue</title>') && body.includes('<div id="root"></div>')
   );
 }
 

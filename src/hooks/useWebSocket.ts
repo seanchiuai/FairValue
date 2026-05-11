@@ -16,14 +16,14 @@ const MAX_RETRIES = 10;
 const DEFAULT_DEV_BACKEND_PORT = '8000';
 
 function getWebSocketBaseUrl() {
-  const configured = process.env.REACT_APP_WS_BASE_URL;
+  const configured = import.meta.env.VITE_WS_BASE_URL;
   if (configured) return configured.replace(/\/$/, '');
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.hostname;
   const port = window.location.port;
   const isLocalDevHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
-  const backendPort = process.env.REACT_APP_BACKEND_PORT || DEFAULT_DEV_BACKEND_PORT;
+  const backendPort = import.meta.env.VITE_BACKEND_PORT || DEFAULT_DEV_BACKEND_PORT;
 
   if (isLocalDevHost && port && port !== backendPort) {
     return `${protocol}//${host}:${backendPort}`;

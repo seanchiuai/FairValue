@@ -4,7 +4,7 @@ Repo-grounded ranked list of 100 high-impact improvements for FairValue, written
 
 ## Repo Signals Used For Ranking
 
-- Frontend is a Create React App app using React 19, mixed TypeScript and JavaScript, large page components, and a static property dataset in `public/data/properties.json`.
+- Frontend is a Vite app using React 19, mixed TypeScript and JavaScript, large page components, and a static property dataset in `public/data/properties.json`.
 - Backend is a single Express + WebSocket process in `server/index.js` with in-memory multiplayer room state and Neon-backed trade persistence.
 - AI integration is currently browser-side and `src/services/cogneeService.ts` contains a live API key in client code.
 - There is a stubbed cloud sync path in `src/services/cloudPersistence.ts` and a partly speculative hook in `src/hooks/useCloudFairValue.ts`.
@@ -81,9 +81,9 @@ Repo-grounded ranked list of 100 high-impact improvements for FairValue, written
     Lens: Ops | Impact: High | Effort: M | Horizon: Now
     Why: once live sessions matter, you need operator visibility into failed rooms, suspicious betting, market status, and user complaints.
 
-16. Modernize the frontend build stack off Create React App.
+16. Keep the new Vite frontend toolchain production-hardened.
     Lens: Platform | Impact: High | Effort: M | Horizon: Now
-    Why: CRA is dated relative to the React version in use, slows iteration, and makes future routing, SSR, and bundle work harder than necessary.
+    Why: the CRA migration removed the dev-server audit findings; the next leverage is bundle splitting, toolchain observability, and CI parity for Vite/Vitest/Playwright.
 
 17. Replace or remove the stubbed cloud sync path.
     Lens: Platform | Impact: High | Effort: M | Horizon: Now

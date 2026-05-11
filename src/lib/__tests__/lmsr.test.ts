@@ -8,6 +8,9 @@ import {
   executeBuy,
 } from '../lmsr';
 
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 const marketEngine = require('../marketEngine');
 
 describe('costFunction', () => {

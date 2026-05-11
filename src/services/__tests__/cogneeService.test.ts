@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { vi } from 'vitest';
 import { searchMarketInsights } from '../cogneeService';
 
 const clientHeaderName = ['X-Api', 'Key'].join('-');
@@ -16,7 +17,7 @@ function collectSourceFiles(dir: string): string[] {
 
 describe('Cognee client secret boundary', () => {
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('does not keep the previously exposed secret literal in client source', () => {
@@ -40,7 +41,7 @@ describe('Cognee client secret boundary', () => {
   });
 
   it('searches through the local server API and tolerates degraded AI mode', async () => {
-    global.fetch = jest.fn(() =>
+    global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: false,
         status: 503,
@@ -51,7 +52,7 @@ describe('Cognee client secret boundary', () => {
             message: 'Set COGNEE_API_KEY on the server to enable Cognee analysis.',
           }),
       })
-    ) as jest.Mock;
+    ) as unknown as typeof fetch;
 
     await expect(searchMarketInsights('summarize this room', 'ROOM1')).resolves.toContain(
       'COGNEE_API_KEY'

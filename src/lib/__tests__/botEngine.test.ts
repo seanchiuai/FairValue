@@ -1,4 +1,5 @@
 import { computeBotTrade, startBotEngine, DEFAULT_BOT_CONFIG } from '../botEngine';
+import { vi } from 'vitest';
 
 describe('computeBotTrade', () => {
   it('returns a valid outcome', () => {
@@ -55,15 +56,15 @@ describe('computeBotTrade', () => {
 
 describe('startBotEngine', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('calls onTrade at configured intervals', () => {
-    const onTrade = jest.fn();
+    const onTrade = vi.fn();
     const getState = () => ({ qOver: 0, qUnder: 0 });
 
     const cleanup = startBotEngine(getState, onTrade, {
@@ -73,17 +74,17 @@ describe('startBotEngine', () => {
 
     expect(onTrade).not.toHaveBeenCalled();
 
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(onTrade).toHaveBeenCalledTimes(1);
 
-    jest.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(2000);
     expect(onTrade).toHaveBeenCalledTimes(3);
 
     cleanup();
   });
 
   it('cleanup stops the interval', () => {
-    const onTrade = jest.fn();
+    const onTrade = vi.fn();
     const getState = () => ({ qOver: 0, qUnder: 0 });
 
     const cleanup = startBotEngine(getState, onTrade, {
@@ -91,18 +92,18 @@ describe('startBotEngine', () => {
       intervalMs: 1000,
     });
 
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(onTrade).toHaveBeenCalledTimes(1);
 
     cleanup();
 
-    jest.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5000);
     expect(onTrade).toHaveBeenCalledTimes(1);
   });
 
   it('passes current state to computeBotTrade', () => {
     let qOver = 0;
-    const onTrade = jest.fn();
+    const onTrade = vi.fn();
     const getState = () => ({ qOver, qUnder: 0 });
 
     const cleanup = startBotEngine(getState, onTrade, {
@@ -111,7 +112,7 @@ describe('startBotEngine', () => {
     });
 
     qOver = 50;
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
 
     const trade = onTrade.mock.calls[0][0];
     // Trade should be based on qOver=50

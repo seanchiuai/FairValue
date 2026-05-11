@@ -44,20 +44,20 @@ FairValue must become the definitive trusted market layer for real estate valuat
 
 Start by inspecting the real repository. Do not trust this prompt as a substitute for current code. Confirm the actual files, scripts, dirty worktree, installed packages, local environment, and runtime behavior.
 
-Known current signals to verify:
+Known signals to verify against the current code before each loop:
 
 - The app is FairValue, but `package.json` currently uses the legacy package name `mission-betting`.
-- The frontend is React 19, TypeScript, Create React App, React Router v7, mixed `.tsx` and `.jsx`.
+- The frontend is React 19, TypeScript, Vite, React Router v7, mixed `.tsx` and `.jsx`.
 - The backend is Node.js, Express 5, `ws`, and Neon serverless Postgres.
 - Multiplayer routes include `/join`, `/host/:roomCode`, `/play/:roomCode`.
 - Solo market routes include `/` and `/market/:propertyId`.
 - The backend lives mainly in `server/index.js`.
-- Room state is currently in memory.
+- Room state has local durable snapshot and Postgres adapter coverage; verify the active persistence mode and failure behavior before changing room flows.
 - Room trades are persisted to Neon when possible.
-- The LMSR engine is duplicated between `src/lib/lmsr.ts` and `server/index.js`.
-- `src/services/cogneeService.ts` currently exposes a Cognee API key in browser code. Treat that as urgent.
-- Room code generation allows `A-Z0-9`, while join validation has historically accepted only four letters. Verify and fix if still true.
-- Tests currently cover LMSR, bot behavior, and a shallow page render. The real multiplayer system needs much more coverage.
+- The server market engine is canonical for room mutations; the browser LMSR wrapper has parity tests against it.
+- Cognee browser code should route through server APIs only; keep credentials server-side.
+- Room code generation and join validation should both accept the `A-Z0-9` room schema.
+- Verification now includes server, Vitest, Playwright, accessibility, load, restart, matrix, and latency profiles; keep adding harder evidence for new behavior.
 - `CLAUDE.md` says to commit changes. Commit intentionally and keep commits scoped.
 
 ### Operating Contract

@@ -10,16 +10,16 @@ FairValue is a real-time multiplayer real estate prediction market. Players bet 
 
 ```bash
 npm install          # Install dependencies
-npm start            # Dev server on http://localhost:3000
-npm test             # Tests in watch mode
+npm start            # Vite dev server on http://localhost:5173 by default
+npm test             # Unit tests via Vitest
 npm run build        # Production build
 ```
 
-The frontend dev server proxies `/api` → `http://localhost:8000` and `/ws` → `ws://localhost:8000` (configured in `src/setupProxy.js`). A backend server must be running on port 8000 for multiplayer features.
+The frontend dev server proxies `/api` → `http://localhost:8000` and `/ws` → `ws://localhost:8000` (configured in `vite.config.ts`). A backend server must be running on port 8000 for multiplayer features.
 
 ## Architecture
 
-**Frontend:** React 19 + TypeScript, Create React App. Mixed `.tsx`/`.jsx` files.
+**Frontend:** React 19 + TypeScript, Vite. Mixed `.tsx`/`.jsx` files.
 
 **Two modes of operation:**
 1. **Solo browsing** — `/` shows mock market cards from `src/data/properties.ts`; `/market/:propertyId` shows a single-market detail with chart and trading panel.
@@ -44,7 +44,7 @@ The frontend dev server proxies `/api` → `http://localhost:8000` and `/ws` →
 
 **Bot engine** (`src/lib/botEngine.ts`): Client-side contrarian AI bot using mean-reversion + Gaussian noise. Configurable interval, strength, and share sizes. Toggled on/off via host dashboard.
 
-**Room API endpoints** (backend, proxied through CRA):
+**Room API endpoints** (backend, proxied through Vite):
 - `POST /api/rooms` — create room
 - `POST /api/rooms/:code/join` — join room
 - `GET /api/rooms/:code/state` — full room state
@@ -66,7 +66,6 @@ The frontend dev server proxies `/api` → `http://localhost:8000` and `/ws` →
 
 - The `sean/` folder is a Python prototype backend — not part of the main React app
 - Components use a mix of `.tsx` and `.jsx`
-- ESLint extends `react-app` (configured in `package.json`)
 - The npm package name is `mission-betting` (legacy name)
 - `qrcode.react` generates QR codes for room join URLs on the host view
 - Host can set a custom ngrok/public URL to generate correct QR codes for LAN/remote access

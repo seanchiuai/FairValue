@@ -1,11 +1,12 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import Markets from './pages/Markets';
 
 // Mock the fetch for properties
 beforeEach(() => {
-  global.fetch = jest.fn((url: string) => {
+  global.fetch = vi.fn((url: string) => {
     if (url.includes('properties.json')) {
       return Promise.resolve({
         ok: true,
@@ -19,11 +20,11 @@ beforeEach(() => {
       });
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-  }) as jest.Mock;
+  }) as unknown as typeof fetch;
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('renders Markets page with FairValue branding', async () => {
