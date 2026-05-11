@@ -57,6 +57,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Player bet API failures now treat non-OK or malformed mutation responses as failed bets, roll back optimistic market/player state, and announce the failure inline plus through the global toast system.
 - Direct player join validation and API failure paths now have browser proof that empty nicknames stay local-only, server join failures are announced without marking the nickname field invalid, and no failed join mutates room players.
 - Market detail Start a Bid room creation and host auto-join failures now surface inline on `/market/:propertyId` and through the global toast system instead of silently re-enabling the Start a Bid button.
+- Market detail pages now include a verified trust explainer for simulated credits, LMSR probability, implied fair value, listing provenance/freshness, and host settlement/event evidence so the solo market surface does not imply real-money or appraisal authority.
 - Join-page create-room, host auto-join, and room-code join API failures now validate HTTP status and response shape before navigation, preserve inline errors, avoid blaming fields for backend outages, and emit message-specific global error toasts for async server failures.
 - Host AI toggle failures now use the global toast system instead of console-only errors, so invalid/missing host authority is visible and announced to room operators; AI toggle success also emits a polite status notification.
 - Host settlement failures now preserve the modal inline error while also using the global toast system for announced, message-specific failure feedback; successful settlement emits a polite status toast.
@@ -133,6 +134,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 join-page room-code outage pass: focused E2E passed a forced non-JSON `/join` room-code submit 503 branch, full `npm run test:e2e:isolated` passed 17 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `V22O`.
 - 2026-05-11 join-page host auto-join outage pass: focused E2E passed the partial-success branch where `/api/rooms` succeeds but the host auto-join returns a non-JSON 503; full `npm run test:e2e:isolated` passed 18 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `GPVX`.
 - 2026-05-11 market host auto-join outage pass: focused E2E passed the partial-success branch where `/market/:propertyId` room creation succeeds but the automatic host join returns a non-JSON 503; full `npm run test:e2e:isolated` passed 19 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.75 kB / 240.00 kB and total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `RZIO`.
+- 2026-05-11 market trust explainer pass: focused E2E passed desktop/mobile market-trust assertions with serious/critical axe checks, full `npm run test:e2e:isolated` passed 20 Chromium tests, a rendered visual probe on `http://127.0.0.1:3010/market/440298192` confirmed desktop/mobile visibility and no console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.76 kB / 240.00 kB and total JS 662.87 kB / 760.00 kB, and `smoke:boot` room `BPII`.
 
 ## Current Known Risks
 
@@ -147,6 +149,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
 - Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, player-wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+- Market detail now makes simulated-credit and non-appraisal authority explicit; the same trust/risk language still needs to be propagated into host/player room entry, settlement recaps, and future share surfaces.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -162,6 +165,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Market Trust Explainer
+
+- Added a verified `/market/:propertyId` trust section that explains play-money credits, LMSR Over probability, market-implied fair value, listing provenance/freshness, and host settlement/event evidence.
+- Extended the property mapper to preserve listing source and attribution metadata, then surfaced `MLSListings Inc` and the checked date from the static property snapshot instead of hardcoding provenance copy.
+- Added desktop and mobile E2E coverage for the trust explainer with serious/critical axe checks, updated README coverage wording, and captured rendered desktop/mobile screenshots with no console/page errors.
 
 ### 2026-05-11 - Market Host Auto-Join Outage
 
@@ -952,6 +961,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "market detail host auto-join failure"` after letting market room creation hit the real backend and intercepting only the dynamic host join with a non-JSON 503 -> passed 1 Chromium test.
 - Full `npm run test:e2e:isolated` after market host auto-join outage coverage -> passed 19 Chromium tests, including the partial-success market host auto-join failure branch.
 - Final `npm run verify` after market host auto-join outage coverage -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.75 kB / 240.00 kB and total JS 659.63 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:53862`, room `RZIO`.
+- `git diff --check` after market trust explainer patch -> passed.
+- `npm run typecheck` after market trust explainer patch -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts -g "market detail explains simulated market mechanics"` after adding the trust section and provenance fields -> passed 1 Chromium test with desktop/mobile assertions and serious/critical axe checks.
+- Full `npm run test:e2e:isolated` after market trust explainer patch -> passed 20 Chromium tests, including the new market trust explainer proof.
+- Rendered visual probe against temporary `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend verified `/market/440298192` desktop 1440x900 and mobile 390x844 trust-section visibility, exact text for play-money/LMSR/fair-value/provenance/settlement evidence, zero console/page errors, and screenshots at `/tmp/fairvalue-market-trust-desktop.png` and `/tmp/fairvalue-market-trust-mobile.png`; Browser Node runtime was unavailable and the exposed Playwright MCP transport closed, so shell Playwright was used for the visual probe.
+- Final `npm run verify` after market trust explainer patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.76 kB / 240.00 kB and total JS 662.87 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:60499`, room `BPII`.
 
 ## Screens And Routes Verified
 
@@ -1017,6 +1032,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Join-page room join outage evidence verified `/join` forced `POST /api/rooms/FAIL/join` plain-text 503 feedback through inline `#join-room-error`, a message-specific `Failed to join room` toast, both fields described by the alert without invalid field semantics, preserved `/join` URL, and serious/critical axe coverage.
 - Join-page host auto-join outage evidence verified `/join` real room creation followed by a forced dynamic `POST /api/rooms/:roomCode/join` plain-text 503, inline `#create-room-error`, a message-specific `Failed to join room as host` toast, create fields described by the alert without invalid field semantics, preserved `/join` URL, created-room state with zero players, and serious/critical axe coverage.
 - Market host auto-join outage evidence verified `/market/440298192` real room creation followed by a forced dynamic `POST /api/rooms/:roomCode/join` plain-text 503, inline `#market-start-room-error`, a message-specific `Failed to join room as host` toast, Start a Bid `aria-describedby` linkage, preserved market-detail URL, created-room state with zero players, and serious/critical axe coverage.
+- Market trust evidence verified `/market/440298192` renders a desktop/mobile trust explainer for play-money credits, LMSR Over probability, market-implied fair value, `MLSListings Inc` provenance with `Checked Feb 7, 2026`, and host settlement/event replay evidence, with serious/critical axe coverage and no console/page errors in the rendered visual probe.
 
 ## Screenshots Or Traces
 
@@ -1027,6 +1043,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-settled.png`
 - `/tmp/fairvalue-host-token-settled.png`
 - `/tmp/fairvalue-room-code-digit-join.png`
+- `/tmp/fairvalue-market-trust-desktop.png`
+- `/tmp/fairvalue-market-trust-mobile.png`
 - Playwright E2E is configured to retain screenshots, traces, and videos on failure under `test-results/e2e-artifacts`; the passing run produced no failure screenshots/videos.
 - `playwright-report/index.html` was generated locally for the passing E2E run and is ignored by git.
 - `docs/accessibility-assistive-tech-notes.md` records the macOS AX and Playwright ARIA excerpts from the headed assistive-tech pass.
@@ -1124,14 +1142,17 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `8900e7f` - Cover join page host auto-join outage.
 - `a20c5fb` - Record join page host auto-join evidence.
 - `7c26265` - Cover market host auto-join outage.
+- `733e346` - Record market host auto-join evidence.
+- `b35d060` - Explain market trust mechanics.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
-3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-6. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-7. Run `npm run check:production` against the actual deployment environment once production env values are available.
-8. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
+2. Propagate trust/risk language into host/player room entry and settlement recap surfaces so the multiplayer loop is as explicit as the solo market page about simulated credits, settlement authority, and non-appraisal status.
+3. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+6. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
+7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+8. Run `npm run check:production` against the actual deployment environment once production env values are available.
+9. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
