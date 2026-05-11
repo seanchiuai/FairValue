@@ -46,6 +46,24 @@ test('join flow reports malformed and nonexistent room codes', async ({ page }) 
   await expect(page.getByText('Room not found')).toBeVisible();
 });
 
+test('direct player join announces missing nickname before submitting', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  let joinRequestCount = 0;
+  page.on('request', (sentRequest) => {
+    if (sentRequest.url().includes(`/api/rooms/${roomCode}/join`)) joinRequestCount += 1;
+  });
+
+  await page.goto(`/play/${roomCode}`);
+  await expect(page.getByLabel('Player nickname')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Join Room$/ })).toBeEnabled();
+  await page.getByRole('button', { name: /^Join Room$/ }).click();
+  await expect(page.locator('#player-join-error')).toContainText('Enter your name');
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Enter your name' })).toBeVisible();
+  expect(joinRequestCount).toBe(0);
+});
+
 test('fake host token cannot settle a room from the host UI', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.addInitScript((code) => {
