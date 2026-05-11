@@ -20,6 +20,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Rooms, room event logs, settlement state, and bet idempotency receipts now survive local backend restarts through file-backed JSON snapshots at `.fairvalue/rooms.json` by default, with `FAIRVALUE_ROOM_STORE_PATH` and `FAIRVALUE_ROOM_PERSISTENCE=off` controls.
 - Local JSON room snapshots now quarantine malformed snapshot files as `.corrupt-*` beside the configured path, log the quarantine path without snapshot contents, and restart with an empty room map instead of crashing on parse.
 - Local JSON room snapshots can now be encrypted at rest with `FAIRVALUE_ROOM_SNAPSHOT_SECRET`; plaintext snapshots still load, encrypted snapshots fail closed without the secret, and the E2E/profile snapshot readers use the persistence adapter so encrypted evidence runs remain supported.
+- Local JSON room snapshots now prune settled rooms after `FAIRVALUE_ROOM_RETENTION_DAYS` days by defaulting to 30 days; active rooms and rooms without room-specific timestamps are retained, and `0`/`off` disables local pruning.
 - Vite dev proxying honors the same backend target env as the WebSocket client, so `/api` and `/ws` both point at the intended backend when fresh E2E/dev servers run on non-default ports.
 - Browser E2E now has an isolated fresh-server script, a multiplayer burst/API/WebSocket test, and a serious axe accessibility gate over join, host, and mobile player surfaces.
 - Accessibility pass tightened the app color tokens and added missing names for the AI send button, public URL input, QR SVG, and host settle button contrast.
@@ -98,6 +99,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 accessibility edge-state pass: focused edge E2E first caught serious Leaflet popup contrast failures, then passed after popup styling fixes; full `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 5 Chromium tests, full `npm run test:e2e:isolated` passed 10 Chromium tests, and `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 corrupt snapshot recovery pass: `npm run test:server` passed 27 server tests including malformed JSON snapshot quarantine/rewrite coverage; `npm run test:e2e:restart` passed the Chromium repeated-backend-restart harness; `npm run verify` passed client secret scan, 27 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 encrypted snapshot pass: `node --test server/__tests__/restartPersistence.test.js` passed plaintext and encrypted child-process restart restore cases; `FAIRVALUE_ROOM_SNAPSHOT_SECRET=playwright-encrypted-restart npm run test:e2e:restart` passed the Chromium repeated-backend-restart harness with encrypted local snapshots; final `npm run verify` passed client secret scan, 29 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 local retention pass: `npm run test:server` passed 30 server tests including settled-room retention pruning; `npm run test:e2e:restart` passed the Chromium repeated-backend-restart harness; `npm run verify` passed client secret scan, 30 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -105,7 +107,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host-only settlement and AI toggles now accept durable signed host identity for newly created rooms while still supporting legacy room host tokens.
 - Room connections, rate-limit buckets, and AI bot intervals are still process-local; restored rooms intentionally do not auto-resume AI intervals after restart.
 - The Postgres snapshot adapter is covered by fake-SQL tests, disposable local Postgres, and a no-credential live-readiness skip path; actual Neon write/read/delete smoke still needs `DATABASE_URL` in this environment.
-- Room snapshot persistence still lacks a retention policy.
+- Postgres room snapshot rows still need a production retention/erasure policy once a real database environment is available.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
@@ -119,8 +121,18 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+4. Design and verify Postgres room snapshot retention/erasure against a real database environment.
 
 ## Iteration History
+
+### 2026-05-11 - Local Snapshot Retention
+
+- Added configurable local JSON room snapshot retention through `FAIRVALUE_ROOM_RETENTION_DAYS`, defaulting to 30 days.
+- Pruned only settled rooms whose latest room event/activity timestamp is older than the configured window.
+- Kept active rooms and timestamp-less rooms to avoid unexpected room loss.
+- Rewrote the local snapshot after pruning so expired settled rooms and their host tokens leave the JSON store.
+- Documented the retention control in `.env.example` and the README.
+- Added server coverage proving an expired settled room is pruned while a recent settled room and an old active room remain.
 
 ### 2026-05-11 - Encrypted Local Snapshots
 
@@ -702,6 +714,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Accessibility edge-state E2E verified `/join` create/join validation alerts with field-level invalid/described-by semantics, `/host/:roomCode` settle validation alerts, `/` map marker accessible labels, and Leaflet popup link/contrast behavior.
 - Corrupt snapshot recovery verified a malformed local JSON room snapshot is renamed to `.corrupt-*`, the recovery path logs only the quarantine/source paths, fresh snapshot writes still work afterward, and the rendered backend restart harness remains green.
 - Encrypted snapshot evidence verified local JSON snapshots omit host token/address plaintext when `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, wrong/missing secrets fail closed, encrypted child-process restart restores the room, and the rendered restart harness passes with encrypted snapshots enabled.
+- Local retention evidence verified an expired settled room is removed from the JSON snapshot, recent settled and old active rooms remain, rendered restart recovery still works, and full verify remains green.
 
 ## Screenshots Or Traces
 
@@ -770,10 +783,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `e6c71fe` - Harden accessibility edge states.
 - `31e54db` - Recover corrupt room snapshots.
 - `e4a099a` - Encrypt local room snapshots.
+- `ac11618` - Prune expired local room snapshots.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-4. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
+4. Design and verify Postgres room snapshot retention/erasure against a real database environment.
+5. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
