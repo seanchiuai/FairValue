@@ -130,7 +130,7 @@ async function waitForHttp(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    if (proc?.child.exitCode !== null) {
+    if (proc && proc.child.exitCode !== null) {
       throw new Error(`${proc.label} exited early while waiting for ${url}.\n${proc.logs.join('')}`);
     }
 
