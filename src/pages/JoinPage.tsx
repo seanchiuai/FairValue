@@ -2,16 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
+import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
 import { useToast } from '../contexts/ToastContext';
 import { Home, Users, Plus, LogIn } from 'lucide-react';
 
 type RoomCreateResponse = {
   room_code?: string;
   host_token?: string;
-  error?: string;
-};
-
-type RoomJoinResponse = {
   error?: string;
 };
 
@@ -111,8 +108,14 @@ export default function JoinPage() {
           nickname: cleanName,
         }),
       });
-      const joinData = await readJson<RoomJoinResponse>(joinRes);
-      if (!joinRes.ok || joinData.error) throw new Error(joinData.error || 'Failed to join room as host');
+      const joinData = await readRoomMutationResponse(joinRes);
+      const joinError = getRoomJoinError(
+        joinRes,
+        joinData,
+        'Failed to join room as host',
+        'Host join response was invalid'
+      );
+      if (joinError) throw new Error(joinError);
 
       navigate(`/host/${data.room_code}`);
     } catch (err: unknown) {
@@ -152,8 +155,9 @@ export default function JoinPage() {
           nickname: cleanName,
         }),
       });
-      const data = await readJson<RoomJoinResponse>(res);
-      if (!res.ok || data.error) throw new Error(data.error || 'Failed to join room');
+      const data = await readRoomMutationResponse(res);
+      const joinError = getRoomJoinError(res, data);
+      if (joinError) throw new Error(joinError);
 
       saveNickname(cleanName);
       navigate(`/play/${cleanCode}`);

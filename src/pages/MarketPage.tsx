@@ -22,6 +22,7 @@ import {
 import { useProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
+import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
 import { useToast } from '../contexts/ToastContext';
@@ -32,10 +33,6 @@ const startRoomErrorId = 'market-start-room-error';
 type RoomCreateResponse = {
   room_code?: string;
   host_token?: string;
-  error?: string;
-};
-
-type RoomJoinResponse = {
   error?: string;
 };
 
@@ -121,8 +118,14 @@ const MarketPage: React.FC = () => {
           nickname: 'Host',
         }),
       });
-      const joinData = await readJson<RoomJoinResponse>(joinRes);
-      if (!joinRes.ok || joinData.error) throw new Error(joinData.error || 'Failed to join room as host');
+      const joinData = await readRoomMutationResponse(joinRes);
+      const joinError = getRoomJoinError(
+        joinRes,
+        joinData,
+        'Failed to join room as host',
+        'Host join response was invalid'
+      );
+      if (joinError) throw new Error(joinError);
 
       navigate(`/host/${data.room_code}`);
     } catch (err: unknown) {

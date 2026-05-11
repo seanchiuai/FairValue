@@ -2,6 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { executeBuy, buyWithBudget } from '../lib/lmsr';
 import { buildUserAuthHeaders } from '../lib/fairValueAuth';
+import {
+  getRoomJoinError,
+  getRoomStateError,
+  isValidRoomStateResponse,
+  readRoomMutationResponse,
+  type RoomMutationResponse,
+} from '../lib/roomResponses';
 import type {
   Market,
   PlayerData,
@@ -17,37 +24,10 @@ import type {
 
 const CONNECTED_RECONCILE_INTERVAL_MS = 5000;
 
-type RoomMutationResponse = {
-  error?: string;
-  market?: Market;
-  players?: PlayerData[];
-  player?: PlayerData;
-  house?: House;
-  activity?: ActivityEntry[];
-  ai_enabled?: boolean;
-  host_user_id?: string | null;
-  settled?: boolean;
-  settlement?: SettleResult;
-};
-
 function generateBetIdempotencyKey() {
   const randomUUID = window.crypto?.randomUUID;
   if (typeof randomUUID === 'function') return randomUUID.call(window.crypto);
   return `bet-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-}
-
-async function readRoomMutationResponse(response: Response): Promise<RoomMutationResponse> {
-  return response.json().catch(() => ({}));
-}
-
-function isValidRoomState(data: RoomMutationResponse) {
-  return Boolean(data.market && data.house && Array.isArray(data.players));
-}
-
-function getRoomStateError(response: Response, data: RoomMutationResponse) {
-  if (!response.ok || data.error) return data.error || 'Room state unavailable';
-  if (!isValidRoomState(data)) return 'Room state response was invalid';
-  return '';
 }
 
 export function useRoom(roomCode: string, sessionId: string, userToken = '') {
@@ -128,7 +108,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   }, []);
 
   const applyFreshRoomState = useCallback((data: RoomMutationResponse) => {
-    if (!isValidRoomState(data)) return false;
+    if (!isValidRoomStateResponse(data)) return false;
     setMarket(data.market || null);
     setPlayers(data.players || []);
     setHouse(data.house || null);
@@ -256,10 +236,11 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         }),
       });
       const data = await readRoomMutationResponse(res);
-      if (!res.ok || data.error) throw new Error(data.error || 'Failed to join room');
-      if (data.market) setMarket(data.market);
-      if (data.players) setPlayers(data.players);
-      if (data.house) setHouse(data.house);
+      const error = getRoomJoinError(res, data);
+      if (error) throw new Error(error);
+      setMarket(data.market || null);
+      setPlayers(data.players || []);
+      setHouse(data.house || null);
       if (data.activity) setActivity(data.activity);
       setHostUserId(data.host_user_id || null);
       if (data.settled) setSettled(true);

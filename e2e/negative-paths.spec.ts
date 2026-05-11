@@ -264,6 +264,45 @@ test('direct player join API failure is announced without blaming the nickname',
   await expectNoSeriousAxeViolations(page, 'direct player join API failure notification state');
 });
 
+test('direct player join malformed success is announced without mutating the room', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.route(`**/api/rooms/${roomCode}/join`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  await page.goto(`/play/${roomCode}`);
+  await page.getByLabel('Player nickname').fill('Malformed Join Player');
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/join`) &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    page.getByRole('button', { name: /^Join Room$/ }).click(),
+  ]);
+
+  await expect(page.locator('#player-join-error')).toContainText('Join response was invalid');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Join response was invalid' })).toBeVisible();
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
+  await expect(page.getByLabel('Player nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByRole('button', { name: /^Join Room$/ })).toBeEnabled();
+  await expect(page).toHaveURL(new RegExp(`/play/${roomCode}$`));
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'direct player malformed join response notification state');
+});
+
 test('create room API failure is visible on the join page', async ({ page }) => {
   await page.route('**/api/rooms', async (route) => {
     if (route.request().method() !== 'POST') {
@@ -383,6 +422,48 @@ test('join page room-code API failure is announced without blaming input', async
   await expect(page.getByLabel('Room code')).not.toHaveAttribute('aria-invalid', 'true');
   await expect(page).toHaveURL(/\/join$/);
   await expectNoSeriousAxeViolations(page, 'join page room-code API failure notification state');
+});
+
+test('join page malformed join success is announced without navigating', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.route(`**/api/rooms/${roomCode}/join`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Join Room/ }).click();
+  await page.getByLabel('Player nickname').fill('Malformed Join Page');
+  await page.getByLabel('Room code').fill(roomCode.toLowerCase());
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/join`) &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    page.getByRole('button', { name: /^Join Room$/ }).click(),
+  ]);
+
+  await expect(page.locator('#join-room-error')).toContainText('Join response was invalid');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Join response was invalid' })).toBeVisible();
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'join-room-error');
+  await expect(page.getByLabel('Room code')).toHaveAttribute('aria-describedby', 'join-room-error');
+  await expect(page.getByLabel('Player nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Room code')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page).toHaveURL(/\/join$/);
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'join page malformed join response notification state');
 });
 
 test('player bet API failure rolls back and is announced', async ({ page, request }) => {
@@ -516,6 +597,54 @@ test('market detail host auto-join failure is visible to the host', async ({ pag
   const state = await stateResponse.json();
   expect(state.players).toHaveLength(0);
   await expectNoSeriousAxeViolations(page, 'market detail host auto-join failure notification state');
+});
+
+test('market detail malformed host auto-join success is visible to the host', async ({ page, request }) => {
+  let createdRoomCode = '';
+  await page.route(/\/api\/rooms\/[A-Z0-9]{4}\/join$/, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    createdRoomCode = route.request().url().match(/\/api\/rooms\/([A-Z0-9]{4})\/join$/)?.[1] || '';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  await page.goto('/market/440298192');
+  await expect(page.getByText('Multiplayer Mode')).toBeVisible({ timeout: 15_000 });
+
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/rooms') &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    page.waitForResponse((response) =>
+      /\/api\/rooms\/[A-Z0-9]{4}\/join$/.test(response.url()) &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    page.getByRole('button', { name: 'Start a Bid' }).click(),
+  ]);
+
+  expect(createdRoomCode).toMatch(/^[A-Z0-9]{4}$/);
+  await expect(page.locator('#market-start-room-error')).toContainText('Host join response was invalid');
+  await expect(page.getByRole('button', { name: 'Start a Bid' })).toHaveAttribute(
+    'aria-describedby',
+    'market-start-room-error'
+  );
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Host join response was invalid' })).toBeVisible();
+  await expect(page).toHaveURL(/\/market\/440298192$/);
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${createdRoomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'market detail malformed host auto-join notification state');
 });
 
 test('host page without authority explains disabled controls', async ({ page, request }) => {
