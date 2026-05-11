@@ -56,6 +56,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Player validation notifications now use the existing global toast system for join/bet errors while preserving inline alerts; error toasts announce assertively, non-error toasts announce politely, dismiss buttons are message-specific, mobile width is bounded, and the toast entrance no longer fades text through low-contrast states.
 - Host AI toggle failures now use the global toast system instead of console-only errors, so invalid/missing host authority is visible and announced to room operators; AI toggle success also emits a polite status notification.
 - Host settlement failures now preserve the modal inline error while also using the global toast system for announced, message-specific failure feedback; successful settlement emits a polite status toast.
+- The unused `useCloudFairValue` hook and `cloudPersistence` stub were removed so the client no longer carries a fake `api.fairvalue.io` fair-value sync surface or mock/stub cloud logging path.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
@@ -119,6 +120,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 player validation notification pass: `npm test -- ToastContainer` passed 1 suite / 2 tests, `npm run typecheck` passed, focused player-validation E2E first caught a serious toast contrast regression during the opacity animation, the fixed focused E2E passed, `npm test` passed 6 Vitest suites / 43 tests, `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 5 Chromium tests, full `npm run test:e2e:isolated` passed 10 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `VAE4`.
 - 2026-05-11 host action notification pass: focused fake-token AI-toggle E2E passed, `npm run typecheck` passed, first full isolated E2E run caught a strict-locator collision between the AI control and the new success-toast dismiss button, the fixed host/player flow passed, final full `npm run test:e2e:isolated` passed 11 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `DV6G`.
 - 2026-05-11 settlement notification pass: focused fake-token settlement E2E passed, `npm run typecheck` passed, full `npm run test:e2e:isolated` passed 11 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.67 kB / 760.00 kB, and `smoke:boot` with room `3IO2`.
+- 2026-05-11 fake cloud-sync removal pass: repository search found no remaining `useCloudFairValue`, `cloudPersistence`, `fairvalue_cloud_data`, `api.fairvalue.io`, `VITE_COGNEE_API_URL`, mock API endpoint, or stub implementation references under `src`, `server`, `e2e`, `README.md`, or `package.json`; `npm run scan:secrets`, `npm run typecheck`, `git diff --check`, and final `npm run verify` passed with 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets, and `smoke:boot` room `CVKK`.
 
 ## Current Known Risks
 
@@ -148,6 +150,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Fake Cloud Sync Removal
+
+- Removed the unused `src/hooks/useCloudFairValue.ts` hook that attempted to sync fair values to a mock/public cloud API URL.
+- Removed the unused `src/services/cloudPersistence.ts` stub that logged fake listener/cleanup calls and described unsupported cross-tab cloud sync behavior.
+- Verified there are no remaining references to the hook, service, local fair-value cache key, mock endpoint, or old `VITE_COGNEE_API_URL` client env path in the app/test/docs surfaces searched.
+- Kept the real Cognee AI path server-routed through the existing `src/services/cogneeService.ts` boundary.
 
 ### 2026-05-11 - Settlement Failure Notifications
 
@@ -831,6 +840,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "fake host token cannot settle"` -> passed 1 Chromium test, proving the inline modal error and global error toast both announce the invalid host token.
 - Full `npm run test:e2e:isolated` after settlement notification patch -> passed 11 Chromium tests, including host/player flow, resilience/accessibility states, keyboard flow, negative paths, fake-token settlement announcement, and fake-token AI-toggle announcement.
 - Final `npm run verify` after settlement notification patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.67 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:57217`, room `3IO2`.
+- `rg -n "useCloudFairValue|cloudPersistence|fairvalue_cloud_data|api\\.fairvalue\\.io|VITE_COGNEE_API_URL|mock API endpoint|stub implementation" src server e2e README.md package.json` after fake cloud-sync removal -> no matches.
+- `npm run scan:secrets` after fake cloud-sync removal -> passed.
+- `npm run typecheck` after fake cloud-sync removal -> passed.
+- `git diff --check` after fake cloud-sync removal -> passed.
+- Final `npm run verify` after fake cloud-sync removal -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.67 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:60103`, room `CVKK`.
 
 ## Screens And Routes Verified
 
@@ -887,6 +901,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Player notification evidence verified `/play/:roomCode` invalid `$0` wager feedback through inline alert semantics, `aria-invalid` / `aria-describedby` linkage on the custom wager input, a message-specific dismissible error toast, and serious/critical axe coverage in the full isolated Chromium suite.
 - Host action notification evidence verified `/host/:roomCode` fake-token AI-toggle rejection through a message-specific `Invalid host token` alert toast, unchanged `aria-pressed=false` AI control state, and server state with `ai_enabled=false`; the happy-path host flow also verifies exact AI-control button names with success toasts present.
 - Settlement notification evidence verified `/host/:roomCode` fake-token settlement rejection through inline modal `#settle-error`, a message-specific `Invalid host token` alert toast, unchanged unsettled server state, and serious/critical axe coverage through the full isolated Chromium suite.
+- Fake cloud-sync removal evidence verified the client source no longer contains the unused mock `api.fairvalue.io` fair-value sync hook, its local `fairvalue_cloud_data` cache key, or the stub cloud persistence listener; the real backend boot smoke still proved the degraded-local HTTP/WebSocket room path with room `CVKK`.
 
 ## Screenshots Or Traces
 
@@ -976,6 +991,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `9aa0631` - Announce host AI toggle failures.
 - `aab465c` - Record host action notification evidence.
 - `793c0a3` - Announce settlement failures.
+- `9453546` - Record settlement notification evidence.
+- `9615bdf` - Remove unused cloud fair value stub.
 
 ## Next Action Queue
 
