@@ -10,15 +10,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Baseline backend load before patch failed because `DATABASE_URL` was missing and `server/db.js` called Neon at module load.
 - Backend now supports local degraded database mode when `DATABASE_URL` is missing.
 - Cognee AI now routes through server endpoints and degrades when `COGNEE_API_KEY` is missing.
-- Local verification stack ran with backend on `http://localhost:8000` and frontend on `http://localhost:3001`.
-- Local frontend WebSockets now connect directly to the backend in CRA dev mode when the frontend runs on a different port.
+- Local verification stack has run with backend on `http://localhost:8000` and frontend on managed Vite ports such as `http://127.0.0.1:3010`.
+- Local frontend WebSockets now connect directly to the backend in Vite dev mode when the frontend runs on a different port.
 - Betting now requires idempotency keys, room mutations validate payloads server-side, guarded API routes have in-memory rate limits, and every API response includes a correlation ID.
 - Rooms now emit append-only events for creation, joins, reconnect/leave, bets, AI phase changes, AI trades, settlement, and room-scoped errors; host-only audit and replay endpoints reconstruct room state from the event stream.
-- Backend and frontend LMSR/domain behavior now routes through `src/lib/marketEngine.js`; server room markets use the canonical snake_case market state shape.
-- Playwright E2E now runs the primary host/player room loop through the real CRA frontend and backend with managed web servers, Chromium execution, and retained screenshots/traces/videos on failure.
-- Runtime dependencies are now separated from CRA/test/type tooling; `npm audit --omit=dev` reports zero vulnerabilities after removing the unused `codex` package and applying compatibility-safe overrides.
+- Backend LMSR/domain behavior now routes through `src/lib/marketEngine.js`; the browser LMSR wrapper stays ESM-native for Vite and has parity tests against the canonical server engine.
+- Playwright E2E now runs the primary host/player room loop through the real Vite frontend and backend with managed web servers, Chromium execution, and retained screenshots/traces/videos on failure.
+- Runtime dependencies are now separated from frontend test/type tooling; full `npm audit --json` and production `npm audit --omit=dev --json` both report zero vulnerabilities after migrating off CRA/react-scripts.
 - Rooms, room event logs, settlement state, and bet idempotency receipts now survive local backend restarts through file-backed JSON snapshots at `.fairvalue/rooms.json` by default, with `FAIRVALUE_ROOM_STORE_PATH` and `FAIRVALUE_ROOM_PERSISTENCE=off` controls.
-- CRA dev proxying now honors the same backend target env as the WebSocket client, so `/api` and `/ws` both point at the intended backend when fresh E2E/dev servers run on non-default ports.
+- Vite dev proxying honors the same backend target env as the WebSocket client, so `/api` and `/ws` both point at the intended backend when fresh E2E/dev servers run on non-default ports.
 - Browser E2E now has an isolated fresh-server script, a multiplayer burst/API/WebSocket test, and a serious axe accessibility gate over join, host, and mobile player surfaces.
 - Accessibility pass tightened the app color tokens and added missing names for the AI send button, public URL input, QR SVG, and host settle button contrast.
 - Negative-path browser coverage now exercises malformed/nonexistent room-code errors, fake host-token settlement rejection, join rate-limit retry metadata, and missing Cognee-key AI Analyst degradation.
@@ -41,6 +41,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Keyboard and screen-reader-adjacent E2E now verifies browse search clear, sort menu keyboard selection/Escape/focus restoration, join-mode keyboard entry/autofocus/error alerts, settle dialog initial focus/Escape/focus restoration, missing-key AI alert semantics, and mobile wager keyboard activation.
 - Restart/load browser recovery now has an explicit Chromium/Firefox/WebKit matrix command that runs the same real backend restart harness with retrying API load waves.
 - Restart/load latency now has a deterministic local profile command that starts the real backend, drives create/join/bet/state traffic through a backend restart, records p50/p95/max plus recovery timings, and fails on explicit local latency budgets.
+- Frontend dev/build/test tooling now uses Vite and Vitest instead of Create React App/react-scripts; the old CRA proxy template, web-vitals hook, and `%PUBLIC_URL%` HTML template are removed.
 
 ## Current Test Status
 
@@ -73,6 +74,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 keyboard accessibility pass: `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 4 Chromium tests; `npm run test:e2e:isolated` passed 9 Chromium tests; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 restart browser matrix pass: `npx playwright test --list -c playwright.restart.matrix.config.ts` listed Chromium, Firefox, and WebKit restart-recovery projects; `npm run test:e2e:restart` passed the default Chromium restart/load test; `npm run test:e2e:restart:matrix` passed Chromium, Firefox, and WebKit restart/load recovery; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 restart latency profile pass: `npm run test:latency:restart` passed with create p95 84ms, join p95 263ms, bet p95 161ms, state p95 69ms, settle p95 8ms, restart readiness 1271ms, first recovered state 1478ms, and recovery wave 1696ms; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-11 Vite/Vitest toolchain pass: `npm test` passed 5 Vitest suites / 41 tests; `npm run build` passed with Vite; `npm audit --json` and `npm audit --omit=dev --json` both reported 0 vulnerabilities; `npm run test:e2e:isolated` passed 9 Chromium tests on Vite frontend `3010` / backend `8010`; `npm run test:e2e:restart` passed the Chromium restart harness; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit host/player flow; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, and Vite production build; `npm run test:e2e:restart:matrix` passed Chromium, Firefox, and WebKit restart/load recovery.
 
 ## Current Known Risks
 
@@ -82,20 +84,30 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - The Postgres snapshot adapter is covered by fake-SQL tests and disposable local Postgres, but not by a live Neon smoke in this environment.
 - Room snapshot persistence still lacks retention policy, corruption recovery, and encryption-at-rest.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
-- Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
+- Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
 - Load coverage now includes a bounded synthetic burst, a 24-player wave soak, and a local restart/load latency profile, but not browser-driven high-concurrency soak or production-like traffic mix.
 - Accessibility coverage now gates serious/critical axe violations plus keyboard/screen-reader-adjacent behavior on the most important browse, join, host, player, settle, and AI fallback states; it still does not cover every route, every possible modal branch, or real assistive-technology/manual VoiceOver behavior.
-- Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
+- Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
 
 ## Current Backlog Ranked By Impact
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
-2. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
-3. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
+2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
+3. Add Vite bundle-splitting/performance profiling for the large main chunk and map bundle.
 
 ## Iteration History
+
+### 2026-05-11 - Vite/Vitest Toolchain Migration
+
+- Replaced `react-scripts` with Vite for dev/build and Vitest for unit tests.
+- Added root `index.html` and `vite.config.ts` with `/api` and `/ws` proxying through `VITE_BACKEND_PORT` / `VITE_API_BASE_URL`.
+- Removed CRA-only `public/index.html`, `src/setupProxy.js`, `src/reportWebVitals.ts`, CRA env references, and active `REACT_APP_*` config paths.
+- Migrated Jest globals to Vitest `vi`, switched `setupTests.ts` to `@testing-library/jest-dom/vitest`, and preserved the server market-engine parity test with Node `createRequire`.
+- Kept the browser LMSR wrapper ESM-native so Vite dev server does not import the CommonJS server engine into browser modules.
+- Updated Playwright managed frontend commands and the restart harness to launch Vite with explicit host/port args.
+- Updated docs and env samples for Vite/Vitest, and ignored generated `/dist`.
 
 ### 2026-05-11 - Restart Load Latency Profile
 
@@ -535,6 +547,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Keyboard accessibility E2E verified keyboard operation and alert/focus semantics on `/`, `/join`, `/host/:roomCode`, and `/play/:roomCode`.
 - Restart matrix E2E verified the rendered real backend restart/load recovery path across Chromium, Firefox, and WebKit.
 - Restart latency profile verified the real backend API path for `/api/rooms`, `/join`, `/bet`, `/state`, and `/settle` through a backend outage/restart with explicit latency budgets.
+- Vite migration verified `react-scripts` and `webpack-dev-server` are absent, full and production audits report zero vulnerabilities, Vite build passes, Vitest unit tests pass, isolated browser E2E passes, host/player matrix passes, and restart matrix passes.
 
 ## Screenshots Or Traces
 
@@ -590,10 +603,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `a65f3b1` - Add restart recovery browser matrix.
 - `5d74cda` - Record restart matrix evidence.
 - `b1e5b47` - Add restart latency profile.
+- `a77289b` - Migrate frontend toolchain to Vite.
 
 ## Next Action Queue
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
-2. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
-3. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
+2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
+3. Add Vite bundle-splitting/performance profiling for the large main chunk and map bundle.
 4. Start the next loop with `npm run verify`, then inspect actual VoiceOver/manual assistive-tech gaps in the rendered browse, host, player, join, and market surfaces.
