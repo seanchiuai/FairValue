@@ -16,6 +16,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Rooms now emit append-only events for creation, joins, reconnect/leave, bets, AI phase changes, AI trades, settlement, and room-scoped errors; host-only audit and replay endpoints reconstruct room state from the event stream.
 - Backend and frontend LMSR/domain behavior now routes through `src/lib/marketEngine.js`; server room markets use the canonical snake_case market state shape.
 - Playwright E2E now runs the primary host/player room loop through the real CRA frontend and backend with managed web servers, Chromium execution, and retained screenshots/traces/videos on failure.
+- Runtime dependencies are now separated from CRA/test/type tooling; `npm audit --omit=dev` reports zero vulnerabilities after removing the unused `codex` package and applying compatibility-safe overrides.
 
 ## Current Test Status
 
@@ -30,6 +31,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 unified-market-engine pass: `npm run verify` passed: client secret scan, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-10 Playwright E2E pass: `npm run test:e2e` passed 1 Chromium test covering host create, two player joins, bets, leaderboard/activity updates, AI toggle, reconnect/refresh, and settlement.
 - 2026-05-10 post-E2E pass: `npm run verify` passed: client secret scan, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-10 dependency audit pass: `npm audit --omit=dev --json` reported 0 vulnerabilities; full `npm audit --json` reported only 2 moderate dev-only findings from CRA's `webpack-dev-server`; `npm run verify` and `npm run test:e2e` passed.
 
 ## Current Known Risks
 
@@ -37,16 +39,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host-only settlement and AI toggles now require a room host capability token, but durable user identity is still missing.
 - Room state, event logs, idempotency receipts, and rate-limit buckets are still in memory and will not survive process restart.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
-- npm audit currently reports 47 vulnerabilities, including 28 high severity.
+- Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
 - Load, accessibility, broader E2E matrix coverage, and deeper security test layers are still missing.
 
 ## Current Backlog Ranked By Impact
 
-1. Address npm audit vulnerabilities without breaking CRA compatibility.
-2. Move volatile room/session state toward durable storage.
+1. Move volatile room/session state toward durable storage.
+2. Persist room event logs outside process memory.
 3. Add load and accessibility checks around the multiplayer room loop.
 4. Expand Playwright beyond the happy path to auth failures, rate limits, and degraded AI.
-5. Persist room event logs outside process memory.
+5. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
 ## Iteration History
 
@@ -127,6 +129,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Added a deterministic E2E spec that creates a room through the UI, joins two mobile players by room code, verifies desktop and mobile viewports, places OVER and UNDER bets, checks host stats, leaderboard, and activity, toggles AI on and off, refreshes a player for reconnect recovery, and settles the room.
 - Added small accessibility/testability labels and stable test IDs to join, bet, host stat, leaderboard, activity, position, and settlement surfaces without changing visual behavior.
 
+### 2026-05-10 - Dependency Audit Runtime Cleanup
+
+- Removed the unused direct `codex` npm package, which was pulling obsolete vulnerable `connect`, `marked`, `highlight.js`, `tea`, `orchid`, and legacy `ws` dependencies.
+- Moved CRA, Jest/testing-library, TypeScript, web-vitals, and type packages into `devDependencies` so production audit reflects the Node/runtime install surface.
+- Ran non-forced `npm audit fix` to update compatible patched transitive packages, including Express runtime transitive fixes for `path-to-regexp` and `qs`.
+- Added bounded npm overrides for `@tootallnate/once`, `bfj`, `nth-check`, `postcss`, `serialize-javascript`, and `underscore`, then proved CRA still builds and tests pass.
+- Added `yaml` as an explicit dev dependency to satisfy Tailwind/postcss-load-config's optional peer while keeping vulnerable YAML 1.x out of the root peer slot.
+- Left the remaining 2 moderate full-audit findings as an explicit CRA dev-server/toolchain migration item because npm's advertised fix is the breaking `react-scripts@0.0.0` path.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -175,6 +186,18 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npx playwright install chromium` -> completed successfully.
 - `npm run test:e2e` after Playwright E2E patch -> passed 1 Chromium test covering host creation, two player joins, two bets, host stats, leaderboard, activity feed, AI toggle, player refresh/reconnect, and settlement.
 - `npm run verify` after Playwright E2E patch -> passed: `scan:secrets`, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm audit --json` at the start of dependency-audit pass -> 47 vulnerabilities before cleanup.
+- `npm install` after dependency split and unused `codex` removal -> removed 31 packages and reduced full audit to 40 vulnerabilities.
+- `npm audit --omit=dev --json` after dependency split -> 2 production findings: `path-to-regexp` and `qs`.
+- `npm audit fix` -> updated compatible transitive packages; production audit then reported 0 vulnerabilities.
+- `npm install -D yaml@^2.4.2` -> resolved the Tailwind/postcss-load-config optional peer conflict and left production audit clean.
+- `npm install` after bounded overrides -> reduced full audit to 2 moderate dev-only findings, both through `react-scripts` -> `webpack-dev-server`.
+- `npm audit --omit=dev --json` final -> 0 vulnerabilities.
+- `npm audit --json` final -> 2 moderate vulnerabilities, both dev-only `webpack-dev-server` findings reachable through `react-scripts`.
+- SVGO v1 smoke through `new SVGO().optimize(...)` -> passed after the `nth-check` override.
+- `npm run verify` after dependency-audit patch -> passed: `scan:secrets`, 13 server tests, 5 React/Jest suites / 41 tests, and production build. Jest emitted a Watchman recrawl warning, not a test failure.
+- `npm run test:e2e` after dependency-audit patch -> passed 1 Chromium host/player room-flow test.
+- `PORT=3011 BROWSER=none REACT_APP_BACKEND_PORT=8000 npm start` -> CRA dev server compiled successfully on `http://localhost:3011`; `curl /` and `curl /join` returned HTML; the temporary server was stopped.
 
 ## Screens And Routes Verified
 
@@ -211,10 +234,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `8cbecb1` - Add room event log replay.
 - `1249f4b` - Unify LMSR market engine.
 - `3c6b3e2` - Add Playwright room flow E2E.
+- `b792157` - Record Playwright E2E evidence.
+- `2551685` - Reduce dependency audit surface.
 
 ## Next Action Queue
 
-1. Address npm audit vulnerabilities without breaking CRA compatibility.
-2. Move volatile room/session state toward durable storage.
+1. Move volatile room/session state toward durable storage.
+2. Persist room event logs outside process memory.
 3. Add load and accessibility checks around the multiplayer room loop.
-4. Start the next loop with `npm run verify`, then triage npm audit fixes in small compatibility-safe batches.
+4. Start the next loop with `npm run verify`, then design the smallest durable room-state adapter that preserves current local degraded mode.
