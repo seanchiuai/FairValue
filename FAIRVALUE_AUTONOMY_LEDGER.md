@@ -38,6 +38,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Connected room clients now perform low-frequency state reconciliation while WebSocket remains primary, so rendered state can heal if a browser misses an otherwise successful broadcast.
 - Restart E2E now combines rendered backend restart recovery with retrying API load waves while the backend is down and recovering, ending with 15 players, 15 trades, settlement, and snapshot reconciliation in the Chromium restart harness.
 - Expanded accessibility E2E now covers browse/search/sort, property detail, mobile create/join forms, host settle modal, missing-key AI fallback, and mobile custom-wager states; expected Cognee missing-key 503 resource errors are asserted as degraded-path evidence while other console/page errors still fail.
+- Keyboard and screen-reader-adjacent E2E now verifies browse search clear, sort menu keyboard selection/Escape/focus restoration, join-mode keyboard entry/autofocus/error alerts, settle dialog initial focus/Escape/focus restoration, missing-key AI alert semantics, and mobile wager keyboard activation.
 
 ## Current Test Status
 
@@ -67,6 +68,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 browser matrix/soak pass: `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run test:e2e:soak` passed the 24-player wave profile; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed the sustained restart test.
 - 2026-05-11 restart/load combination pass: `npm run test:e2e:restart` passed the rendered restart test with retrying load waves during backend outage/recovery; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 expanded accessibility route pass: `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 3 Chromium tests; `npm run test:e2e:isolated` passed 8 Chromium tests; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-11 keyboard accessibility pass: `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 4 Chromium tests; `npm run test:e2e:isolated` passed 9 Chromium tests; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Current Known Risks
 
@@ -78,18 +80,27 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
 - Load coverage now includes a bounded synthetic burst and a 24-player wave soak, but not a k6-style latency profile, browser-driven high-concurrency soak, or production-like traffic mix.
-- Accessibility coverage now gates serious/critical axe violations on core room surfaces plus browse/search/sort, property detail, mobile create/join forms, settle modal, missing-key AI fallback, and custom-wager states; it still does not cover every route, every possible modal branch, or manual screen-reader behavior.
+- Accessibility coverage now gates serious/critical axe violations plus keyboard/screen-reader-adjacent behavior on the most important browse, join, host, player, settle, and AI fallback states; it still does not cover every route, every possible modal branch, or real assistive-technology/manual VoiceOver behavior.
 - Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
 - Broader accessibility and deeper security test layers are still missing.
 - Restart recovery is proven for one rendered Chromium host/two-player path across repeated backend restarts and retrying API load waves, but restart recovery itself is not yet multi-engine or k6/latency-profiled.
 
 ## Current Backlog Ranked By Impact
 
-1. Add manual screen-reader-adjacent checks and remaining route/modal accessibility states.
+1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
 2. Add a browser-engine restart matrix or k6-style latency profile for restart/load paths.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
 ## Iteration History
+
+### 2026-05-11 - Keyboard Accessibility Flow Coverage
+
+- Added a Playwright keyboard/screen-reader-adjacent test for browse search, clear-search, sort-menu selection, sort Escape close, join-mode keyboard entry, validation alert semantics, host settle dialog focus behavior, missing-key AI alert semantics, and mobile wager keyboard activation.
+- Added explicit label associations and `role="alert"` validation errors to create/join room forms.
+- Added sort-menu `aria-expanded`, `aria-haspopup`, `role="menu"`, `role="menuitemradio"`, Escape close, and focus restoration after option selection.
+- Added settle dialog description wiring, actual-price label association, error alert semantics, and focus restoration to the Settle button after Escape/close.
+- Added AI chat `role="log"` semantics and alert semantics for degraded missing-key AI responses without introducing console errors.
+- Documented the keyboard/screen-reader-adjacent isolated E2E scope in `README.md`.
 
 ### 2026-05-11 - Expanded Accessibility Route Coverage
 
@@ -457,6 +468,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Final `npm run verify` after expanded accessibility patch -> passed: `scan:secrets`, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - Final `npm run test:e2e:matrix` after expanded accessibility patch -> passed 3 projects in 1.0m: Chromium, Firefox, and WebKit.
 - Snapshot probe after expanded accessibility patch -> isolated rooms `GLLW`, `OH5H`, `QZJG`, `YTAH`, `XAEE`, `YHFH`, `UJ65`; matrix rooms `9SBF`, `I2CD`, and `UIOV` each had 3 players, 2 trades, 2 receipts, 25 events, settled true, and no durability error.
+- Initial keyboard accessibility focused run exposed that selecting a sort option dropped focus instead of returning it to the sort trigger; the sort component now restores focus after selection.
+- Follow-up keyboard accessibility focused run exposed that degraded missing-key AI responses were visible but not announced as alerts; the AI chat now marks degraded missing-key responses as alert-style error messages without logging console errors.
+- Final `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` after keyboard accessibility patch -> passed 4 Chromium tests.
+- Final `npm run test:e2e:isolated` after keyboard accessibility patch -> passed 9 Chromium tests.
+- Final `npm run verify` after keyboard accessibility patch -> passed: `scan:secrets`, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
+- Final `npm run test:e2e:matrix` after keyboard accessibility patch -> passed 3 projects: Chromium, Firefox, and WebKit.
+- Snapshot probe after keyboard accessibility patch -> isolated rooms `R1PQ`, `BQCL`, `XCPX`, `MLUF`, `Q5WS`, `DAR9`, `SOJQ`, `AMEP`; matrix rooms `Q5JO`, `DC2Q`, and `H4K5` each had 3 players, 2 trades, 2 receipts, settled true, and no durability error.
 
 ## Screens And Routes Verified
 
@@ -487,6 +505,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Soak E2E verified a 24-player / 24-bet API and WebSocket wave profile with idempotency replay, settlement, and persisted snapshot reconciliation.
 - Restart E2E verified rendered host/player recovery while retrying API load waves attempted joins/bets during real backend outage and recovery windows.
 - Expanded isolated accessibility E2E verified `/`, browse sort menu, `/market/440298192`, `/join` create/join forms, `/host/:roomCode` settle modal and missing-key AI fallback, and `/play/:roomCode` mobile custom-wager state with serious/critical axe checks.
+- Keyboard accessibility E2E verified keyboard operation and alert/focus semantics on `/`, `/join`, `/host/:roomCode`, and `/play/:roomCode`.
 
 ## Screenshots Or Traces
 
@@ -536,10 +555,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `9f52d92` - Add restart load recovery E2E coverage.
 - `3bb0392` - Record restart load recovery evidence.
 - `83893bc` - Expand accessibility route coverage.
+- `058e09a` - Record expanded accessibility evidence.
+- `14f9241` - Add keyboard accessibility flow coverage.
 
 ## Next Action Queue
 
-1. Add manual screen-reader-adjacent checks and remaining route/modal accessibility states.
+1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
 2. Add a browser-engine restart matrix or k6-style latency profile for restart/load paths.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
-4. Start the next loop with `npm run verify`, then inspect manual keyboard/screen-reader-adjacent gaps in the rendered browse, host, player, join, and market surfaces.
+4. Start the next loop with `npm run verify`, then inspect actual VoiceOver/manual assistive-tech gaps in the rendered browse, host, player, join, and market surfaces.
