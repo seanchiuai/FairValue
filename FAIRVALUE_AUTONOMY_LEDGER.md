@@ -56,7 +56,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Player validation notifications now use the existing global toast system for join/bet errors while preserving inline alerts; error toasts announce assertively, non-error toasts announce politely, dismiss buttons are message-specific, mobile width is bounded, and the toast entrance no longer fades text through low-contrast states.
 - Player bet API failures now treat non-OK or malformed mutation responses as failed bets, roll back optimistic market/player state, and announce the failure inline plus through the global toast system.
 - Direct player join validation and API failure paths now have browser proof that empty nicknames stay local-only, server join failures are announced without marking the nickname field invalid, and no failed join mutates room players.
-- Market detail room-start failures now surface inline on `/market/:propertyId` and through the global toast system instead of silently re-enabling the Start a Bid button.
+- Market detail Start a Bid room creation and host auto-join failures now surface inline on `/market/:propertyId` and through the global toast system instead of silently re-enabling the Start a Bid button.
 - Join-page create-room, host auto-join, and room-code join API failures now validate HTTP status and response shape before navigation, preserve inline errors, avoid blaming fields for backend outages, and emit message-specific global error toasts for async server failures.
 - Host AI toggle failures now use the global toast system instead of console-only errors, so invalid/missing host authority is visible and announced to room operators; AI toggle success also emits a polite status notification.
 - Host settlement failures now preserve the modal inline error while also using the global toast system for announced, message-specific failure feedback; successful settlement emits a polite status toast.
@@ -132,6 +132,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 direct player join API failure pass: focused E2E passed a forced non-JSON `POST /api/rooms/:roomCode/join` 503 branch, full `npm run test:e2e:isolated` passed 16 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `OGC4`.
 - 2026-05-11 join-page room-code outage pass: focused E2E passed a forced non-JSON `/join` room-code submit 503 branch, full `npm run test:e2e:isolated` passed 17 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `V22O`.
 - 2026-05-11 join-page host auto-join outage pass: focused E2E passed the partial-success branch where `/api/rooms` succeeds but the host auto-join returns a non-JSON 503; full `npm run test:e2e:isolated` passed 18 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `GPVX`.
+- 2026-05-11 market host auto-join outage pass: focused E2E passed the partial-success branch where `/market/:propertyId` room creation succeeds but the automatic host join returns a non-JSON 503; full `npm run test:e2e:isolated` passed 19 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.75 kB / 240.00 kB and total JS 659.63 kB / 760.00 kB, and `smoke:boot` room `RZIO`.
 
 ## Current Known Risks
 
@@ -145,7 +146,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, player-wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, player-wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -153,7 +154,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
@@ -161,6 +162,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Market Host Auto-Join Outage
+
+- Added browser coverage for the partial-success branch where `/market/:propertyId` room creation succeeds, a room code and host token are issued, but the automatic host join returns a plain-text `503`.
+- Verified the Start a Bid flow stays on `/market/440298192`, shows inline `#market-start-room-error`, emits the message-specific `Failed to join room as host` toast, links the button to the alert, and leaves the real created room with zero players.
+- Ran a serious/critical axe check on the partial-success failure state and updated README isolated E2E wording to include market-start room creation/host-auto-join outage coverage.
 
 ### 2026-05-11 - Join Page Host Auto-Join Outage
 
@@ -940,6 +947,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "host auto-join failure"` after letting room creation hit the real backend and intercepting only the dynamic host join with a non-JSON 503 -> passed 1 Chromium test.
 - Full `npm run test:e2e:isolated` after join-page host auto-join outage coverage -> passed 18 Chromium tests, including the partial-success host auto-join failure branch.
 - Final `npm run verify` after join-page host auto-join outage coverage -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.75 kB / 240.00 kB and total JS 659.63 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:51302`, room `GPVX`.
+- `git diff --check` after market host auto-join outage coverage -> passed.
+- `npm run typecheck` after market host auto-join outage coverage -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "market detail host auto-join failure"` after letting market room creation hit the real backend and intercepting only the dynamic host join with a non-JSON 503 -> passed 1 Chromium test.
+- Full `npm run test:e2e:isolated` after market host auto-join outage coverage -> passed 19 Chromium tests, including the partial-success market host auto-join failure branch.
+- Final `npm run verify` after market host auto-join outage coverage -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.75 kB / 240.00 kB and total JS 659.63 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:53862`, room `RZIO`.
 
 ## Screens And Routes Verified
 
@@ -1004,6 +1016,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Direct player join API failure evidence verified `/play/:roomCode` forced `POST /api/rooms/:roomCode/join` plain-text 503 feedback through inline `#player-join-error`, a message-specific `Failed to join room` toast, `aria-describedby` without incorrect nickname `aria-invalid`, preserved retry state/URL, unchanged server player list, and serious/critical axe coverage.
 - Join-page room join outage evidence verified `/join` forced `POST /api/rooms/FAIL/join` plain-text 503 feedback through inline `#join-room-error`, a message-specific `Failed to join room` toast, both fields described by the alert without invalid field semantics, preserved `/join` URL, and serious/critical axe coverage.
 - Join-page host auto-join outage evidence verified `/join` real room creation followed by a forced dynamic `POST /api/rooms/:roomCode/join` plain-text 503, inline `#create-room-error`, a message-specific `Failed to join room as host` toast, create fields described by the alert without invalid field semantics, preserved `/join` URL, created-room state with zero players, and serious/critical axe coverage.
+- Market host auto-join outage evidence verified `/market/440298192` real room creation followed by a forced dynamic `POST /api/rooms/:roomCode/join` plain-text 503, inline `#market-start-room-error`, a message-specific `Failed to join room as host` toast, Start a Bid `aria-describedby` linkage, preserved market-detail URL, created-room state with zero players, and serious/critical axe coverage.
 
 ## Screenshots Or Traces
 
@@ -1109,11 +1122,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `5cfecf6` - Cover join page room join outage.
 - `130f057` - Record join page room join outage evidence.
 - `8900e7f` - Cover join page host auto-join outage.
+- `a20c5fb` - Record join page host auto-join evidence.
+- `7c26265` - Cover market host auto-join outage.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, player wager, player-bet API failure rollback, settle, host-toggle, and settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
