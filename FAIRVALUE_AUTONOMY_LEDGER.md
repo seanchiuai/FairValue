@@ -43,6 +43,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart/load latency now has a deterministic local profile command that starts the real backend, drives create/join/bet/state traffic through a backend restart, records p50/p95/max plus recovery timings, and fails on explicit local latency budgets.
 - Frontend dev/build/test tooling now uses Vite and Vitest instead of Create React App/react-scripts; the old CRA proxy template, web-vitals hook, and `%PUBLIC_URL%` HTML template are removed.
 - Vite route splitting now keeps the `/join` entry flow eager for keyboard reliability while lazy-loading browse, market detail, host, and player routes; the largest production JS chunk dropped from about 512 kB to 199 kB and the build no longer emits the large-chunk warning.
+- `npm run verify` now includes a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
 
 ## Current Test Status
 
@@ -77,6 +78,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 restart latency profile pass: `npm run test:latency:restart` passed with create p95 84ms, join p95 263ms, bet p95 161ms, state p95 69ms, settle p95 8ms, restart readiness 1271ms, first recovered state 1478ms, and recovery wave 1696ms; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 Vite/Vitest toolchain pass: `npm test` passed 5 Vitest suites / 41 tests; `npm run build` passed with Vite; `npm audit --json` and `npm audit --omit=dev --json` both reported 0 vulnerabilities; `npm run test:e2e:isolated` passed 9 Chromium tests on Vite frontend `3010` / backend `8010`; `npm run test:e2e:restart` passed the Chromium restart harness; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit host/player flow; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, and Vite production build; `npm run test:e2e:restart:matrix` passed Chromium, Firefox, and WebKit restart/load recovery.
 - 2026-05-11 Vite route-splitting pass: `npm run build` dropped the largest JS chunk to 199.30 kB with no Vite large-chunk warning; focused keyboard E2E passed after keeping `/join` eager; full `npm run test:e2e:isolated` passed 9 Chromium tests; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, and Vite production build; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit host/player flows.
+- 2026-05-11 bundle budget pass: `npm run check:bundle` passed with largest JS 194.63 kB / 240 kB, total JS 656.45 kB / 760 kB, and largest CSS 14.74 kB / 25 kB; `npm run verify` passed with the same bundle budget gate included after build.
 
 ## Current Known Risks
 
@@ -97,7 +99,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
 2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
-3. Add production-style bundle/performance budgets so future route chunks cannot silently regress.
+3. Add browser-driven production-like performance timing around first room creation/join after cold Vite/production build loads.
 
 ## Iteration History
 
@@ -107,6 +109,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Kept `/join` eagerly loaded after the keyboard E2E caught that lazy-loading the first-entry flow can swallow an immediate Tab press before the route chunk finishes.
 - Added an accessible `role="status"` loading fallback for lazy route transitions.
 - Verified the Vite build split host/player/market/chart/map code into route or feature chunks and removed the previous >500 kB main-chunk warning.
+
+### 2026-05-11 - Bundle Budget Gate
+
+- Added `scripts/check-bundle-size.js`.
+- Added `npm run check:bundle` and wired it into `npm run verify` after `npm run build`.
+- Set default budgets for any JS chunk, any CSS chunk, and total JS, with `FAIRVALUE_MAX_*` environment overrides for intentional budget changes.
+- Documented the bundle budget gate in `README.md`.
 
 ### 2026-05-11 - Vite/Vitest Toolchain Migration
 
@@ -615,10 +624,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `b1e5b47` - Add restart latency profile.
 - `a77289b` - Migrate frontend toolchain to Vite.
 - `c186a2a` - Split heavy frontend routes.
+- `4d28ed5` - Add frontend bundle budget gate.
 
 ## Next Action Queue
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
 2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
-3. Add production-style bundle/performance budgets so future route chunks cannot silently regress.
+3. Add browser-driven production-like performance timing around first room creation/join after cold Vite/production build loads.
 4. Start the next loop with `npm run verify`, then inspect actual VoiceOver/manual assistive-tech gaps in the rendered browse, host, player, join, and market surfaces.
