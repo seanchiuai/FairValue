@@ -2,13 +2,30 @@ const fs = require('fs');
 const path = require('path');
 
 const SNAPSHOT_VERSION = 1;
+const DEFAULT_POSTGRES_TABLE = 'fairvalue_room_snapshots';
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function createDisabledRoomPersistence({ kind = 'disabled', reason = 'Room persistence is disabled' } = {}) {
+  return {
+    enabled: false,
+    kind,
+    reason,
+    filePath: null,
+    load() {
+      return { version: SNAPSHOT_VERSION, rooms: {} };
+    },
+    save() {},
+    clear() {},
+  };
+}
+
 function createJsonRoomPersistence({ filePath } = {}) {
-  const enabled = Boolean(filePath);
+  if (!filePath) return createDisabledRoomPersistence({ kind: 'json', reason: 'No room snapshot file configured' });
+
+  const enabled = true;
   const resolvedPath = filePath ? path.resolve(filePath) : null;
 
   function load() {
@@ -44,6 +61,7 @@ function createJsonRoomPersistence({ filePath } = {}) {
   }
 
   return {
+    kind: 'json',
     enabled,
     filePath: resolvedPath,
     load,
@@ -52,7 +70,115 @@ function createJsonRoomPersistence({ filePath } = {}) {
   };
 }
 
+function parseSnapshotJson(value) {
+  if (!value) return {};
+  if (typeof value === 'string') return JSON.parse(value);
+  return cloneJson(value);
+}
+
+function createPostgresRoomPersistence({ sql } = {}) {
+  if (!sql || sql.isConfigured === false) {
+    return createDisabledRoomPersistence({
+      kind: 'postgres',
+      reason: 'DATABASE_URL is not configured',
+    });
+  }
+
+  let schemaReady = false;
+
+  async function ensureSchema() {
+    if (schemaReady) return;
+    await sql`
+      CREATE TABLE IF NOT EXISTS fairvalue_room_snapshots (
+        room_code text PRIMARY KEY,
+        snapshot jsonb NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `;
+    schemaReady = true;
+  }
+
+  async function load() {
+    await ensureSchema();
+    const rows = await sql`
+      SELECT room_code, snapshot, updated_at
+      FROM fairvalue_room_snapshots
+      ORDER BY room_code
+    `;
+    const rooms = {};
+    let updatedAt = null;
+
+    for (const row of rows || []) {
+      const code = String(row.room_code || '').trim().toUpperCase();
+      if (!code) continue;
+      rooms[code] = parseSnapshotJson(row.snapshot);
+      const rowUpdatedAt = row.updated_at ? new Date(row.updated_at).toISOString() : null;
+      if (rowUpdatedAt && (!updatedAt || rowUpdatedAt > updatedAt)) updatedAt = rowUpdatedAt;
+    }
+
+    return { version: SNAPSHOT_VERSION, updated_at: updatedAt, rooms };
+  }
+
+  async function save(snapshot) {
+    await ensureSchema();
+    const rooms = cloneJson(snapshot?.rooms || {});
+    const roomCodes = Object.keys(rooms);
+    const existing = await sql`SELECT room_code FROM fairvalue_room_snapshots`;
+    const nextCodes = new Set(roomCodes);
+
+    for (const row of existing || []) {
+      const roomCode = String(row.room_code || '').trim().toUpperCase();
+      if (roomCode && !nextCodes.has(roomCode)) {
+        await sql`DELETE FROM fairvalue_room_snapshots WHERE room_code = ${roomCode}`;
+      }
+    }
+
+    for (const roomCode of roomCodes) {
+      await sql`
+        INSERT INTO fairvalue_room_snapshots (room_code, snapshot, updated_at)
+        VALUES (${roomCode}, ${JSON.stringify(rooms[roomCode])}::jsonb, now())
+        ON CONFLICT (room_code) DO UPDATE
+        SET snapshot = EXCLUDED.snapshot,
+            updated_at = now()
+      `;
+    }
+  }
+
+  async function clear() {
+    await ensureSchema();
+    await sql`DELETE FROM fairvalue_room_snapshots`;
+  }
+
+  return {
+    kind: 'postgres',
+    enabled: true,
+    tableName: DEFAULT_POSTGRES_TABLE,
+    filePath: null,
+    load,
+    save,
+    clear,
+  };
+}
+
+function createRoomPersistence({ mode = 'json', filePath, sql } = {}) {
+  const normalizedMode = String(mode || 'json').trim().toLowerCase();
+  if (['0', 'false', 'off', 'disabled', 'none'].includes(normalizedMode)) {
+    return createDisabledRoomPersistence();
+  }
+  if (['postgres', 'neon', 'db', 'database'].includes(normalizedMode)) {
+    return createPostgresRoomPersistence({ sql });
+  }
+  if (['json', 'file', 'local'].includes(normalizedMode)) {
+    return createJsonRoomPersistence({ filePath });
+  }
+  throw new Error(`Unknown room persistence mode: ${mode}`);
+}
+
 module.exports = {
   SNAPSHOT_VERSION,
+  DEFAULT_POSTGRES_TABLE,
+  createDisabledRoomPersistence,
   createJsonRoomPersistence,
+  createPostgresRoomPersistence,
+  createRoomPersistence,
 };

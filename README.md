@@ -149,10 +149,11 @@ cp .env.example .env
 - `COGNEE_BASE_URL` defaults to `https://api.cognee.ai`.
 - `REACT_APP_BACKEND_PORT` defaults local frontend WebSockets to the backend on port `8000` when CRA runs on another port.
 - `REACT_APP_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.
+- `FAIRVALUE_ROOM_STORE=json` keeps the default local JSON snapshot adapter; `FAIRVALUE_ROOM_STORE=postgres` uses the Neon/Postgres `fairvalue_room_snapshots` table when `DATABASE_URL` is configured.
 - `FAIRVALUE_ROOM_STORE_PATH` overrides the local durable room snapshot file. If unset, `npm run server` uses `.fairvalue/rooms.json`.
 - `FAIRVALUE_ROOM_PERSISTENCE=off` disables local room snapshots and returns to fully ephemeral in-memory room state.
 
-Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. Treat the file as local runtime state, not source code. Restored rooms keep their market, players, event history, settlement, and bet idempotency receipts; AI bot intervals are not auto-resumed after a backend restart.
+Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, and bet idempotency receipts; AI bot intervals are not auto-resumed after a backend restart.
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
 

@@ -11,7 +11,7 @@ const {
   replayRoomEvents,
   roomEventToActivity,
 } = require('./roomEventLog');
-const { createJsonRoomPersistence } = require('./roomPersistence');
+const { createRoomPersistence } = require('./roomPersistence');
 const {
   DEFAULT_B,
   priceOver,
@@ -45,13 +45,27 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const rateLimitBuckets = new Map();
 const roomEventStore = createInMemoryRoomEventStore();
-let roomPersistence = createJsonRoomPersistence({ filePath: resolveRoomPersistencePath() });
+let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
+let roomPersistenceWriteQueue = Promise.resolve();
 
-function resolveRoomPersistencePath() {
+function isPromiseLike(value) {
+  return value && typeof value.then === 'function';
+}
+
+function resolveRoomPersistenceOptions() {
   const mode = String(process.env.FAIRVALUE_ROOM_PERSISTENCE || '').toLowerCase();
-  if (['0', 'false', 'off', 'disabled'].includes(mode)) return null;
-  if (process.env.FAIRVALUE_ROOM_STORE_PATH) return process.env.FAIRVALUE_ROOM_STORE_PATH;
-  return require.main === module ? path.join(process.cwd(), '.fairvalue', 'rooms.json') : null;
+  const storeMode = String(process.env.FAIRVALUE_ROOM_STORE || '').toLowerCase();
+  if (['0', 'false', 'off', 'disabled'].includes(mode) || ['0', 'false', 'off', 'disabled'].includes(storeMode)) {
+    return { mode: 'off' };
+  }
+
+  if (['postgres', 'neon', 'db', 'database'].includes(storeMode)) {
+    return { mode: 'postgres', sql };
+  }
+
+  const filePath = process.env.FAIRVALUE_ROOM_STORE_PATH ||
+    (require.main === module ? path.join(process.cwd(), '.fairvalue', 'rooms.json') : null);
+  return { mode: 'json', filePath };
 }
 
 function generateRoomCode() {
@@ -120,7 +134,21 @@ function persistRooms() {
   for (const room of Object.values(rooms)) {
     snapshots[room.code] = serializeRoomSnapshot(room);
   }
-  roomPersistence.save({ rooms: snapshots });
+
+  try {
+    const write = () => roomPersistence.save({ rooms: snapshots });
+    if (roomPersistence.kind === 'json') return write();
+
+    roomPersistenceWriteQueue = roomPersistenceWriteQueue
+      .catch(() => {})
+      .then(write)
+      .catch((error) => {
+        console.error(`Room persistence (${roomPersistence.kind}) save failed:`, error.message);
+      });
+    return roomPersistenceWriteQueue;
+  } catch (error) {
+    console.error(`Room persistence (${roomPersistence.kind}) save failed:`, error.message);
+  }
 }
 
 function persistRoom(room) {
@@ -128,9 +156,7 @@ function persistRoom(room) {
   persistRooms();
 }
 
-function loadPersistedRooms() {
-  if (!roomPersistence.enabled) return { loaded: 0, filePath: roomPersistence.filePath };
-  const snapshot = roomPersistence.load();
+function hydratePersistedRooms(snapshot) {
   let loaded = 0;
 
   for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
@@ -141,11 +167,33 @@ function loadPersistedRooms() {
     loaded += 1;
   }
 
-  return { loaded, filePath: roomPersistence.filePath };
+  return {
+    loaded,
+    filePath: roomPersistence.filePath,
+    kind: roomPersistence.kind,
+  };
 }
 
-function configureRoomPersistence(filePath) {
-  roomPersistence = createJsonRoomPersistence({ filePath });
+function loadPersistedRooms() {
+  if (!roomPersistence.enabled) {
+    return { loaded: 0, filePath: roomPersistence.filePath, kind: roomPersistence.kind };
+  }
+
+  const loaded = roomPersistence.load();
+  if (isPromiseLike(loaded)) return loaded.then(hydratePersistedRooms);
+  return hydratePersistedRooms(loaded);
+}
+
+function configureRoomPersistence(filePathOrOptions) {
+  if (typeof filePathOrOptions === 'object' && filePathOrOptions !== null) {
+    roomPersistence = createRoomPersistence({ sql, ...filePathOrOptions });
+  } else {
+    roomPersistence = createRoomPersistence({
+      mode: filePathOrOptions ? 'json' : 'off',
+      filePath: filePathOrOptions,
+    });
+  }
+  roomPersistenceWriteQueue = Promise.resolve();
   return loadPersistedRooms();
 }
 
@@ -1139,14 +1187,21 @@ wss.on('connection', (ws, req) => {
 
 const PORT = process.env.PORT || 8000;
 if (require.main === module) {
-  const restored = loadPersistedRooms();
-  server.listen(PORT, () => {
-    console.log(`FairValue server running on http://localhost:${PORT}`);
-    if (restored.loaded) {
-      console.log(`Restored ${restored.loaded} room(s) from ${restored.filePath}`);
-    }
-    startSimulations();
-  });
+  Promise.resolve(loadPersistedRooms())
+    .then((restored) => {
+      server.listen(PORT, () => {
+        console.log(`FairValue server running on http://localhost:${PORT}`);
+        if (restored.loaded) {
+          const source = restored.filePath || restored.kind;
+          console.log(`Restored ${restored.loaded} room(s) from ${source}`);
+        }
+        startSimulations();
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to load persisted rooms:', error.message);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = {
