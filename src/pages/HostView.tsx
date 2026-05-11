@@ -4,6 +4,7 @@ import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
+import { buildHostAuthHeaders, readHostToken } from '../lib/fairValueAuth';
 import CogneeChat from '../components/CogneeChat';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import Leaderboard from '../components/host/Leaderboard';
@@ -17,28 +18,35 @@ import { Users, Bot, Gavel, Trophy } from 'lucide-react';
 
 export default function HostView() {
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { sessionId } = useSession();
+  const { sessionId, userToken, identityReady } = useSession();
   const {
     market,
     players,
     house,
     activity,
     aiEnabled,
+    hostUserId,
     setAiEnabled,
     settled,
     settleResult,
     connectionState,
     loading,
-  } = useRoom(roomCode || '', sessionId);
+  } = useRoom(roomCode || '', sessionId, userToken);
 
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [ngrokUrl, setNgrokUrl] = useState(
     () => sessionStorage.getItem('fv_ngrok_url') || ''
   );
   const hostToken = useMemo(
-    () => (roomCode ? sessionStorage.getItem(`fv_host_token_${roomCode}`) || '' : ''),
+    () => readHostToken(roomCode),
     [roomCode]
   );
+  const canUseHostIdentity = Boolean(identityReady && userToken && hostUserId === sessionId);
+  const hostAuthHeaders = useMemo(
+    () => buildHostAuthHeaders({ userToken: canUseHostIdentity ? userToken : '', hostToken }),
+    [canUseHostIdentity, userToken, hostToken]
+  );
+  const hasHostAuthority = Boolean(canUseHostIdentity || hostToken);
   const wasConnectedRef = useRef(false);
   if (connectionState === 'connected') wasConnectedRef.current = true;
 
@@ -77,14 +85,14 @@ export default function HostView() {
 
   const handleToggleAI = useCallback(async () => {
     if (!roomCode) return;
-    if (!hostToken) {
-      console.error('Toggle AI failed: missing host token');
+    if (!hasHostAuthority) {
+      console.error('Toggle AI failed: missing host authority');
       return;
     }
     try {
       const res = await fetch(`/api/rooms/${roomCode}/toggle-ai`, {
         method: 'POST',
-        headers: { 'X-FairValue-Host-Token': hostToken },
+        headers: hostAuthHeaders,
       });
       const data = await res.json();
       if (data.error) {
@@ -95,7 +103,7 @@ export default function HostView() {
     } catch (err) {
       console.error('Toggle AI failed:', err);
     }
-  }, [roomCode, hostToken, setAiEnabled]);
+  }, [roomCode, hasHostAuthority, hostAuthHeaders, setAiEnabled]);
 
   const handleNgrokChange = useCallback((url: string) => {
     setNgrokUrl(url);
@@ -157,13 +165,13 @@ export default function HostView() {
                   ...s.controlBtn,
                   background: aiEnabled ? 'var(--accent-primary)' : 'var(--bg-input)',
                   color: aiEnabled ? '#fff' : 'var(--text-secondary)',
-                  opacity: hostToken ? 1 : 0.45,
+                  opacity: hasHostAuthority ? 1 : 0.45,
                 }}
                 onClick={handleToggleAI}
                 aria-label={`AI bot ${aiEnabled ? 'enabled' : 'disabled'}`}
                 aria-pressed={aiEnabled}
-                disabled={!hostToken}
-                title={hostToken ? undefined : 'Host token missing for this room'}
+                disabled={!hasHostAuthority}
+                title={hasHostAuthority ? undefined : 'Host authority missing for this room'}
               >
                 <Bot size={14} /> AI {aiEnabled ? 'ON' : 'OFF'}
               </button>
@@ -172,11 +180,11 @@ export default function HostView() {
                   ...s.controlBtn,
                   background: 'var(--accent-warning)',
                   color: '#fff',
-                  opacity: hostToken ? 1 : 0.45,
+                  opacity: hasHostAuthority ? 1 : 0.45,
                 }}
                 onClick={() => setShowSettleModal(true)}
-                disabled={!hostToken}
-                title={hostToken ? undefined : 'Host token missing for this room'}
+                disabled={!hasHostAuthority}
+                title={hasHostAuthority ? undefined : 'Host authority missing for this room'}
               >
                 <Gavel size={14} /> Settle
               </button>
@@ -275,6 +283,7 @@ export default function HostView() {
           house={house}
           roomCode={roomCode || ''}
           hostToken={hostToken}
+          userToken={canUseHostIdentity ? userToken : ''}
           onClose={() => setShowSettleModal(false)}
         />
       )}

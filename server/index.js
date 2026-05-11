@@ -35,8 +35,12 @@ const server = http.createServer(app);
 
 const rooms = {};
 const HOST_TOKEN_HEADER = 'x-fairvalue-host-token';
+const USER_TOKEN_HEADER = 'x-fairvalue-user-token';
+const USER_TOKEN_VERSION = 'fv1';
+const DEFAULT_IDENTITY_SECRET = 'fairvalue-local-dev-identity-secret';
 const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{4}$/;
+const USER_ID_PATTERN = /^usr_[A-Za-z0-9_-]{16,80}$/;
 const MAX_ASKING_PRICE = 100_000_000;
 const MAX_TEXT_LENGTH = 120;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -99,6 +103,7 @@ function serializeRoomSnapshot(room) {
   return {
     code: room.code,
     hostToken: room.hostToken,
+    hostUserId: room.hostUserId || null,
     house: cloneJson(room.house),
     market: cloneJson(room.market),
     players: cloneJson(room.players),
@@ -119,6 +124,7 @@ function hydrateRoomSnapshot(snapshot) {
   return {
     code,
     hostToken: snapshot.hostToken || generateHostToken(),
+    hostUserId: normalizeUserId(snapshot.hostUserId) || null,
     house: cloneJson(snapshot.house),
     market: createMarketState(snapshot.market || { b: DEFAULT_B }),
     players: cloneJson(snapshot.players || {}),
@@ -266,6 +272,46 @@ function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
   return trimmed || null;
 }
 
+function normalizeUserId(value) {
+  const userId = sanitizeText(value, 100);
+  return userId && USER_ID_PATTERN.test(userId) ? userId : null;
+}
+
+function getIdentitySecret() {
+  return process.env.FAIRVALUE_IDENTITY_SECRET || DEFAULT_IDENTITY_SECRET;
+}
+
+function generateUserId() {
+  return `usr_${crypto.randomBytes(18).toString('base64url')}`;
+}
+
+function signUserId(userId) {
+  return crypto
+    .createHmac('sha256', getIdentitySecret())
+    .update(`${USER_TOKEN_VERSION}:${userId}`)
+    .digest('base64url');
+}
+
+function createUserToken(userId) {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) throw new Error('Invalid user ID');
+  return `${USER_TOKEN_VERSION}.${normalizedUserId}.${signUserId(normalizedUserId)}`;
+}
+
+function verifyUserToken(token) {
+  if (typeof token !== 'string') return null;
+  const [version, userId, signature] = token.trim().split('.');
+  const normalizedUserId = normalizeUserId(userId);
+  if (version !== USER_TOKEN_VERSION || !normalizedUserId || !signature) return null;
+
+  const expected = signUserId(normalizedUserId);
+  const providedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (providedBuffer.length !== expectedBuffer.length) return null;
+  if (!crypto.timingSafeEqual(providedBuffer, expectedBuffer)) return null;
+  return { user_id: normalizedUserId };
+}
+
 function parsePositiveNumber(value, max = Number.MAX_SAFE_INTEGER) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed > max) return null;
@@ -326,27 +372,36 @@ function limitRequests(scope, { max, windowMs = RATE_LIMIT_WINDOW_MS } = {}) {
 function validateCreateRoomPayload(body) {
   const address = sanitizeText(body?.address, 100);
   const askingPrice = parsePositiveNumber(body?.asking_price, MAX_ASKING_PRICE);
+  const hasHostUserId = Object.prototype.hasOwnProperty.call(body || {}, 'host_user_id');
+  const hostUserId = hasHostUserId ? normalizeUserId(body?.host_user_id) : null;
   if (!address) return { error: 'Address is required' };
   if (askingPrice === null) return { error: 'Asking price must be between $1 and $100M' };
-  return { value: { address, asking_price: askingPrice } };
+  if (hasHostUserId && !hostUserId) return { error: 'Host user ID is invalid' };
+  return { value: { address, asking_price: askingPrice, host_user_id: hostUserId } };
 }
 
 function validateJoinPayload(body) {
   const sessionId = sanitizeText(body?.session_id, 100);
   const nickname = sanitizeText(body?.nickname, 20);
+  const hasUserId = Object.prototype.hasOwnProperty.call(body || {}, 'user_id');
+  const userId = hasUserId ? normalizeUserId(body?.user_id) : null;
   if (!sessionId) return { error: 'Session ID is required' };
   if (!nickname) return { error: 'Nickname is required' };
-  return { value: { session_id: sessionId, nickname } };
+  if (hasUserId && !userId) return { error: 'User ID is invalid' };
+  return { value: { session_id: sessionId, nickname, user_id: userId } };
 }
 
 function validateBetPayload(body) {
   const sessionId = sanitizeText(body?.session_id, 100);
+  const hasUserId = Object.prototype.hasOwnProperty.call(body || {}, 'user_id');
+  const userId = hasUserId ? normalizeUserId(body?.user_id) : null;
   const outcome = typeof body?.outcome === 'string' ? body.outcome.trim().toLowerCase() : body?.outcome;
   const wager = parsePositiveNumber(body?.wager, 1000);
   if (!sessionId) return { error: 'Session ID is required' };
+  if (hasUserId && !userId) return { error: 'User ID is invalid' };
   if (!['over', 'under'].includes(outcome)) return { error: "Outcome must be 'over' or 'under'" };
   if (wager === null) return { error: 'Wager must be between $1 and $1,000' };
-  return { value: { session_id: sessionId, outcome, wager } };
+  return { value: { session_id: sessionId, user_id: userId, outcome, wager } };
 }
 
 function validateSettlePayload(body) {
@@ -369,12 +424,13 @@ function betFingerprint(bet) {
 
 // ─── Room helpers ───────────────────────────────────────────────────
 
-async function createRoom(house, roomCode) {
+async function createRoom(house, roomCode, options = {}) {
   const code = roomCode ? normalizeRoomCode(roomCode) : generateRoomCode();
   if (!code) throw new Error('Room code must be 4 letters or numbers');
   const room = {
     code,
     hostToken: generateHostToken(),
+    hostUserId: normalizeUserId(options.hostUserId) || null,
     house,
     market: createMarketState({ b: DEFAULT_B }),
     players: {},
@@ -411,6 +467,7 @@ async function createRoom(house, roomCode) {
   const { persistence } = appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
     house: room.house,
     market: getPublicMarketState(room.market),
+    host_user_id: room.hostUserId,
   });
   await waitForRoomPersistence(persistence);
   return room;
@@ -449,15 +506,71 @@ function recordRoomError(room, action, message, status, req) {
   appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
 }
 
-function requireHostCapability(req, res, room) {
-  const token = req.get(HOST_TOKEN_HEADER);
-  if (!token || token !== room.hostToken) {
-    const message = token ? 'Invalid host token' : 'Host token required';
-    recordRoomError(room, 'host_capability', message, 403, req);
-    res.status(403).json({ error: message });
-    return false;
+function rejectRoomAuth(res, room, action, message, status, req) {
+  recordRoomError(room, action, message, status, req);
+  res.status(status).json({ error: message });
+  return false;
+}
+
+function requireMatchingUserIdentity(req, res, room, sessionId, action) {
+  const hasUserId = Object.prototype.hasOwnProperty.call(req.body || {}, 'user_id');
+  const bodyUserId = hasUserId ? normalizeUserId(req.body.user_id) : null;
+  const token = req.get(USER_TOKEN_HEADER);
+
+  if (!token && !hasUserId) return true;
+  if (!token) return rejectRoomAuth(res, room, action, 'User token required', 403, req);
+
+  const identity = verifyUserToken(token);
+  if (!identity) return rejectRoomAuth(res, room, action, 'Invalid user token', 403, req);
+  if (bodyUserId && bodyUserId !== identity.user_id) {
+    return rejectRoomAuth(res, room, action, 'User token does not match session', 403, req);
   }
+  if (sessionId !== identity.user_id) {
+    return rejectRoomAuth(res, room, action, 'User token does not match session', 403, req);
+  }
+
+  req.userIdentity = identity;
   return true;
+}
+
+function requireHostCapability(req, res, room) {
+  const hostToken = req.get(HOST_TOKEN_HEADER);
+  if (hostToken) {
+    if (hostToken === room.hostToken) return true;
+    return rejectRoomAuth(res, room, 'host_capability', 'Invalid host token', 403, req);
+  }
+
+  const userToken = req.get(USER_TOKEN_HEADER);
+  if (userToken) {
+    const identity = verifyUserToken(userToken);
+    if (!identity) return rejectRoomAuth(res, room, 'host_capability', 'Invalid user token', 403, req);
+    if (room.hostUserId && identity.user_id === room.hostUserId) return true;
+    return rejectRoomAuth(res, room, 'host_capability', 'Host identity required', 403, req);
+  }
+
+  const message = room.hostUserId ? 'Host token or host identity required' : 'Host token required';
+  return rejectRoomAuth(res, room, 'host_capability', message, 403, req);
+}
+
+function requireExpectedUserIdentity(req, res, expectedUserId) {
+  const token = req.get(USER_TOKEN_HEADER);
+  if (!token) {
+    res.status(403).json({ error: 'User token required' });
+    return null;
+  }
+
+  const identity = verifyUserToken(token);
+  if (!identity) {
+    res.status(403).json({ error: 'Invalid user token' });
+    return null;
+  }
+  if (expectedUserId && identity.user_id !== expectedUserId) {
+    res.status(403).json({ error: 'User token does not match session' });
+    return null;
+  }
+
+  req.userIdentity = identity;
+  return identity;
 }
 
 function getRoomFromCodeParam(req, res) {
@@ -491,6 +604,7 @@ function getRoomStatePayload(room) {
     history: [],
     activity: replay.activity.slice(-50),
     ai_enabled: room.aiEnabled,
+    host_user_id: room.hostUserId || null,
     settled: replay.settled || room.settled,
     settlement: replay.settlement || room.settlement,
     event_sequence: replay.last_sequence,
@@ -538,6 +652,14 @@ app.use((req, res, next) => {
   });
 
   next();
+});
+
+app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, res) => {
+  const userId = generateUserId();
+  res.json({
+    user_id: userId,
+    user_token: createUserToken(userId),
+  });
 });
 
 // ─── Server-side Cognee AI boundary ─────────────────────────────────
@@ -750,9 +872,11 @@ app.post('/api/rooms', limitRequests('rooms:create', { max: 20 }), async (req, r
   const validated = validateCreateRoomPayload(req.body);
   if (validated.error) return validationError(res, validated.error);
 
-  const house = validated.value;
+  const { host_user_id, ...house } = validated.value;
+  if (host_user_id && !requireExpectedUserIdentity(req, res, host_user_id)) return;
+
   try {
-    const room = await createRoom(house);
+    const room = await createRoom(house, undefined, { hostUserId: host_user_id });
     res.json({ room_code: room.code, host_token: room.hostToken, house });
   } catch (error) {
     return roomPersistenceError(res, error);
@@ -770,6 +894,8 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   }
 
   const { session_id, nickname } = validated.value;
+  if (!requireMatchingUserIdentity(req, res, room, session_id, 'join')) return;
+
   let player = room.players[session_id];
   let joinBroadcast = null;
   let persistence = null;
@@ -815,6 +941,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     players: state.players,
     house: state.house,
     activity: state.activity,
+    host_user_id: state.host_user_id,
     settled: state.settled,
     settlement: state.settlement,
     event_sequence: state.event_sequence,
@@ -875,6 +1002,8 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   }
 
   const { session_id, outcome, wager } = validated.value;
+  if (!requireMatchingUserIdentity(req, res, room, session_id, 'bet')) return;
+
   const fingerprint = betFingerprint(validated.value);
   const receipt = room.betReceipts.get(idempotencyKey);
   if (receipt) {
@@ -1273,6 +1402,9 @@ module.exports = {
   generateRoomCode,
   normalizeRoomCode,
   generateHostToken,
+  generateUserId,
+  createUserToken,
+  verifyUserToken,
   requireHostCapability,
   roomEventStore,
   roomPersistence: () => roomPersistence,

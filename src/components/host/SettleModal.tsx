@@ -1,14 +1,16 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { House } from '../../types';
+import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
 
 interface SettleModalProps {
   house: House;
   roomCode: string;
   hostToken: string;
+  userToken?: string;
   onClose: () => void;
 }
 
-export default function SettleModal({ house, roomCode, hostToken, onClose }: SettleModalProps) {
+export default function SettleModal({ house, roomCode, hostToken, userToken, onClose }: SettleModalProps) {
   const [actualPrice, setActualPrice] = useState('');
   const [settling, setSettling] = useState(false);
   const [error, setError] = useState('');
@@ -27,8 +29,9 @@ export default function SettleModal({ house, roomCode, hostToken, onClose }: Set
     if (!actualPrice) return;
     const price = parseFloat(actualPrice.replace(/,/g, ''));
     if (isNaN(price) || price <= 0 || price > 100_000_000) return;
-    if (!hostToken) {
-      setError('Host token missing for this room');
+    const authHeaders = buildHostAuthHeaders({ userToken, hostToken });
+    if (!Object.keys(authHeaders).length) {
+      setError('Host authority missing for this room');
       return;
     }
     setSettling(true);
@@ -38,7 +41,7 @@ export default function SettleModal({ house, roomCode, hostToken, onClose }: Set
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-FairValue-Host-Token': hostToken,
+          ...authHeaders,
         },
         body: JSON.stringify({ actual_price: price }),
       });
@@ -53,7 +56,7 @@ export default function SettleModal({ house, roomCode, hostToken, onClose }: Set
     } finally {
       setSettling(false);
     }
-  }, [roomCode, hostToken, actualPrice, onClose]);
+  }, [roomCode, hostToken, userToken, actualPrice, onClose]);
 
   return (
     <div style={s.overlay} onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settle-title">
@@ -89,7 +92,7 @@ export default function SettleModal({ house, roomCode, hostToken, onClose }: Set
           <button
             style={{ ...s.confirm, opacity: settling ? 0.6 : 1 }}
             onClick={handleSettle}
-            disabled={settling || !hostToken}
+            disabled={settling || (!hostToken && !userToken)}
           >
             {settling ? 'Settling...' : 'Confirm Settlement'}
           </button>

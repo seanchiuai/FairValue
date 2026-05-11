@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
+import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { Home, Users, Plus, LogIn } from 'lucide-react';
 
 export default function JoinPage() {
   const navigate = useNavigate();
-  const { sessionId, nickname, saveNickname } = useSession();
+  const {
+    nickname,
+    saveNickname,
+    identityLoading,
+    identityError,
+    ensureIdentity,
+  } = useSession();
   const [mode, setMode] = useState<'pick' | 'create' | 'join'>('pick');
   const [name, setName] = useState(nickname);
   const [address, setAddress] = useState('');
@@ -17,6 +24,10 @@ export default function JoinPage() {
   const sanitize = (s: string, max: number) => s.trim().replace(/<[^>]*>/g, '').slice(0, max);
   const formatRoomCodeInput = (value: string) =>
     value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+
+  useEffect(() => {
+    if (!name && nickname) setName(nickname);
+  }, [name, nickname]);
 
   const handleCreate = async () => {
     const cleanName = sanitize(name, 20);
@@ -34,25 +45,40 @@ export default function JoinPage() {
     setSubmitting(true);
     setError('');
     try {
+      const identity = await ensureIdentity();
       const res = await fetch('/api/rooms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: cleanAddress, asking_price: price }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildUserAuthHeaders(identity.user_token),
+        },
+        body: JSON.stringify({
+          address: cleanAddress,
+          asking_price: price,
+          host_user_id: identity.user_id,
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       saveNickname(cleanName);
-      if (data.host_token) {
-        sessionStorage.setItem(`fv_host_token_${data.room_code}`, data.host_token);
-      }
+      saveHostToken(data.room_code, data.host_token);
 
       // Join the room as host
-      await fetch(`/api/rooms/${data.room_code}/join`, {
+      const joinRes = await fetch(`/api/rooms/${data.room_code}/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, nickname: cleanName }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildUserAuthHeaders(identity.user_token),
+        },
+        body: JSON.stringify({
+          session_id: identity.user_id,
+          user_id: identity.user_id,
+          nickname: cleanName,
+        }),
       });
+      const joinData = await joinRes.json();
+      if (joinData.error) throw new Error(joinData.error);
 
       navigate(`/host/${data.room_code}`);
     } catch (err: unknown) {
@@ -77,10 +103,18 @@ export default function JoinPage() {
     setSubmitting(true);
     setError('');
     try {
+      const identity = await ensureIdentity();
       const res = await fetch(`/api/rooms/${cleanCode}/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, nickname: cleanName }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildUserAuthHeaders(identity.user_token),
+        },
+        body: JSON.stringify({
+          session_id: identity.user_id,
+          user_id: identity.user_id,
+          nickname: cleanName,
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -155,11 +189,11 @@ export default function JoinPage() {
                 inputMode="numeric"
               />
             </div>
-            {error && <p style={styles.error}>{error}</p>}
+            {(error || identityError) && <p style={styles.error}>{error || identityError}</p>}
             <button
-              style={{ ...styles.submitBtn, opacity: submitting ? 0.6 : 1 }}
+              style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
               onClick={handleCreate}
-              disabled={submitting}
+              disabled={submitting || identityLoading}
             >
               {submitting ? 'Creating...' : 'Create Room'}
             </button>
@@ -196,11 +230,11 @@ export default function JoinPage() {
                 inputMode="text"
               />
             </div>
-            {error && <p style={styles.error}>{error}</p>}
+            {(error || identityError) && <p style={styles.error}>{error || identityError}</p>}
             <button
-              style={{ ...styles.submitBtn, opacity: submitting ? 0.6 : 1 }}
+              style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
               onClick={handleJoin}
-              disabled={submitting}
+              disabled={submitting || identityLoading}
             >
               {submitting ? 'Joining...' : 'Join Room'}
             </button>

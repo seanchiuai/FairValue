@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
+import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
 import './MarketPage.css';
@@ -26,7 +27,7 @@ const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
   const navigate = useNavigate();
   const { properties, loading } = useProperties();
-  const { sessionId } = useSession();
+  const { ensureIdentity } = useSession();
   const [creating, setCreating] = useState(false);
   const property = properties.find(p => p.id === propertyId) || properties[0];
 
@@ -56,25 +57,37 @@ const MarketPage: React.FC = () => {
     if (!property || creating) return;
     setCreating(true);
     try {
+      const identity = await ensureIdentity();
       const res = await fetch('/api/rooms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildUserAuthHeaders(identity.user_token),
+        },
         body: JSON.stringify({
           address: property.address,
           asking_price: property.price,
+          host_user_id: identity.user_id,
         }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      if (data.host_token) {
-        sessionStorage.setItem(`fv_host_token_${data.room_code}`, data.host_token);
-      }
+      saveHostToken(data.room_code, data.host_token);
 
-      await fetch(`/api/rooms/${data.room_code}/join`, {
+      const joinRes = await fetch(`/api/rooms/${data.room_code}/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, nickname: 'Host' }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildUserAuthHeaders(identity.user_token),
+        },
+        body: JSON.stringify({
+          session_id: identity.user_id,
+          user_id: identity.user_id,
+          nickname: 'Host',
+        }),
       });
+      const joinData = await joinRes.json();
+      if (joinData.error) throw new Error(joinData.error);
 
       navigate(`/host/${data.room_code}`);
     } catch {

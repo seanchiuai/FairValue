@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { executeBuy, buyWithBudget } from '../lib/lmsr';
+import { buildUserAuthHeaders } from '../lib/fairValueAuth';
 import type {
   Market,
   PlayerData,
@@ -20,12 +21,13 @@ function generateBetIdempotencyKey() {
   return `bet-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-export function useRoom(roomCode: string, sessionId: string) {
+export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   const [market, setMarket] = useState<Market | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
   const [house, setHouse] = useState<House | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [aiEnabled, setAiEnabled] = useState(false);
+  const [hostUserId, setHostUserId] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
   const [settleResult, setSettleResult] = useState<SettleResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +50,7 @@ export function useRoom(roomCode: string, sessionId: string) {
           setHouse(data.house);
           setActivity(data.activity || []);
           setAiEnabled(data.ai_enabled);
+          setHostUserId(data.host_user_id || null);
           setSettled(data.settled);
           if (data.settlement) setSettleResult(data.settlement);
         }
@@ -63,6 +66,7 @@ export function useRoom(roomCode: string, sessionId: string) {
           setHouse(data.house);
           setActivity(data.activity || []);
           setAiEnabled(data.ai_enabled);
+          setHostUserId(data.host_user_id || null);
           setSettled(data.settled);
           if (data.settlement) setSettleResult(data.settlement);
           // Persist to cache
@@ -156,6 +160,7 @@ export function useRoom(roomCode: string, sessionId: string) {
           setPlayers(data.players);
           setActivity(data.activity || []);
           setAiEnabled(data.ai_enabled);
+          setHostUserId(data.host_user_id || null);
           if (data.settled) setSettled(true);
           if (data.settlement) setSettleResult(data.settlement);
           try {
@@ -187,6 +192,7 @@ export function useRoom(roomCode: string, sessionId: string) {
             setPlayers(data.players);
             setActivity(data.activity || []);
             setAiEnabled(data.ai_enabled);
+            setHostUserId(data.host_user_id || null);
             if (data.settled) setSettled(true);
             if (data.settlement) setSettleResult(data.settlement);
           }
@@ -199,11 +205,24 @@ export function useRoom(roomCode: string, sessionId: string) {
   const myPlayer = players.find((p) => p.session_id === sessionId) || null;
 
   const joinRoom = useCallback(
-    async (nickname: string) => {
+    async (
+      nickname: string,
+      identityOverride?: { sessionId?: string; userToken?: string }
+    ) => {
+      const activeSessionId = identityOverride?.sessionId || sessionId;
+      const activeUserToken = identityOverride?.userToken || userToken;
+      if (!activeSessionId) throw new Error('User identity is still loading');
       const res = await fetch(`/api/rooms/${roomCode}/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, nickname }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildUserAuthHeaders(activeUserToken),
+        },
+        body: JSON.stringify({
+          session_id: activeSessionId,
+          ...(activeUserToken ? { user_id: activeSessionId } : {}),
+          nickname,
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -211,11 +230,12 @@ export function useRoom(roomCode: string, sessionId: string) {
       if (data.players) setPlayers(data.players);
       if (data.house) setHouse(data.house);
       if (data.activity) setActivity(data.activity);
+      setHostUserId(data.host_user_id || null);
       if (data.settled) setSettled(true);
       if (data.settlement) setSettleResult(data.settlement);
       return data;
     },
-    [roomCode, sessionId]
+    [roomCode, sessionId, userToken]
   );
 
   const placeBet = useCallback(
@@ -245,13 +265,20 @@ export function useRoom(roomCode: string, sessionId: string) {
 
       try {
         const idempotencyKey = generateBetIdempotencyKey();
+        if (!sessionId) throw new Error('User identity is still loading');
         const res = await fetch(`/api/rooms/${roomCode}/bet`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Idempotency-Key': idempotencyKey,
+            ...buildUserAuthHeaders(userToken),
           },
-          body: JSON.stringify({ session_id: sessionId, outcome, wager }),
+          body: JSON.stringify({
+            session_id: sessionId,
+            ...(userToken ? { user_id: sessionId } : {}),
+            outcome,
+            wager,
+          }),
         });
         const data = await res.json();
         if (data.error) {
@@ -271,7 +298,7 @@ export function useRoom(roomCode: string, sessionId: string) {
         throw err;
       }
     },
-    [roomCode, sessionId, market, players, updatePlayerInList]
+    [roomCode, sessionId, userToken, market, players, updatePlayerInList]
   );
 
   return {
@@ -281,6 +308,7 @@ export function useRoom(roomCode: string, sessionId: string) {
     house,
     activity,
     aiEnabled,
+    hostUserId,
     setAiEnabled,
     settled,
     settleResult,

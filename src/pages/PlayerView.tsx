@@ -11,7 +11,15 @@ import { RateLimiter } from '../lib/rateLimiter';
 
 export default function PlayerView() {
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { sessionId, nickname: savedNickname, saveNickname } = useSession();
+  const {
+    sessionId,
+    userToken,
+    nickname: savedNickname,
+    saveNickname,
+    identityLoading,
+    identityError,
+    ensureIdentity,
+  } = useSession();
   const {
     market,
     myPlayer,
@@ -22,7 +30,7 @@ export default function PlayerView() {
     loading,
     placeBet,
     joinRoom,
-  } = useRoom(roomCode || '', sessionId);
+  } = useRoom(roomCode || '', sessionId, userToken);
 
   // Chart
   const { addPoint, loadHistory, setRef: chartRef } = useMarketChart({ height: 200 });
@@ -113,7 +121,11 @@ export default function PlayerView() {
       setJoining(true);
       setJoinError('');
       try {
-        await joinRoom(sanitized);
+        const identity = await ensureIdentity();
+        await joinRoom(sanitized, {
+          sessionId: identity.user_id,
+          userToken: identity.user_token,
+        });
         saveNickname(sanitized);
       } catch (err: unknown) {
         setJoinError(err instanceof Error ? err.message : 'Failed to join');
@@ -149,11 +161,11 @@ export default function PlayerView() {
               onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
             />
           </div>
-          {joinError && <div style={s.joinError}>{joinError}</div>}
+          {(joinError || identityError) && <div style={s.joinError}>{joinError || identityError}</div>}
           <button
-            style={{ ...s.joinBtn, opacity: joining ? 0.6 : 1 }}
+            style={{ ...s.joinBtn, opacity: joining || identityLoading ? 0.6 : 1 }}
             onClick={handleJoin}
-            disabled={joining}
+            disabled={joining || identityLoading}
           >
             {joining ? 'Joining...' : 'Join Room'}
           </button>
