@@ -8,6 +8,10 @@ import { TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import { RateLimiter } from '../lib/rateLimiter';
+import { useToast } from '../contexts/ToastContext';
+
+const playerJoinErrorId = 'player-join-error';
+const playerBetErrorId = 'player-bet-error';
 
 export default function PlayerView() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -74,13 +78,22 @@ export default function PlayerView() {
   const [joinError, setJoinError] = useState('');
   const wasConnectedRef = useRef(false);
   const rateLimiterRef = useRef(new RateLimiter(5, 1));
+  const { showToast } = useToast();
   if (connectionState === 'connected') wasConnectedRef.current = true;
 
   const handleBet = async (outcome: 'over' | 'under') => {
-    if (betting || !wager || wager <= 0) return;
+    if (betting) return;
+    if (!wager || wager <= 0) {
+      const message = 'Enter a wager greater than $0';
+      setBetError(message);
+      showToast(message, 'error');
+      return;
+    }
     if (!rateLimiterRef.current.canAct()) {
       const wait = Math.ceil(rateLimiterRef.current.timeUntilNext() / 1000);
-      setBetError(`Slow down! Wait ${wait}s before betting again.`);
+      const message = `Slow down! Wait ${wait}s before betting again.`;
+      setBetError(message);
+      showToast(message, 'error');
       return;
     }
     setBetting(true);
@@ -88,7 +101,9 @@ export default function PlayerView() {
     try {
       await placeBet(outcome, wager);
     } catch (err: unknown) {
-      setBetError(err instanceof Error ? err.message : 'Bet failed');
+      const message = err instanceof Error ? err.message : 'Bet failed';
+      setBetError(message);
+      showToast(message, 'error');
     } finally {
       setBetting(false);
     }
@@ -115,7 +130,9 @@ export default function PlayerView() {
     const handleJoin = async () => {
       const sanitized = joinName.trim().replace(/<[^>]*>/g, '').slice(0, 20);
       if (!sanitized) {
-        setJoinError('Enter your name');
+        const message = 'Enter your name';
+        setJoinError(message);
+        showToast(message, 'error');
         return;
       }
       setJoining(true);
@@ -128,7 +145,9 @@ export default function PlayerView() {
         });
         saveNickname(sanitized);
       } catch (err: unknown) {
-        setJoinError(err instanceof Error ? err.message : 'Failed to join');
+        const message = err instanceof Error ? err.message : 'Failed to join';
+        setJoinError(message);
+        showToast(message, 'error');
       } finally {
         setJoining(false);
       }
@@ -148,12 +167,15 @@ export default function PlayerView() {
             </div>
           )}
           <div style={s.joinField}>
-            <label style={s.joinLabel}>Your Name</label>
+            <label style={s.joinLabel} htmlFor="player-join-nickname">Your Name</label>
             <input
+              id="player-join-nickname"
               style={s.joinInput}
               value={joinName}
               onChange={(e) => setJoinName(e.target.value)}
               aria-label="Player nickname"
+              aria-describedby={(joinError || identityError) ? playerJoinErrorId : undefined}
+              aria-invalid={Boolean(joinError || identityError) || undefined}
               placeholder="Enter your name"
               maxLength={20}
               aria-required="true"
@@ -161,7 +183,11 @@ export default function PlayerView() {
               onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
             />
           </div>
-          {(joinError || identityError) && <div style={s.joinError}>{joinError || identityError}</div>}
+          {(joinError || identityError) && (
+            <div id={playerJoinErrorId} style={s.joinError} role="alert" aria-live="assertive">
+              {joinError || identityError}
+            </div>
+          )}
           <button
             style={{ ...s.joinBtn, opacity: joining || identityLoading ? 0.6 : 1 }}
             onClick={handleJoin}
@@ -304,7 +330,11 @@ export default function PlayerView() {
       {/* Bet Panel (sticky bottom) */}
       {!settled && (
         <div style={s.betPanel}>
-          {betError && <div style={s.betError}>{betError}</div>}
+          {betError && (
+            <div id={playerBetErrorId} style={s.betError} role="alert" aria-live="assertive" data-testid="bet-error">
+              {betError}
+            </div>
+          )}
           <div style={s.presets}>
             {[10, 25, 50, 100].map((amount) => (
               <button
@@ -326,13 +356,16 @@ export default function PlayerView() {
             <input
               style={s.customInput}
               type="number"
-              value={wager || ''}
+              value={wager === 0 ? '0' : wager || ''}
               onChange={(e) => {
                 const val = Math.max(0, Math.min(Number(e.target.value), myPlayer ? myPlayer.balance : 10000));
                 setWager(val);
+                if (betError) setBetError('');
               }}
               placeholder="$"
               aria-label="Custom wager"
+              aria-describedby={betError ? playerBetErrorId : undefined}
+              aria-invalid={Boolean(betError) || undefined}
               inputMode="numeric"
               min={1}
               max={myPlayer ? myPlayer.balance : 10000}

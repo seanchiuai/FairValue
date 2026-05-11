@@ -35,6 +35,8 @@ export default function ToastContainer() {
 }
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
+  const isError = toast.type === 'error';
+
   return (
     <div
       style={{
@@ -42,14 +44,16 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
         background: BG_COLORS[toast.type],
         borderColor: BORDER_COLORS[toast.type],
       }}
-      role="alert"
+      role={isError ? 'alert' : 'status'}
+      aria-live={isError ? 'assertive' : 'polite'}
+      aria-atomic="true"
     >
-      <span style={s.icon}>{ICONS[toast.type]}</span>
+      <span style={s.icon} aria-hidden="true">{ICONS[toast.type]}</span>
       <span style={s.message}>{toast.message}</span>
       <button
         style={s.dismiss}
         onClick={() => onDismiss(toast.id)}
-        aria-label="Dismiss notification"
+        aria-label={`Dismiss ${toast.type} notification: ${toast.message}`}
       >
         <X size={14} />
       </button>
@@ -66,8 +70,7 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    maxWidth: 380,
-    width: '100%',
+    width: 'min(380px, calc(100vw - 32px))',
     pointerEvents: 'none',
   },
   toast: {

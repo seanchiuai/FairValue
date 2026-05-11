@@ -365,6 +365,22 @@ test('validation, settlement error, and map popup states expose accessible seman
     await expectNoSeriousAxeViolations(page, 'join-room validation alert state');
 
     const roomCode = await createRoomThroughUi(page);
+    await page.goto(`/play/${roomCode}`);
+    await expectConnected(page);
+    await page.getByLabel('Custom wager').fill('0');
+    await page.getByRole('button', { name: /Bet \$0 on OVER/ }).click();
+    await expect(page.getByTestId('bet-error')).toContainText('Enter a wager greater than $0');
+    await expect(page.getByLabel('Custom wager')).toHaveValue('0');
+    await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-describedby', 'player-bet-error');
+    await expect(
+      page.getByRole('button', { name: 'Dismiss error notification: Enter a wager greater than $0' })
+    ).toBeVisible();
+    await expectNoSeriousAxeViolations(page, 'player wager validation toast state');
+    await page.getByRole('button', { name: 'Dismiss error notification: Enter a wager greater than $0' }).click();
+
+    await page.goto(`/host/${roomCode}`);
+    await expectConnected(page);
     await page.getByRole('button', { name: /Settle/ }).click();
     await expect(page.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
     await page.getByRole('button', { name: /^Confirm Settlement$/ }).click();
