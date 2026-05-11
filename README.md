@@ -164,7 +164,9 @@ Security note: an older client-side Cognee key was committed in `src/services/co
 npm run verify
 ```
 
-This currently runs a client secret scan, server integration tests, the non-watch React test suite, and a production build.
+This currently runs a client secret scan, server integration tests, the non-watch Vitest suite, a production build, and the bundle budget check.
+
+`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 760 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
 
 For browser flow coverage, run:
 

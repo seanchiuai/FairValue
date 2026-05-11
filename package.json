@@ -32,9 +32,10 @@
     "test:e2e:headed": "playwright test --headed",
     "test:latency:restart": "node scripts/profile-restart-latency.js",
     "test:persistence:postgres": "node scripts/smoke-postgres-room-persistence.js",
+    "check:bundle": "node scripts/check-bundle-size.js",
     "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
-    "verify": "npm run scan:secrets && npm run test:server && npm test && npm run build"
+    "verify": "npm run scan:secrets && npm run test:server && npm test && npm run build && npm run check:bundle"
   },
   "browserslist": {
     "production": [
