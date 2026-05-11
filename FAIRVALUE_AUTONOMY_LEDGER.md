@@ -42,6 +42,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart/load browser recovery now has an explicit Chromium/Firefox/WebKit matrix command that runs the same real backend restart harness with retrying API load waves.
 - Restart/load latency now has a deterministic local profile command that starts the real backend, drives create/join/bet/state traffic through a backend restart, records p50/p95/max plus recovery timings, and fails on explicit local latency budgets.
 - Frontend dev/build/test tooling now uses Vite and Vitest instead of Create React App/react-scripts; the old CRA proxy template, web-vitals hook, and `%PUBLIC_URL%` HTML template are removed.
+- Vite route splitting now keeps the `/join` entry flow eager for keyboard reliability while lazy-loading browse, market detail, host, and player routes; the largest production JS chunk dropped from about 512 kB to 199 kB and the build no longer emits the large-chunk warning.
 
 ## Current Test Status
 
@@ -75,6 +76,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 restart browser matrix pass: `npx playwright test --list -c playwright.restart.matrix.config.ts` listed Chromium, Firefox, and WebKit restart-recovery projects; `npm run test:e2e:restart` passed the default Chromium restart/load test; `npm run test:e2e:restart:matrix` passed Chromium, Firefox, and WebKit restart/load recovery; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 restart latency profile pass: `npm run test:latency:restart` passed with create p95 84ms, join p95 263ms, bet p95 161ms, state p95 69ms, settle p95 8ms, restart readiness 1271ms, first recovered state 1478ms, and recovery wave 1696ms; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 Vite/Vitest toolchain pass: `npm test` passed 5 Vitest suites / 41 tests; `npm run build` passed with Vite; `npm audit --json` and `npm audit --omit=dev --json` both reported 0 vulnerabilities; `npm run test:e2e:isolated` passed 9 Chromium tests on Vite frontend `3010` / backend `8010`; `npm run test:e2e:restart` passed the Chromium restart harness; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit host/player flow; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, and Vite production build; `npm run test:e2e:restart:matrix` passed Chromium, Firefox, and WebKit restart/load recovery.
+- 2026-05-11 Vite route-splitting pass: `npm run build` dropped the largest JS chunk to 199.30 kB with no Vite large-chunk warning; focused keyboard E2E passed after keeping `/join` eager; full `npm run test:e2e:isolated` passed 9 Chromium tests; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, and Vite production build; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit host/player flows.
 
 ## Current Known Risks
 
@@ -95,9 +97,16 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
 2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
-3. Add Vite bundle-splitting/performance profiling for the large main chunk and map bundle.
+3. Add production-style bundle/performance budgets so future route chunks cannot silently regress.
 
 ## Iteration History
+
+### 2026-05-11 - Vite Route Splitting
+
+- Converted the app route shell to use `React.lazy` and `Suspense` for browse, market detail, host, and player routes.
+- Kept `/join` eagerly loaded after the keyboard E2E caught that lazy-loading the first-entry flow can swallow an immediate Tab press before the route chunk finishes.
+- Added an accessible `role="status"` loading fallback for lazy route transitions.
+- Verified the Vite build split host/player/market/chart/map code into route or feature chunks and removed the previous >500 kB main-chunk warning.
 
 ### 2026-05-11 - Vite/Vitest Toolchain Migration
 
@@ -548,6 +557,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart matrix E2E verified the rendered real backend restart/load recovery path across Chromium, Firefox, and WebKit.
 - Restart latency profile verified the real backend API path for `/api/rooms`, `/join`, `/bet`, `/state`, and `/settle` through a backend outage/restart with explicit latency budgets.
 - Vite migration verified `react-scripts` and `webpack-dev-server` are absent, full and production audits report zero vulnerabilities, Vite build passes, Vitest unit tests pass, isolated browser E2E passes, host/player matrix passes, and restart matrix passes.
+- Route-splitting verified the production app no longer emits a large-chunk warning while browser and keyboard E2E still pass on Vite.
 
 ## Screenshots Or Traces
 
@@ -604,10 +614,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `5d74cda` - Record restart matrix evidence.
 - `b1e5b47` - Add restart latency profile.
 - `a77289b` - Migrate frontend toolchain to Vite.
+- `c186a2a` - Split heavy frontend routes.
 
 ## Next Action Queue
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
 2. Add browser-driven high-concurrency soak or production-like traffic mix profiling.
-3. Add Vite bundle-splitting/performance profiling for the large main chunk and map bundle.
+3. Add production-style bundle/performance budgets so future route chunks cannot silently regress.
 4. Start the next loop with `npm run verify`, then inspect actual VoiceOver/manual assistive-tech gaps in the rendered browse, host, player, join, and market surfaces.
