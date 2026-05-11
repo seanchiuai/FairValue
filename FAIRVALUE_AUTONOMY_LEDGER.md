@@ -47,6 +47,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
+- Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
 
 ## Current Test Status
 
@@ -85,6 +86,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 assistive-technology AX pass: `npm run test:a11y:assistive` passed with room `N5A8` on frontend `64036` / backend `64034`, recording PASS for `/join`, create-room form, host dashboard, settle modal, player join form, and mobile betting controls; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 rendered browser load pass: `npm run test:e2e:browser-load` passed with room `VF08`, 10 rendered mobile player pages, 11 persisted players including host, 10 trades, 77 events, settlement, join wave 1703ms, bet wave 502ms, settlement 130ms, total 5031ms; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 cold production performance pass: `npm run test:performance:cold` passed with room `P4AZ`, production build 1778ms, cold join route ready 94ms, create-to-connected 162ms, cold player route ready 832ms, player join 166ms, bet-to-host sync 97ms, settlement broadcast 63ms, and all local budgets passing; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 mixed traffic pass: `npm run test:e2e:mixed-traffic` passed with room `6PD9`, 4 throttled rendered mobile players, 12 API churn players, 18 state reads, 17 persisted players including host, 16 trades, 65 events, 419 total wagered, join/churn 127295ms, rendered slow bets 780ms, settlement 510ms, total 129663ms; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -95,7 +97,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshot persistence still lacks retention policy, corruption recovery, and encryption-at-rest.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
-- Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, and a cold production build/room-flow profile; longer mixed traffic, slow-client, and network-throttled profiles are still missing.
+- Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the most important join, host, player, settle, and AI fallback states; it still does not cover every route, every possible modal branch, or a human-listened VoiceOver rotor/audio pass.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing.
@@ -104,10 +106,18 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
-2. Add longer mixed traffic profiling with rendered slow clients, API churn, and network throttling.
-3. Add a live Neon/Postgres smoke path when credentials are available, or a stricter local production-deploy readiness check if they are not.
+2. Add a live Neon/Postgres smoke path when credentials are available, or a stricter local production-deploy readiness check if they are not.
+3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 
 ## Iteration History
+
+### 2026-05-11 - Mixed Traffic Resilience Profile
+
+- Added `e2e/mixed-traffic.spec.ts`.
+- Added `playwright.mixed-traffic.config.ts` and `npm run test:e2e:mixed-traffic`, using fresh `8033` / `3033` ports and `/tmp/fairvalue-mixed-traffic-rooms.json`.
+- Kept the heavier mixed traffic spec out of the default Playwright suite.
+- The harness runs one rendered host, throttled rendered mobile clients with Chromium network emulation and route jitter, concurrent API join/bet churn, repeated state reads, rendered slow-client betting, host sync checks, settlement broadcast checks for every slow client, console/page-error checks, and durable snapshot reconciliation.
+- Browser MCP tools were exposed, but this workload used repo Playwright because it needs committed multi-context CDP throttling, API churn, and a repeatable CLI gate rather than a single in-app tab session.
 
 ### 2026-05-11 - Cold Production Performance Profile
 
@@ -578,6 +588,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Follow-up `npm run test:performance:cold` runs -> reached the real flow and exposed strict text ambiguities for `Cold Player` in leaderboard/activity and join/bet activity; the profile now scopes those waits to leaderboard and the bet-specific activity row.
 - Final `npm run test:performance:cold` -> passed with room `P4AZ`, production build 1778ms, cold `/join` ready 94ms, create-to-connected 162ms, cold `/play` ready 832ms, player join 166ms, bet-to-host sync 97ms, settlement broadcast 63ms, snapshot 2 players / 1 trade / 7 events / settled true.
 - `npm run verify` after cold production profile -> passed: `scan:secrets`, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npm run verify` before mixed-traffic profile -> passed: `scan:secrets`, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npx playwright test --list -c playwright.mixed-traffic.config.ts` -> listed 1 Chromium mixed-traffic test.
+- `npm run test:e2e:mixed-traffic` -> passed with room `6PD9`, 4 throttled rendered mobile players, 12 API churn players, 18 state reads, join/churn 127295ms, slow rendered bets 780ms, settlement 510ms, total 129663ms, 16 trades, and `$419` rendered wager volume.
+- `/tmp/fairvalue-mixed-traffic-rooms.json` after the mixed-traffic run -> room `6PD9`, 17 players including host, 16 trades, 65 events, settled true, and persisted wagered amount close to 419.
+- `npx playwright test --list` after adding mixed-traffic coverage -> default Playwright suite stayed at 9 tests in 3 files, excluding the heavier mixed-traffic spec.
+- `npm run verify` after mixed-traffic profile -> passed: `scan:secrets`, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Screens And Routes Verified
 
@@ -616,6 +632,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Assistive-tech AX capture verified headed Chrome macOS app-region AX names and Playwright ARIA snapshots for `/join`, create-room form, `/host/:roomCode`, settle modal, `/play/:roomCode` join form, and mobile betting controls using room `N5A8`.
 - Browser-load E2E verified `/join`, `/host/:roomCode`, and 10 simultaneous rendered `/play/:roomCode` mobile pages through concurrent joins, concurrent bets, host totals/activity, all-player settlement broadcasts, and durable snapshot reconciliation using room `VF08`.
 - Cold production profile verified production `dist` serving, `/join`, `/host/:roomCode`, `/play/:roomCode`, player betting, host sync, settlement broadcast, and local snapshot recovery using room `P4AZ`.
+- Mixed-traffic E2E verified `/join`, `/host/:roomCode`, and throttled rendered `/play/:roomCode` clients while concurrent API clients joined/bet and state reads churned, ending with settlement broadcast and snapshot reconciliation using room `6PD9`.
 
 ## Screenshots Or Traces
 
@@ -678,10 +695,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `52f9ee4` - Add assistive technology AX capture.
 - `f188062` - Add rendered browser load profile.
 - `6a78c08` - Add cold production performance profile.
+- `d92de55` - Add mixed traffic resilience profile.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
-2. Add longer mixed traffic profiling with rendered slow clients, API churn, and network throttling.
-3. Add a live Neon/Postgres smoke path when credentials are available, or a stricter local production-deploy readiness check if they are not.
-4. Start the next loop with `npm run verify`, then inspect the highest-risk mixed-traffic or deployment-readiness gap that is not already covered by the current matrix, restart, soak, latency, browser-load, cold-performance, and assistive-tech harnesses.
+2. Add a live Neon/Postgres smoke path when credentials are available, or a stricter local production-deploy readiness check if they are not.
+3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+4. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
