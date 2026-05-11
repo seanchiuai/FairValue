@@ -160,6 +160,58 @@ test('create room API failure is visible on the join page', async ({ page }) => 
   await expectNoSeriousAxeViolations(page, 'create-room API failure notification state');
 });
 
+test('create room host auto-join failure is visible on the join page', async ({ page, request }) => {
+  let createdRoomCode = '';
+  await page.route(/\/api\/rooms\/[A-Z0-9]{4}\/join$/, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    createdRoomCode = route.request().url().match(/\/api\/rooms\/([A-Z0-9]{4})\/join$/)?.[1] || '';
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'temporary host join outage',
+    });
+  });
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Create Room/ }).click();
+  await page.getByLabel('Host nickname').fill('Host Join Failure');
+  await page.getByLabel('Property address').fill(property.address);
+  await page.getByLabel('Asking price').fill(String(property.askingPrice));
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/rooms') &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    page.waitForResponse((response) =>
+      /\/api\/rooms\/[A-Z0-9]{4}\/join$/.test(response.url()) &&
+      response.request().method() === 'POST' &&
+      response.status() === 503
+    ),
+    page.getByRole('button', { name: /^Create Room$/ }).click(),
+  ]);
+
+  expect(createdRoomCode).toMatch(/^[A-Z0-9]{4}$/);
+  await expect(page.locator('#create-room-error')).toContainText('Failed to join room as host');
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Failed to join room as host' })).toBeVisible();
+  await expect(page.getByLabel('Host nickname')).toHaveAttribute('aria-describedby', 'create-room-error');
+  await expect(page.getByLabel('Property address')).toHaveAttribute('aria-describedby', 'create-room-error');
+  await expect(page.getByLabel('Asking price')).toHaveAttribute('aria-describedby', 'create-room-error');
+  await expect(page.getByLabel('Host nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Property address')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Asking price')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page).toHaveURL(/\/join$/);
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${createdRoomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'create-room host auto-join failure notification state');
+});
+
 test('join page room-code API failure is announced without blaming input', async ({ page }) => {
   await page.route('**/api/rooms/FAIL/join', async (route) => {
     if (route.request().method() !== 'POST') {
