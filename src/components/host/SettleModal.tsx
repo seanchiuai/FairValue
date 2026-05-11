@@ -181,7 +181,7 @@ const s: Record<string, React.CSSProperties> = {
     background: 'var(--accent-warning)',
     border: 'none',
     borderRadius: 8,
-    color: '#000',
+    color: '#fff',
     fontSize: 14,
     fontWeight: 700,
     cursor: 'pointer',

@@ -335,8 +335,9 @@ function recordRoomError(room, action, message, status, req) {
 function requireHostCapability(req, res, room) {
   const token = req.get(HOST_TOKEN_HEADER);
   if (!token || token !== room.hostToken) {
-    recordRoomError(room, 'host_capability', 'Host token required', 403, req);
-    res.status(403).json({ error: 'Host token required' });
+    const message = token ? 'Invalid host token' : 'Host token required';
+    recordRoomError(room, 'host_capability', message, 403, req);
+    res.status(403).json({ error: message });
     return false;
   }
   return true;
