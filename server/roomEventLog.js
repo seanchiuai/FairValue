@@ -58,6 +58,30 @@ function createInMemoryRoomEventStore() {
         .map((event) => cloneJson(event));
     },
 
+    replace(roomCode, events = []) {
+      const normalizedRoomCode = normalizeRoomCode(roomCode);
+      if (!normalizedRoomCode) throw new Error('roomCode is required');
+      const normalizedEvents = events
+        .map((event) => {
+          if (!VALID_EVENT_TYPES.has(event.type)) {
+            throw new Error(`Unknown room event type: ${event.type}`);
+          }
+          return {
+            ...cloneJson(event),
+            room_code: normalizedRoomCode,
+            sequence: Number(event.sequence),
+          };
+        })
+        .filter((event) => Number.isInteger(event.sequence) && event.sequence > 0)
+        .sort((a, b) => a.sequence - b.sequence);
+
+      eventsByRoom.set(normalizedRoomCode, normalizedEvents);
+      cursorsByRoom.set(
+        normalizedRoomCode,
+        normalizedEvents.reduce((max, event) => Math.max(max, event.sequence), 0)
+      );
+    },
+
     clear(roomCode) {
       const normalizedRoomCode = normalizeRoomCode(roomCode);
       eventsByRoom.delete(normalizedRoomCode);

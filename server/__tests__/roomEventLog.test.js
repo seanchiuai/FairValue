@@ -1,11 +1,17 @@
 const { after, afterEach, before, test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const WebSocket = require('ws');
 const {
   server,
   rooms,
   roomEventStore,
   EVENT_TYPES,
+  configureRoomPersistence,
+  loadPersistedRooms,
+  roomPersistence,
 } = require('../index');
 const {
   createInMemoryRoomEventStore,
@@ -14,6 +20,7 @@ const {
 
 let baseUrl;
 let wsBaseUrl;
+const tempDirs = new Set();
 
 function listen() {
   return new Promise((resolve) => {
@@ -91,6 +98,12 @@ afterEach(() => {
     delete rooms[code];
   }
   roomEventStore.clearAll();
+  roomPersistence().clear();
+  configureRoomPersistence(null);
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  tempDirs.clear();
 });
 
 after(close);
@@ -234,6 +247,83 @@ test('room event log supports audit access, ordered replay, and settlement recon
   assert.equal(state.data.settlement.winning_outcome, replayResponse.data.replay.settlement.winning_outcome);
   assert.deepEqual(
     state.data.activity.map((entry) => entry.type),
+    ['join', 'bet', 'settle']
+  );
+});
+
+test('file-backed room persistence restores room state, events, and bet idempotency', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fairvalue-room-store-'));
+  tempDirs.add(tempDir);
+  const storePath = path.join(tempDir, 'rooms.json');
+  configureRoomPersistence(storePath);
+
+  const room = await createHostedRoom();
+  const code = room.room_code;
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'player-1', nickname: 'Durable Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'durable-bet-001' },
+    body: { session_id: 'player-1', outcome: 'over', wager: 25 },
+  });
+  assert.equal(bet.status, 200);
+  assert.equal(bet.data.market.total_trades, 1);
+  assert.equal(fs.existsSync(storePath), true);
+
+  const stored = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+  assert.equal(stored.rooms[code].code, code);
+  assert.equal(stored.rooms[code].hostToken, room.host_token);
+  assert.equal(stored.rooms[code].events.at(-1).type, EVENT_TYPES.BET_PLACED);
+  assert.equal(stored.rooms[code].betReceipts.length, 1);
+  stored.rooms[code].aiEnabled = true;
+  fs.writeFileSync(storePath, `${JSON.stringify(stored, null, 2)}\n`);
+
+  for (const existingCode of Object.keys(rooms)) delete rooms[existingCode];
+  roomEventStore.clearAll();
+
+  const restored = loadPersistedRooms();
+  assert.equal(restored.loaded, 1);
+  assert.ok(rooms[code]);
+
+  const restoredState = await request(`/api/rooms/${code}/state`);
+  assert.equal(restoredState.status, 200);
+  assert.equal(restoredState.data.house.address, '321 Event Log Lane');
+  assert.equal(restoredState.data.market.total_trades, 1);
+  assert.equal(restoredState.data.players[0].nickname, 'Durable Player');
+  assert.equal(restoredState.data.event_sequence, stored.rooms[code].events.at(-1).sequence);
+  assert.equal(restoredState.data.ai_enabled, false);
+
+  const duplicate = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'durable-bet-001' },
+    body: { session_id: 'player-1', outcome: 'over', wager: 25 },
+  });
+  assert.equal(duplicate.status, 200);
+  assert.equal(duplicate.data.idempotent_replay, true);
+  assert.equal(rooms[code].market.total_trades, 1);
+
+  const settlement = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: { actual_price: 710000 },
+  });
+  assert.equal(settlement.status, 200);
+  assert.equal(settlement.data.winning_outcome, 'over');
+
+  for (const existingCode of Object.keys(rooms)) delete rooms[existingCode];
+  roomEventStore.clearAll();
+  loadPersistedRooms();
+
+  const settledState = await request(`/api/rooms/${code}/state`);
+  assert.equal(settledState.status, 200);
+  assert.equal(settledState.data.settled, true);
+  assert.equal(settledState.data.settlement.winning_outcome, 'over');
+  assert.deepEqual(
+    settledState.data.activity.map((entry) => entry.type),
     ['join', 'bet', 'settle']
   );
 });

@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
+const path = require('path');
 const { WebSocketServer, WebSocket } = require('ws');
 const sql = require('./db');
 const {
@@ -10,6 +11,7 @@ const {
   replayRoomEvents,
   roomEventToActivity,
 } = require('./roomEventLog');
+const { createJsonRoomPersistence } = require('./roomPersistence');
 const {
   DEFAULT_B,
   priceOver,
@@ -26,9 +28,10 @@ app.use(express.json());
 
 const server = http.createServer(app);
 
-// ─── In-memory rooms (multiplayer state) ────────────────────────────
-// Rooms are ephemeral — created for live sessions, not persisted.
-// Trades within rooms DO get persisted to Neon.
+// ─── Room state (multiplayer runtime + local snapshots) ─────────────
+// Rooms live in memory for active WebSocket sessions and can be snapshotted
+// locally so degraded/no-DB room state survives a backend restart.
+// Trades within rooms still attempt to persist to Neon when configured.
 
 const rooms = {};
 const HOST_TOKEN_HEADER = 'x-fairvalue-host-token';
@@ -42,6 +45,14 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const rateLimitBuckets = new Map();
 const roomEventStore = createInMemoryRoomEventStore();
+let roomPersistence = createJsonRoomPersistence({ filePath: resolveRoomPersistencePath() });
+
+function resolveRoomPersistencePath() {
+  const mode = String(process.env.FAIRVALUE_ROOM_PERSISTENCE || '').toLowerCase();
+  if (['0', 'false', 'off', 'disabled'].includes(mode)) return null;
+  if (process.env.FAIRVALUE_ROOM_STORE_PATH) return process.env.FAIRVALUE_ROOM_STORE_PATH;
+  return require.main === module ? path.join(process.cwd(), '.fairvalue', 'rooms.json') : null;
+}
 
 function generateRoomCode() {
   let code;
@@ -63,6 +74,79 @@ function generateHostToken() {
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function serializeRoomSnapshot(room) {
+  return {
+    code: room.code,
+    hostToken: room.hostToken,
+    house: cloneJson(room.house),
+    market: cloneJson(room.market),
+    players: cloneJson(room.players),
+    betReceipts: Array.from(room.betReceipts.entries()).map(([key, receipt]) => [key, cloneJson(receipt)]),
+    aiEnabled: Boolean(room.aiEnabled),
+    settled: Boolean(room.settled),
+    settlement: room.settlement ? cloneJson(room.settlement) : null,
+    activity: cloneJson(room.activity || []),
+    marketId: room.marketId || null,
+    events: roomEventStore.list(room.code),
+  };
+}
+
+function hydrateRoomSnapshot(snapshot) {
+  const code = normalizeRoomCode(snapshot?.code);
+  if (!code || !snapshot?.house) return null;
+
+  return {
+    code,
+    hostToken: snapshot.hostToken || generateHostToken(),
+    house: cloneJson(snapshot.house),
+    market: createMarketState(snapshot.market || { b: DEFAULT_B }),
+    players: cloneJson(snapshot.players || {}),
+    betReceipts: new Map((snapshot.betReceipts || []).map(([key, receipt]) => [key, cloneJson(receipt)])),
+    connections: [],
+    aiEnabled: false,
+    aiInterval: null,
+    settled: Boolean(snapshot.settled),
+    settlement: snapshot.settlement ? cloneJson(snapshot.settlement) : null,
+    activity: cloneJson(snapshot.activity || []),
+    marketId: snapshot.marketId || null,
+  };
+}
+
+function persistRooms() {
+  if (!roomPersistence.enabled) return;
+  const snapshots = {};
+  for (const room of Object.values(rooms)) {
+    snapshots[room.code] = serializeRoomSnapshot(room);
+  }
+  roomPersistence.save({ rooms: snapshots });
+}
+
+function persistRoom(room) {
+  if (!room || !rooms[room.code]) return;
+  persistRooms();
+}
+
+function loadPersistedRooms() {
+  if (!roomPersistence.enabled) return { loaded: 0, filePath: roomPersistence.filePath };
+  const snapshot = roomPersistence.load();
+  let loaded = 0;
+
+  for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
+    const room = hydrateRoomSnapshot({ ...roomSnapshot, code: roomSnapshot.code || code });
+    if (!room) continue;
+    rooms[room.code] = room;
+    roomEventStore.replace(room.code, roomSnapshot.events || []);
+    loaded += 1;
+  }
+
+  return { loaded, filePath: roomPersistence.filePath };
+}
+
+function configureRoomPersistence(filePath) {
+  roomPersistence = createJsonRoomPersistence({ filePath });
+  return loadPersistedRooms();
 }
 
 function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
@@ -240,6 +324,7 @@ function appendRoomEvent(room, type, payload = {}, req) {
   });
   const activityEntry = roomEventToActivity(event);
   if (activityEntry) room.activity.push(activityEntry);
+  persistRoom(room);
   return { event, activityEntry };
 }
 
@@ -287,7 +372,7 @@ function getRoomStatePayload(room) {
     house: replay.house || room.house,
     history: [],
     activity: replay.activity.slice(-50),
-    ai_enabled: replay.ai_enabled,
+    ai_enabled: room.aiEnabled,
     settled: replay.settled || room.settled,
     settlement: replay.settlement || room.settlement,
     event_sequence: replay.last_sequence,
@@ -733,6 +818,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     response: cloneJson(response),
     createdAt: Date.now(),
   });
+  persistRoom(room);
 
   res.json(response);
 });
@@ -1052,8 +1138,12 @@ wss.on('connection', (ws, req) => {
 
 const PORT = process.env.PORT || 8000;
 if (require.main === module) {
+  const restored = loadPersistedRooms();
   server.listen(PORT, () => {
     console.log(`FairValue server running on http://localhost:${PORT}`);
+    if (restored.loaded) {
+      console.log(`Restored ${restored.loaded} room(s) from ${restored.filePath}`);
+    }
     startSimulations();
   });
 }
@@ -1068,6 +1158,10 @@ module.exports = {
   generateHostToken,
   requireHostCapability,
   roomEventStore,
+  roomPersistence: () => roomPersistence,
+  configureRoomPersistence,
+  loadPersistedRooms,
+  persistRooms,
   replayRoomEvents,
   EVENT_TYPES,
   startSimulations,

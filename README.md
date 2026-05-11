@@ -70,7 +70,8 @@ Browser (React)
 
 ### Backend (`server/index.js`)
 
-- **Rooms** are ephemeral in-memory objects (players, connections, market state, activity feed)
+- **Rooms** are live in-memory objects with JSON snapshot durability for local degraded mode (`.fairvalue/rooms.json` by default in the real server process)
+- **Room event logs** are kept with each durable room snapshot so state can be reconstructed after a local backend restart
 - **Trades** are persisted to Neon on every bet
 - **Solo market simulation** runs on startup — contrarian AI bot trades every 15s per market to generate 24/7 activity
 - **WebSocket** broadcasts `bet`, `join`, `ai_trade`, `settle` events to all room connections
@@ -148,6 +149,10 @@ cp .env.example .env
 - `COGNEE_BASE_URL` defaults to `https://api.cognee.ai`.
 - `REACT_APP_BACKEND_PORT` defaults local frontend WebSockets to the backend on port `8000` when CRA runs on another port.
 - `REACT_APP_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.
+- `FAIRVALUE_ROOM_STORE_PATH` overrides the local durable room snapshot file. If unset, `npm run server` uses `.fairvalue/rooms.json`.
+- `FAIRVALUE_ROOM_PERSISTENCE=off` disables local room snapshots and returns to fully ephemeral in-memory room state.
+
+Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. Treat the file as local runtime state, not source code. Restored rooms keep their market, players, event history, settlement, and bet idempotency receipts; AI bot intervals are not auto-resumed after a backend restart.
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
 
