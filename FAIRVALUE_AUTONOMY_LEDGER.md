@@ -56,7 +56,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
-- Backend operations now expose `GET /healthz`, `GET /readyz`, and token-guarded `GET /api/ops/metrics` with in-memory request, latency, room lifecycle, WebSocket, rate-limit, database-error, persistence-failure, and AI degraded/error counters.
+- Backend operations now expose `GET /healthz`, `GET /readyz`, token-guarded JSON `GET /api/ops/metrics`, and token-guarded Prometheus `GET /metrics` with in-memory request, latency, room lifecycle, WebSocket, rate-limit, database-error, persistence-failure, and AI degraded/error counters.
 - Production environment readiness now has `npm run check:production`, which fails until deploy-critical env values are set for Postgres persistence, retention, identity signing, ops metrics protection, and database availability.
 
 ## Current Test Status
@@ -106,6 +106,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 Postgres retention pass: `node --test server/__tests__/roomPersistence.test.js` passed 10 targeted persistence tests; `npm run test:persistence:postgres` passed against Docker `postgres:16-alpine` with `retentionPruned: true`; `npm run test:server` passed 31 server tests; `npm run verify` passed client secret scan, 31 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 backend observability pass: baseline `npm run verify` passed before the loop; `node --test server/__tests__/observability.test.js` passed 3 focused ops tests; `npm run test:server` passed 34 server tests; final `npm run verify` passed client secret scan, 34 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 production readiness pass: `node --test server/__tests__/productionReadiness.test.js` passed 3 checker tests; local `npm run check:production` failed as expected with 5 blockers and 3 warnings; a synthetic production Postgres env passed with only the optional Cognee warning; `npm run test:server` passed 37 server tests; final `npm run verify` passed client secret scan, 37 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 Prometheus metrics pass: baseline `npm run verify` passed before the exporter; `node --check server/observability.js && node --check server/index.js && node --check server/__tests__/observability.test.js && node --test server/__tests__/observability.test.js` passed 4 focused ops tests; `npm run test:server` passed 38 server tests; final `npm run verify` passed client secret scan, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -117,7 +118,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
-- Operations metrics are now visible locally and token-guarded for production, but they are still process-local/in-memory and need an external metrics/log sink before multi-instance deployment.
+- Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
 - Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, and map-popup states; it still needs a human-listened VoiceOver rotor/audio pass and deeper edge-state coverage such as toasts and every possible validation branch.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
@@ -130,10 +131,17 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 4. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-5. Add an external metrics/log sink or dashboard path for production multi-instance operations.
+5. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
 6. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Prometheus Metrics Export
+
+- Added token-guarded `GET /metrics` Prometheus text output for external scrapers, sharing the ops token guard with `/api/ops/metrics`.
+- Exported aggregate process uptime, request status/latency, active/settled rooms, player/connection gauges, room lifecycle counters, WebSocket counters, rate-limit rejections, database configuration/errors, persistence status/failures, and AI degraded/error counters.
+- Kept scrape output aggregate-only and covered host-token non-leakage plus unauthenticated/authorized scrape behavior.
+- Documented the scrape endpoint in the README operations section.
 
 ### 2026-05-11 - Production Readiness Environment Gate
 
@@ -719,6 +727,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Synthetic production env with Postgres room store, positive retention, strong identity secret, strong ops token, and required database flag -> `npm run check:production` passed with 0 failures and 1 optional Cognee warning.
 - `npm run test:server` after production readiness gate -> passed 37 server tests.
 - `npm run verify` after production readiness gate -> passed: `scan:secrets`, 37 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- Baseline `npm run verify` before Prometheus metrics exporter -> passed: `scan:secrets`, 37 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `node --check server/observability.js && node --check server/index.js && node --check server/__tests__/observability.test.js && node --test server/__tests__/observability.test.js` after Prometheus metrics exporter -> passed 4 focused ops tests covering `/healthz`, `/readyz`, JSON ops metrics, Prometheus `/metrics`, host-token non-leakage, and token-gated scrape access.
+- `npm run test:server` after Prometheus metrics exporter -> passed 38 server tests.
+- `npm run verify` after Prometheus metrics exporter -> passed: `scan:secrets`, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Screens And Routes Verified
 
@@ -767,6 +779,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Postgres retention evidence verified an expired settled row is deleted from `fairvalue_room_snapshots`, recent settled and old active rows remain, targeted expired-row loads return `null`, expired targeted saves are skipped, disposable Docker Postgres stays green, and full verify remains green.
 - Backend observability evidence verified `/healthz`, `/readyz`, and `/api/ops/metrics`; the metrics snapshot tracks aggregate room lifecycle/request/dependency counters, omits host tokens, requires the configured ops token, and remains covered by full verify.
 - Production readiness evidence verified the deploy-env gate rejects local defaults, does not echo secret values, accepts a synthetic durable Postgres production config, and is included in the 37-test server suite.
+- Prometheus metrics evidence verified `/metrics` returns text/plain Prometheus scrape output for aggregate request/status/latency, room, WebSocket, rate-limit, database, persistence, and AI counters; it omits room host tokens and shares the configured ops-token guard.
 
 ## Screenshots Or Traces
 
@@ -838,7 +851,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `ac11618` - Prune expired local room snapshots.
 - `4994643` - Prune expired Postgres room snapshots.
 - `5430ddc` - Add backend observability endpoints.
+- `3dab2ac` - Record backend observability evidence.
 - `4ffa3f1` - Add production readiness environment check.
+- `cc30195` - Record production readiness evidence.
+- `d27ce9b` - Add Prometheus metrics exporter.
 
 ## Next Action Queue
 
@@ -846,6 +862,6 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 4. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-5. Add an external metrics/log sink or dashboard path for production multi-instance operations.
+5. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
 6. Run `npm run check:production` against the actual deployment environment once production env values are available.
 7. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
