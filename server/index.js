@@ -804,6 +804,13 @@ app.get('/api/ops/metrics', (req, res) => {
   res.json(observability.snapshot({ rooms, roomPersistence, sql }));
 });
 
+app.get('/metrics', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  res
+    .type('text/plain; version=0.0.4; charset=utf-8')
+    .send(observability.prometheusMetrics({ rooms, roomPersistence, sql }));
+});
+
 app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, res) => {
   const userId = generateUserId();
   res.json({

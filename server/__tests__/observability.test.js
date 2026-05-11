@@ -46,6 +46,11 @@ async function request(path, { method = 'GET', body, headers } = {}) {
   return { status: res.status, data, headers: res.headers };
 }
 
+async function textRequest(path, { headers } = {}) {
+  const res = await fetch(`${baseUrl}${path}`, { headers });
+  return { status: res.status, text: await res.text(), headers: res.headers };
+}
+
 async function createHostedRoom() {
   const created = await request('/api/rooms', {
     method: 'POST',
@@ -150,4 +155,47 @@ test('ops metrics require a configured token before exposing counters', async ()
   });
   assert.equal(allowed.status, 200);
   assert.equal(allowed.data.service, 'fairvalue');
+});
+
+test('prometheus metrics expose aggregate counters for external scrapers', async () => {
+  observability.resetObservability();
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'prometheus-player', nickname: 'Prometheus Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'prometheus-bet-001' },
+    body: { session_id: 'prometheus-player', outcome: 'under', wager: 30 },
+  });
+  assert.equal(bet.status, 200);
+
+  const metrics = await textRequest('/metrics');
+  assert.equal(metrics.status, 200);
+  assert.match(metrics.headers.get('content-type') || '', /text\/plain/);
+  assert.match(metrics.text, /^# HELP fairvalue_up/m);
+  assert.match(metrics.text, /fairvalue_up 1/);
+  assert.match(metrics.text, /fairvalue_http_requests_total\{status_class="2xx"\} [1-9]/);
+  assert.match(metrics.text, /fairvalue_room_lifecycle_total\{event="created"\} 1/);
+  assert.match(metrics.text, /fairvalue_room_lifecycle_total\{event="joined"\} 1/);
+  assert.match(metrics.text, /fairvalue_room_lifecycle_total\{event="bets"\} 1/);
+  assert.match(metrics.text, /fairvalue_rooms\{state="active"\} 1/);
+  assert.match(metrics.text, /fairvalue_room_players 1/);
+  assert.match(metrics.text, /fairvalue_database_configured 0/);
+  assert.equal(metrics.text.includes(room.host_token), false);
+
+  process.env.FAIRVALUE_OPS_TOKEN = 'prometheus-test-token';
+  const denied = await textRequest('/metrics');
+  assert.equal(denied.status, 403);
+
+  const allowed = await textRequest('/metrics', {
+    headers: { 'X-FairValue-Ops-Token': 'prometheus-test-token' },
+  });
+  assert.equal(allowed.status, 200);
+  assert.match(allowed.text, /fairvalue_up 1/);
 });
