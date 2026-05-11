@@ -5,6 +5,7 @@ import {
   searchMarketInsights,
   type LMSRState,
 } from '../services/cogneeService';
+import { calculateImpliedPrice } from '../lib/lmsr';
 import type { Market, ActivityEntry, PlayerData, ChatMessage, CogneeSearchResponse } from '../types';
 
 interface UseCogneeChatProps {
@@ -51,7 +52,7 @@ export function useCogneeChat({ propertyId, askingPrice, market, activity, playe
 
   const pushCurrentState = useCallback(async () => {
     if (!market) return;
-    const fairValue = askingPrice + (market.prob_over - 0.5) * 2 * askingPrice * 0.10;
+    const fairValue = calculateImpliedPrice(market.prob_over, askingPrice);
     const state: LMSRState = {
       qOver: market.q_over,
       qUnder: market.q_under,

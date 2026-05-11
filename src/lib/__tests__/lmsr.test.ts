@@ -8,6 +8,8 @@ import {
   executeBuy,
 } from '../lmsr';
 
+const marketEngine = require('../marketEngine');
+
 describe('costFunction', () => {
   it('returns a finite number for q=0,0', () => {
     const cost = costFunction(0, 0);
@@ -125,5 +127,19 @@ describe('executeBuy', () => {
     const result2 = executeBuy('over', 10, 0, 0, 200);
     // Higher b = more liquidity = lower price impact = lower cost
     expect(result1.cost).toBeGreaterThan(result2.cost);
+  });
+});
+
+describe('lmsr compatibility boundary', () => {
+  it('delegates existing frontend exports to the shared market engine', () => {
+    const shares = buyWithBudget('over', 25, 3, 7);
+    const compatTrade = executeBuy('over', shares, 3, 7);
+    const engineTrade = marketEngine.executeBuy('over', shares, 3, 7);
+
+    expect(costFunction(3, 7)).toBe(marketEngine.costFunction(3, 7));
+    expect(priceOver(3, 7)).toBe(marketEngine.priceOver(3, 7));
+    expect(priceUnder(3, 7)).toBe(marketEngine.priceUnder(3, 7));
+    expect(calculateImpliedPrice(0.6, 500000)).toBe(marketEngine.calculateImpliedPrice(0.6, 500000));
+    expect(compatTrade).toEqual(engineTrade);
   });
 });

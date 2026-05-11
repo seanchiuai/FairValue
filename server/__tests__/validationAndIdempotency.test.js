@@ -120,7 +120,7 @@ test('room, join, bet, and settlement payloads are validated before mutation', a
     body: { session_id: 'missing-player', outcome: 'over', wager: 25 },
   });
   assert.equal(unknownPlayer.status, 404);
-  assert.equal(rooms[code].market.totalTrades, 0);
+  assert.equal(rooms[code].market.total_trades, 0);
 
   const invalidSettle = await request(`/api/rooms/${code}/settle`, {
     method: 'POST',
@@ -168,7 +168,7 @@ test('bet idempotency replays duplicates without mutating the room twice', async
     body: { session_id: 'player-1', outcome: 'under', wager: 50 },
   });
   assert.equal(conflict.status, 409);
-  assert.equal(rooms[code].market.totalTrades, 1);
+  assert.equal(rooms[code].market.total_trades, 1);
 
   const secondBet = await request(`/api/rooms/${code}/bet`, {
     method: 'POST',

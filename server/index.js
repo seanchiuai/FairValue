@@ -10,6 +10,16 @@ const {
   replayRoomEvents,
   roomEventToActivity,
 } = require('./roomEventLog');
+const {
+  DEFAULT_B,
+  priceOver,
+  getPublicMarketState,
+  createMarketState,
+  applyTrade,
+  placeBetWithBudget,
+  getWinningOutcome,
+  settlePlayers,
+} = require('../src/lib/marketEngine');
 
 const app = express();
 app.use(express.json());
@@ -162,70 +172,6 @@ function betFingerprint(bet) {
   });
 }
 
-// ─── LMSR Math ──────────────────────────────────────────────────────
-
-function lmsrCost(qOver, qUnder, b) {
-  return b * Math.log(Math.exp(qOver / b) + Math.exp(qUnder / b));
-}
-
-function lmsrPriceOver(qOver, qUnder, b) {
-  const eo = Math.exp(qOver / b);
-  const eu = Math.exp(qUnder / b);
-  return eo / (eo + eu);
-}
-
-function lmsrBuy(market, outcome, shares, source) {
-  const oldCost = lmsrCost(market.qOver, market.qUnder, market.b);
-  if (outcome === 'over') {
-    market.qOver += shares;
-  } else {
-    market.qUnder += shares;
-  }
-  const newCost = lmsrCost(market.qOver, market.qUnder, market.b);
-  const cost = newCost - oldCost;
-  const probOver = lmsrPriceOver(market.qOver, market.qUnder, market.b);
-  market.totalTrades++;
-  market.totalWagered += cost;
-
-  return {
-    outcome,
-    wager: Math.round(cost * 100) / 100,
-    payout: Math.round(shares * 100) / 100,
-    profit_if_correct: Math.round((shares - cost) * 100) / 100,
-    prob_over_after: Math.round(probOver * 10000) / 10000,
-    prob_under_after: Math.round((1 - probOver) * 10000) / 10000,
-    timestamp: Date.now() / 1000,
-    source: source || 'manual',
-  };
-}
-
-function lmsrBuyWithBudget(market, outcome, budget) {
-  let lo = 0, hi = budget * 10;
-  for (let i = 0; i < 100; i++) {
-    const mid = (lo + hi) / 2;
-    const cost = outcome === 'over'
-      ? lmsrCost(market.qOver + mid, market.qUnder, market.b) - lmsrCost(market.qOver, market.qUnder, market.b)
-      : lmsrCost(market.qOver, market.qUnder + mid, market.b) - lmsrCost(market.qOver, market.qUnder, market.b);
-    if (Math.abs(cost - budget) < 0.001) return mid;
-    if (cost < budget) lo = mid; else hi = mid;
-  }
-  return (lo + hi) / 2;
-}
-
-function getMarketState(market) {
-  const probOver = lmsrPriceOver(market.qOver, market.qUnder, market.b);
-  return {
-    prob_over: Math.round(probOver * 10000) / 10000,
-    prob_under: Math.round((1 - probOver) * 10000) / 10000,
-    q_over: Math.round(market.qOver * 100) / 100,
-    q_under: Math.round(market.qUnder * 100) / 100,
-    total_trades: market.totalTrades,
-    total_wagered: Math.round(market.totalWagered * 100) / 100,
-    avg_bet_size: market.totalTrades > 0 ? Math.round((market.totalWagered / market.totalTrades) * 100) / 100 : 0,
-    b: market.b,
-  };
-}
-
 // ─── Room helpers ───────────────────────────────────────────────────
 
 async function createRoom(house, roomCode) {
@@ -235,7 +181,7 @@ async function createRoom(house, roomCode) {
     code,
     hostToken: generateHostToken(),
     house,
-    market: { qOver: 0, qUnder: 0, b: 100, totalTrades: 0, totalWagered: 0 },
+    market: createMarketState({ b: DEFAULT_B }),
     players: {},
     betReceipts: new Map(),
     connections: [],
@@ -269,7 +215,7 @@ async function createRoom(house, roomCode) {
   rooms[code] = room;
   appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
     house: room.house,
-    market: getMarketState(room.market),
+    market: getPublicMarketState(room.market),
   });
   return room;
 }
@@ -336,7 +282,7 @@ function getRoomStatePayload(room) {
   const replayPlayers = Object.values(replay.players);
 
   return {
-    market: replay.market || getMarketState(room.market),
+    market: replay.market || getPublicMarketState(room.market),
     players: replayPlayers.length ? replayPlayers : Object.values(room.players),
     house: replay.house || room.house,
     history: [],
@@ -363,7 +309,7 @@ async function persistTrade(marketId, trade, shares) {
 async function updateMarketState(marketId, market) {
   if (!marketId) return;
   try {
-    await sql`UPDATE market_state SET q_over=${market.qOver}, q_under=${market.qUnder}, total_trades=${market.totalTrades}, total_wagered=${market.totalWagered}, updated_at=now() WHERE market_id=${marketId}`;
+    await sql`UPDATE market_state SET q_over=${market.q_over}, q_under=${market.q_under}, total_trades=${market.total_trades}, total_wagered=${market.total_wagered}, updated_at=now() WHERE market_id=${marketId}`;
   } catch (e) {
     console.error('Failed to update market_state:', e.message);
   }
@@ -738,8 +684,10 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     return res.status(400).json({ error: 'Insufficient balance' });
   }
 
-  const shares = lmsrBuyWithBudget(room.market, outcome, wager);
-  const trade = lmsrBuy(room.market, outcome, shares, player.nickname);
+  const execution = placeBetWithBudget(room.market, outcome, wager, player.nickname);
+  room.market = execution.market;
+  const shares = execution.shares;
+  const trade = execution.trade;
 
   player.balance -= trade.wager;
   player.bets.push({
@@ -750,7 +698,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     timestamp: trade.timestamp,
   });
 
-  const marketState = getMarketState(room.market);
+  const marketState = execution.publicMarket;
   const { event, activityEntry } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
     session_id,
     nickname: player.nickname,
@@ -805,16 +753,12 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   room.settled = true;
 
   const { actual_price } = validated.value;
-  const winningOutcome = actual_price >= room.house.asking_price ? 'over' : 'under';
-
-  const results = Object.values(room.players).map(player => {
-    let payout = 0;
-    for (const bet of player.bets) {
-      if (bet.outcome === winningOutcome) payout += bet.shares;
-    }
-    player.balance += payout;
-    return { nickname: player.nickname, payout: Math.round(payout * 100) / 100, final_balance: Math.round(player.balance * 100) / 100 };
-  });
+  const winningOutcome = getWinningOutcome(actual_price, room.house.asking_price);
+  const settlement = settlePlayers(Object.values(room.players), winningOutcome);
+  for (const player of settlement.players) {
+    room.players[player.session_id] = player;
+  }
+  const { results } = settlement;
 
   room.settlement = { winning_outcome: winningOutcome, actual_price, results };
   const { event, activityEntry } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
@@ -849,7 +793,7 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
     room.aiInterval = setInterval(() => {
       if (!room.aiEnabled || room.settled) { clearInterval(room.aiInterval); room.aiInterval = null; return; }
 
-      const probOver = lmsrPriceOver(room.market.qOver, room.market.qUnder, room.market.b);
+      const probOver = priceOver(room.market.q_over, room.market.q_under, room.market.b);
       const contrarianStrength = 0.6;
       const noise = gaussianRandom() * 0.15;
       let pBetOver = (1 - probOver) * contrarianStrength + 0.5 * (1 - contrarianStrength) + noise;
@@ -860,13 +804,15 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
       const weights = [25, 20, 15, 12, 8, 8, 7, 5];
       const shares = weightedRandom(shareOptions, weights);
 
-      const trade = lmsrBuy(room.market, outcome, shares, 'AI');
+      const execution = applyTrade(room.market, outcome, shares, 'AI');
+      room.market = execution.market;
+      const trade = execution.trade;
 
-      const marketState = getMarketState(room.market);
+      const marketState = execution.publicMarket;
       const { event: aiEvent, activityEntry } = appendRoomEvent(room, EVENT_TYPES.AI_TRADE, {
         outcome,
         wager: trade.wager,
-        shares: Math.round(shares * 100) / 100,
+        shares: execution.shares,
         trade,
         market: marketState,
       });
@@ -999,13 +945,13 @@ async function startSimulations() {
     let index = 0;
     for (const row of rows) {
       const marketId = row.id;
-      const market = {
-        qOver: Number(row.q_over),
-        qUnder: Number(row.q_under),
+      const market = createMarketState({
+        q_over: Number(row.q_over),
+        q_under: Number(row.q_under),
         b: Number(row.b),
-        totalTrades: Number(row.total_trades),
-        totalWagered: Number(row.total_wagered),
-      };
+        total_trades: Number(row.total_trades),
+        total_wagered: Number(row.total_wagered),
+      });
 
       // Stagger start by ~2.5s per market
       const delay = index * 2500;
@@ -1028,7 +974,7 @@ async function startSimulations() {
 }
 
 function runSimTrade(marketId, market) {
-  const probOver = lmsrPriceOver(market.qOver, market.qUnder, market.b);
+  const probOver = priceOver(market.q_over, market.q_under, market.b);
   const contrarianStrength = 0.6;
   const noise = gaussianRandom() * 0.15;
   let pBetOver = (1 - probOver) * contrarianStrength + 0.5 * (1 - contrarianStrength) + noise;
@@ -1039,10 +985,12 @@ function runSimTrade(marketId, market) {
   const weights = [25, 20, 15, 12, 8, 8, 7, 5];
   const shares = weightedRandom(shareOptions, weights);
 
-  const trade = lmsrBuy(market, outcome, shares, 'auto');
+  const execution = applyTrade(market, outcome, shares, 'auto');
+  const trade = execution.trade;
+  Object.assign(market, execution.market);
 
   // Persist in background
-  persistTrade(marketId, trade, shares);
+  persistTrade(marketId, trade, execution.shares);
   updateMarketState(marketId, market);
 }
 
