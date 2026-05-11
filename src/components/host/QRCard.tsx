@@ -15,6 +15,7 @@ export default function QRCard({ joinUrl, ngrokUrl, onNgrokChange }: QRCardProps
         <QRCodeSVG
           value={joinUrl}
           size={160}
+          title="Join room QR code"
           bgColor="#FFFFFF"
           fgColor="#000000"
           style={{ borderRadius: 8, padding: 8 }}
@@ -22,12 +23,14 @@ export default function QRCard({ joinUrl, ngrokUrl, onNgrokChange }: QRCardProps
       </div>
       <div style={s.url}>{joinUrl}</div>
       <div style={s.ngrokField}>
-        <label style={s.ngrokLabel}>Ngrok / Public URL</label>
+        <label style={s.ngrokLabel} htmlFor="host-public-url">Ngrok / Public URL</label>
         <input
+          id="host-public-url"
           style={s.ngrokInput}
           value={ngrokUrl}
           onChange={(e) => onNgrokChange(e.target.value)}
           placeholder="https://abcd-1234.ngrok-free.app"
+          aria-label="Public join URL override"
         />
       </div>
     </div>

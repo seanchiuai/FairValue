@@ -171,7 +171,7 @@ export default function HostView() {
                 style={{
                   ...s.controlBtn,
                   background: 'var(--accent-warning)',
-                  color: '#000',
+                  color: '#fff',
                   opacity: hostToken ? 1 : 0.45,
                 }}
                 onClick={() => setShowSettleModal(true)}

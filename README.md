@@ -164,6 +164,15 @@ npm run verify
 
 This currently runs a client secret scan, server integration tests, the non-watch React test suite, and a production build.
 
+For browser flow coverage, run:
+
+```bash
+npm run test:e2e
+npm run test:e2e:isolated
+```
+
+`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst and serious axe accessibility checks.
+
 ## Project Structure
 
 ```

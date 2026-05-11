@@ -95,12 +95,14 @@ export default function CogneeChat({ propertyId, askingPrice, market, activity, 
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Ask about this market..."
+          aria-label="Ask AI analyst"
           disabled={isLoading}
         />
         <button
           style={{ ...s.sendBtn, opacity: isLoading || !input.trim() ? 0.5 : 1 }}
           onClick={handleSend}
           disabled={isLoading || !input.trim()}
+          aria-label="Send AI analyst question"
         >
           <Send size={14} />
         </button>

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const frontendPort = process.env.E2E_FRONTEND_PORT || '3001';
 const backendPort = process.env.E2E_BACKEND_PORT || '8000';
+const reuseExistingServer = !process.env.CI && process.env.E2E_REUSE_EXISTING !== 'false';
 
 export default defineConfig({
   testDir: './e2e',
@@ -26,13 +27,13 @@ export default defineConfig({
     {
       command: `PORT=${backendPort} npm run server`,
       url: `http://127.0.0.1:${backendPort}/api/markets/charts`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 120_000,
     },
     {
       command: `BROWSER=none PORT=${frontendPort} REACT_APP_BACKEND_PORT=${backendPort} npm start`,
       url: `http://127.0.0.1:${frontendPort}`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 180_000,
     },
   ],
