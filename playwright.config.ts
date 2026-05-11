@@ -6,6 +6,7 @@ const reuseExistingServer = !process.env.CI && process.env.E2E_REUSE_EXISTING !=
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: /restart-recovery\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

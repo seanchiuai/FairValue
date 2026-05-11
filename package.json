@@ -25,6 +25,7 @@
     "test": "react-scripts test",
     "test:e2e": "playwright test",
     "test:e2e:isolated": "rm -f /tmp/fairvalue-e2e-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8010 E2E_FRONTEND_PORT=3010 playwright test",
+    "test:e2e:restart": "rm -f /tmp/fairvalue-browser-restart-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-browser-restart-rooms.json playwright test -c playwright.restart.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
