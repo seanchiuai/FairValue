@@ -1,6 +1,6 @@
 const { after, afterEach, before, test } = require('node:test');
 const assert = require('node:assert/strict');
-const { server, rooms, configureRoomPersistence, roomEventStore } = require('../index');
+const { server, rooms, configureRoomPersistence, roomEventStore, runAiBotTick } = require('../index');
 
 let baseUrl;
 
@@ -307,4 +307,36 @@ test('configured durable room persistence failures return a 503 for critical mut
   });
   assert.equal(failedSettle.status, 503);
   assert.equal(failedSettle.data.error, 'Room persistence failed');
+});
+
+test('host-only audit errors report durable persistence failures before returning auth status', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const deniedAudit = await request(`/api/rooms/${code}/events`);
+  assert.equal(deniedAudit.status, 503);
+  assert.equal(deniedAudit.data.error, 'Room persistence failed');
+  assert.match(deniedAudit.data.message, /could not save/);
+});
+
+test('AI bot interval trades stop and surface durability status when room persistence fails', async () => {
+  const roomResponse = await createHostedRoom();
+  const code = roomResponse.room_code;
+  const room = rooms[code];
+  room.aiEnabled = true;
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const result = await runAiBotTick(room);
+  assert.equal(result.ok, false);
+  assert.equal(room.aiEnabled, false);
+  assert.equal(room.aiInterval, null);
+  assert.equal(room.durabilityError.action, 'ai_trade');
+  assert.equal(room.durabilityError.error, 'Room persistence failed');
+
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.ai_enabled, false);
+  assert.equal(state.data.durability_error.action, 'ai_trade');
+  assert.equal(state.data.durability_error.error, 'Room persistence failed');
 });

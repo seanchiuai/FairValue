@@ -111,6 +111,7 @@ function serializeRoomSnapshot(room) {
     aiEnabled: Boolean(room.aiEnabled),
     settled: Boolean(room.settled),
     settlement: room.settlement ? cloneJson(room.settlement) : null,
+    durabilityError: room.durabilityError ? cloneJson(room.durabilityError) : null,
     activity: cloneJson(room.activity || []),
     marketId: room.marketId || null,
     events: roomEventStore.list(room.code),
@@ -132,8 +133,10 @@ function hydrateRoomSnapshot(snapshot) {
     connections: [],
     aiEnabled: false,
     aiInterval: null,
+    aiTradeInFlight: false,
     settled: Boolean(snapshot.settled),
     settlement: snapshot.settlement ? cloneJson(snapshot.settlement) : null,
+    durabilityError: snapshot.durabilityError ? cloneJson(snapshot.durabilityError) : null,
     activity: cloneJson(snapshot.activity || []),
     marketId: snapshot.marketId || null,
   };
@@ -177,9 +180,43 @@ function roomPersistenceError(res, error) {
   });
 }
 
-function runAiBotInterval(room) {
-  room.aiInterval = setInterval(() => {
-    if (!room.aiEnabled || room.settled) { clearInterval(room.aiInterval); room.aiInterval = null; return; }
+function roomPersistenceFailurePayload(action, error) {
+  return {
+    action,
+    error: 'Room persistence failed',
+    message: 'Configured room persistence could not save this room mutation.',
+    timestamp: Date.now() / 1000,
+  };
+}
+
+function setRoomDurabilityError(room, action, error) {
+  room.durabilityError = roomPersistenceFailurePayload(action, error);
+  return room.durabilityError;
+}
+
+function clearRoomDurabilityError(room, action) {
+  if (!room?.durabilityError) return;
+  if (!action || room.durabilityError.action === action) room.durabilityError = null;
+}
+
+function stopAiBotInterval(room) {
+  if (room?.aiInterval) clearInterval(room.aiInterval);
+  if (room) room.aiInterval = null;
+}
+
+async function runAiBotTick(room) {
+  if (!room || !room.aiEnabled || room.settled) {
+    stopAiBotInterval(room);
+    return { ok: false, skipped: true };
+  }
+  if (room.aiTradeInFlight) return { ok: false, skipped: true, reason: 'ai_trade_in_flight' };
+
+  room.aiTradeInFlight = true;
+  try {
+    if (!room.aiEnabled || room.settled) {
+      stopAiBotInterval(room);
+      return { ok: false, skipped: true };
+    }
 
     const probOver = priceOver(room.market.q_over, room.market.q_under, room.market.b);
     const contrarianStrength = 0.6;
@@ -197,13 +234,25 @@ function runAiBotInterval(room) {
     const trade = execution.trade;
 
     const marketState = execution.publicMarket;
-    const { event: aiEvent, activityEntry } = appendRoomEvent(room, EVENT_TYPES.AI_TRADE, {
+    const { event: aiEvent, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.AI_TRADE, {
       outcome,
       wager: trade.wager,
       shares: execution.shares,
       trade,
       market: marketState,
     });
+
+    try {
+      await waitForRoomPersistence(persistence);
+      clearRoomDurabilityError(room, 'ai_trade');
+    } catch (error) {
+      const durabilityError = setRoomDurabilityError(room, 'ai_trade', error);
+      room.aiEnabled = false;
+      stopAiBotInterval(room);
+      console.error(`Room ${room.code}: AI trade persistence failed; bot disabled:`, error.message);
+      broadcast(room, { type: 'room_durability_failed', ...durabilityError });
+      return { ok: false, error, durabilityError };
+    }
 
     broadcast(room, {
       type: 'ai_trade',
@@ -213,10 +262,26 @@ function runAiBotInterval(room) {
       market: marketState,
       activity: activityEntry,
       event_sequence: aiEvent.sequence,
+      durability: { room_persistence: 'persisted' },
     });
 
     persistTrade(room.marketId, trade, shares);
     updateMarketState(room.marketId, room.market);
+    return { ok: true, event_sequence: aiEvent.sequence };
+  } finally {
+    room.aiTradeInFlight = false;
+  }
+}
+
+function runAiBotInterval(room) {
+  room.aiInterval = setInterval(() => {
+    runAiBotTick(room).catch((error) => {
+      const durabilityError = setRoomDurabilityError(room, 'ai_trade', error);
+      room.aiEnabled = false;
+      stopAiBotInterval(room);
+      console.error(`Room ${room.code}: AI bot tick failed; bot disabled:`, error.message);
+      broadcast(room, { type: 'room_durability_failed', ...durabilityError });
+    });
   }, 5000);
 }
 
@@ -438,8 +503,10 @@ async function createRoom(house, roomCode, options = {}) {
     connections: [],
     aiEnabled: false,
     aiInterval: null,
+    aiTradeInFlight: false,
     settled: false,
     settlement: null,
+    durabilityError: null,
     activity: [],
     marketId: null,
   };
@@ -503,16 +570,23 @@ function appendRoomEvent(room, type, payload = {}, req) {
 }
 
 function recordRoomError(room, action, message, status, req) {
-  appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
+  return appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
 }
 
-function rejectRoomAuth(res, room, action, message, status, req) {
-  recordRoomError(room, action, message, status, req);
+async function rejectRoomAuth(res, room, action, message, status, req) {
+  const { persistence } = recordRoomError(room, action, message, status, req);
+  try {
+    await waitForRoomPersistence(persistence);
+  } catch (error) {
+    roomPersistenceError(res, error);
+    return false;
+  }
+
   res.status(status).json({ error: message });
   return false;
 }
 
-function requireMatchingUserIdentity(req, res, room, sessionId, action) {
+async function requireMatchingUserIdentity(req, res, room, sessionId, action) {
   const hasUserId = Object.prototype.hasOwnProperty.call(req.body || {}, 'user_id');
   const bodyUserId = hasUserId ? normalizeUserId(req.body.user_id) : null;
   const token = req.get(USER_TOKEN_HEADER);
@@ -533,7 +607,7 @@ function requireMatchingUserIdentity(req, res, room, sessionId, action) {
   return true;
 }
 
-function requireHostCapability(req, res, room) {
+async function requireHostCapability(req, res, room) {
   const hostToken = req.get(HOST_TOKEN_HEADER);
   if (hostToken) {
     if (hostToken === room.hostToken) return true;
@@ -605,6 +679,7 @@ function getRoomStatePayload(room) {
     activity: replay.activity.slice(-50),
     ai_enabled: room.aiEnabled,
     host_user_id: room.hostUserId || null,
+    durability_error: room.durabilityError || null,
     settled: replay.settled || room.settled,
     settlement: replay.settlement || room.settlement,
     event_sequence: replay.last_sequence,
@@ -894,7 +969,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   }
 
   const { session_id, nickname } = validated.value;
-  if (!requireMatchingUserIdentity(req, res, room, session_id, 'join')) return;
+  if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'join'))) return;
 
   let player = room.players[session_id];
   let joinBroadcast = null;
@@ -955,10 +1030,10 @@ app.get('/api/rooms/:code/state', (req, res) => {
   res.json(getRoomStatePayload(room));
 });
 
-app.get('/api/rooms/:code/events', (req, res) => {
+app.get('/api/rooms/:code/events', async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
-  if (!requireHostCapability(req, res, room)) return;
+  if (!(await requireHostCapability(req, res, room))) return;
 
   const afterSequence = Number(req.query.after_sequence || 0);
   if (!Number.isInteger(afterSequence) || afterSequence < 0) {
@@ -973,10 +1048,10 @@ app.get('/api/rooms/:code/events', (req, res) => {
   });
 });
 
-app.get('/api/rooms/:code/replay', (req, res) => {
+app.get('/api/rooms/:code/replay', async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
-  if (!requireHostCapability(req, res, room)) return;
+  if (!(await requireHostCapability(req, res, room))) return;
 
   const events = roomEventStore.list(room.code);
   res.json({
@@ -1002,7 +1077,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   }
 
   const { session_id, outcome, wager } = validated.value;
-  if (!requireMatchingUserIdentity(req, res, room, session_id, 'bet')) return;
+  if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'bet'))) return;
 
   const fingerprint = betFingerprint(validated.value);
   const receipt = room.betReceipts.get(idempotencyKey);
@@ -1092,7 +1167,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
 app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
-  if (!requireHostCapability(req, res, room)) return;
+  if (!(await requireHostCapability(req, res, room))) return;
 
   const validated = validateSettlePayload(req.body);
   if (validated.error) {
@@ -1135,7 +1210,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
 app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 20 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
-  if (!requireHostCapability(req, res, room)) return;
+  if (!(await requireHostCapability(req, res, room))) return;
   if (room.settled) {
     recordRoomError(room, 'toggle-ai', 'Market is settled', 400, req);
     return res.status(400).json({ error: 'Market is settled' });
@@ -1405,6 +1480,7 @@ module.exports = {
   generateUserId,
   createUserToken,
   verifyUserToken,
+  runAiBotTick,
   requireHostCapability,
   roomEventStore,
   roomPersistence: () => roomPersistence,
