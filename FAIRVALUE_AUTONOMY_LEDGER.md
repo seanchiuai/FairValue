@@ -39,6 +39,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart E2E now combines rendered backend restart recovery with retrying API load waves while the backend is down and recovering, ending with 15 players, 15 trades, settlement, and snapshot reconciliation in the Chromium restart harness.
 - Expanded accessibility E2E now covers browse/search/sort, property detail, mobile create/join forms, host settle modal, missing-key AI fallback, and mobile custom-wager states; expected Cognee missing-key 503 resource errors are asserted as degraded-path evidence while other console/page errors still fail.
 - Keyboard and screen-reader-adjacent E2E now verifies browse search clear, sort menu keyboard selection/Escape/focus restoration, join-mode keyboard entry/autofocus/error alerts, settle dialog initial focus/Escape/focus restoration, missing-key AI alert semantics, and mobile wager keyboard activation.
+- Restart/load browser recovery now has an explicit Chromium/Firefox/WebKit matrix command that runs the same real backend restart harness with retrying API load waves.
 
 ## Current Test Status
 
@@ -69,6 +70,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 restart/load combination pass: `npm run test:e2e:restart` passed the rendered restart test with retrying load waves during backend outage/recovery; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 expanded accessibility route pass: `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 3 Chromium tests; `npm run test:e2e:isolated` passed 8 Chromium tests; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 keyboard accessibility pass: `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 4 Chromium tests; `npm run test:e2e:isolated` passed 9 Chromium tests; `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-11 restart browser matrix pass: `npx playwright test --list -c playwright.restart.matrix.config.ts` listed Chromium, Firefox, and WebKit restart-recovery projects; `npm run test:e2e:restart` passed the default Chromium restart/load test; `npm run test:e2e:restart:matrix` passed Chromium, Firefox, and WebKit restart/load recovery; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Current Known Risks
 
@@ -83,15 +85,23 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Accessibility coverage now gates serious/critical axe violations plus keyboard/screen-reader-adjacent behavior on the most important browse, join, host, player, settle, and AI fallback states; it still does not cover every route, every possible modal branch, or real assistive-technology/manual VoiceOver behavior.
 - Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
 - Broader accessibility and deeper security test layers are still missing.
-- Restart recovery is proven for one rendered Chromium host/two-player path across repeated backend restarts and retrying API load waves, but restart recovery itself is not yet multi-engine or k6/latency-profiled.
+- Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, but it is not yet k6/latency-profiled.
 
 ## Current Backlog Ranked By Impact
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
-2. Add a browser-engine restart matrix or k6-style latency profile for restart/load paths.
+2. Add a k6-style latency profile or equivalent latency budget for restart/load paths.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
 ## Iteration History
+
+### 2026-05-11 - Restart Recovery Browser Matrix
+
+- Added `playwright.restart.matrix.config.ts` for the existing real backend restart/load harness across Chromium, Firefox, and WebKit.
+- Added `npm run test:e2e:restart:matrix`, using `/tmp/fairvalue-browser-restart-matrix-rooms.json`.
+- Made the restart recovery spec Firefox-compatible by avoiding Firefox's unsupported `isMobile` context option while preserving touch-capable mobile viewport coverage in Chromium/WebKit.
+- Kept the default `npm run test:e2e:restart` as the faster Chromium restart/load gate.
+- Documented the restart matrix command in `README.md`.
 
 ### 2026-05-11 - Keyboard Accessibility Flow Coverage
 
@@ -475,6 +485,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Final `npm run verify` after keyboard accessibility patch -> passed: `scan:secrets`, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 - Final `npm run test:e2e:matrix` after keyboard accessibility patch -> passed 3 projects: Chromium, Firefox, and WebKit.
 - Snapshot probe after keyboard accessibility patch -> isolated rooms `R1PQ`, `BQCL`, `XCPX`, `MLUF`, `Q5WS`, `DAR9`, `SOJQ`, `AMEP`; matrix rooms `Q5JO`, `DC2Q`, and `H4K5` each had 3 players, 2 trades, 2 receipts, settled true, and no durability error.
+- `npx playwright test --list -c playwright.restart.matrix.config.ts` after restart matrix patch -> listed 3 restart-recovery projects: Chromium, Firefox, and WebKit.
+- `npm run test:e2e:restart` after restart matrix patch -> passed 1 Chromium restart/load test in 12.7s.
+- `npm run test:e2e:restart:matrix` after restart matrix patch -> passed 3 restart/load projects in 45.0s: Chromium, Firefox, and WebKit.
+- Snapshot probe after restart matrix patch -> default restart room `TDYV` and restart-matrix final room `DF0V` each had 15 players, 15 trades, 15 receipts, settled true, and no durability error.
+- `npm run verify` after restart matrix patch -> passed: `scan:secrets`, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Screens And Routes Verified
 
@@ -506,6 +521,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart E2E verified rendered host/player recovery while retrying API load waves attempted joins/bets during real backend outage and recovery windows.
 - Expanded isolated accessibility E2E verified `/`, browse sort menu, `/market/440298192`, `/join` create/join forms, `/host/:roomCode` settle modal and missing-key AI fallback, and `/play/:roomCode` mobile custom-wager state with serious/critical axe checks.
 - Keyboard accessibility E2E verified keyboard operation and alert/focus semantics on `/`, `/join`, `/host/:roomCode`, and `/play/:roomCode`.
+- Restart matrix E2E verified the rendered real backend restart/load recovery path across Chromium, Firefox, and WebKit.
 
 ## Screenshots Or Traces
 
@@ -557,10 +573,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `83893bc` - Expand accessibility route coverage.
 - `058e09a` - Record expanded accessibility evidence.
 - `14f9241` - Add keyboard accessibility flow coverage.
+- `a11a212` - Record keyboard accessibility evidence.
+- `a65f3b1` - Add restart recovery browser matrix.
 
 ## Next Action Queue
 
 1. Add real assistive-technology/manual VoiceOver notes and any remaining route/modal accessibility states.
-2. Add a browser-engine restart matrix or k6-style latency profile for restart/load paths.
+2. Add a k6-style latency profile or equivalent latency budget for restart/load paths.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 4. Start the next loop with `npm run verify`, then inspect actual VoiceOver/manual assistive-tech gaps in the rendered browse, host, player, join, and market surfaces.
