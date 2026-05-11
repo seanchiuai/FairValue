@@ -157,7 +157,7 @@ cp .env.example .env
 - `FAIRVALUE_LIVE_POSTGRES_DRIVER=postgres` can force the live readiness script to use a plain Postgres TCP client; otherwise it uses the app's Neon serverless driver for Neon hosts and the Postgres client for localhost.
 - `FAIRVALUE_IDENTITY_SECRET` signs anonymous browser identities used for durable player sessions and host authority. Set a stable private value anywhere rooms need to survive server restarts.
 
-Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, and bet idempotency receipts; AI bot intervals are not auto-resumed after a backend restart.
+Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, and bet idempotency receipts; AI bot intervals are not auto-resumed after a backend restart. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually.
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
 

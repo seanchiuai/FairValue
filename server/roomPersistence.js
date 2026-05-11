@@ -39,11 +39,45 @@ function createJsonRoomPersistence({ filePath } = {}) {
   const enabled = true;
   const resolvedPath = filePath ? path.resolve(filePath) : null;
 
+  function quarantineCorruptSnapshot(parseError) {
+    const baseCorruptPath = `${resolvedPath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    let corruptPath = baseCorruptPath;
+    let attempt = 0;
+
+    while (fs.existsSync(corruptPath)) {
+      attempt += 1;
+      corruptPath = `${baseCorruptPath}-${attempt}`;
+    }
+
+    try {
+      fs.renameSync(resolvedPath, corruptPath);
+    } catch (quarantineError) {
+      const error = new Error(`Room snapshot is corrupt and could not be quarantined: ${quarantineError.message}`);
+      error.cause = parseError;
+      throw error;
+    }
+
+    console.warn(`Recovered from corrupt room snapshot; quarantined ${resolvedPath} to ${corruptPath}`);
+    return {
+      version: SNAPSHOT_VERSION,
+      rooms: {},
+      recovered_from_corruption: true,
+      corrupt_path: corruptPath,
+    };
+  }
+
   function load() {
     if (!enabled) return { version: SNAPSHOT_VERSION, rooms: {} };
     if (!fs.existsSync(resolvedPath)) return { version: SNAPSHOT_VERSION, rooms: {} };
 
-    const parsed = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
+    const rawSnapshot = fs.readFileSync(resolvedPath, 'utf8');
+    let parsed;
+    try {
+      parsed = JSON.parse(rawSnapshot);
+    } catch (error) {
+      return quarantineCorruptSnapshot(error);
+    }
+
     if (!parsed || typeof parsed !== 'object') return { version: SNAPSHOT_VERSION, rooms: {} };
     return {
       version: parsed.version || SNAPSHOT_VERSION,

@@ -1,5 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const {
   SNAPSHOT_VERSION,
   createJsonRoomPersistence,
@@ -170,4 +173,30 @@ test('json room persistence supports targeted room read, write, and delete', () 
   assert.deepEqual(Object.keys(persistence.load().rooms), ['KEEP']);
 
   persistence.clear();
+});
+
+test('json room persistence quarantines malformed snapshots and can save again', () => {
+  const dirPath = fs.mkdtempSync(path.join(os.tmpdir(), 'fairvalue-corrupt-room-'));
+  const filePath = path.join(dirPath, 'rooms.json');
+  const malformedSnapshot = '{"version":1,"rooms":';
+  fs.writeFileSync(filePath, malformedSnapshot);
+
+  try {
+    const persistence = createJsonRoomPersistence({ filePath });
+    const loaded = persistence.load();
+
+    assert.equal(loaded.version, SNAPSHOT_VERSION);
+    assert.equal(loaded.recovered_from_corruption, true);
+    assert.deepEqual(loaded.rooms, {});
+    assert.equal(fs.existsSync(filePath), false);
+
+    const quarantinedFiles = fs.readdirSync(dirPath).filter((name) => name.startsWith('rooms.json.corrupt-'));
+    assert.equal(quarantinedFiles.length, 1);
+    assert.equal(fs.readFileSync(path.join(dirPath, quarantinedFiles[0]), 'utf8'), malformedSnapshot);
+
+    persistence.saveRoom('SAFE', { code: 'SAFE', hostToken: 'safe-host' });
+    assert.equal(persistence.loadRoom('SAFE').hostToken, 'safe-host');
+  } finally {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  }
 });
