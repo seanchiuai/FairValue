@@ -13,6 +13,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Local verification stack ran with backend on `http://localhost:8000` and frontend on `http://localhost:3001`.
 - Local frontend WebSockets now connect directly to the backend in CRA dev mode when the frontend runs on a different port.
 - Betting now requires idempotency keys, room mutations validate payloads server-side, guarded API routes have in-memory rate limits, and every API response includes a correlation ID.
+- Rooms now emit append-only events for creation, joins, reconnect/leave, bets, AI phase changes, AI trades, settlement, and room-scoped errors; host-only audit and replay endpoints reconstruct room state from the event stream.
 
 ## Current Test Status
 
@@ -23,23 +24,24 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 room-code contract pass: `npm run verify` passed: client secret scan, 6 server tests, 4 React/Jest suites / 33 tests, and production build.
 - 2026-05-10 multiplayer protocol pass: `npm run verify` passed: client secret scan, 7 server tests, 4 React/Jest suites / 33 tests, and production build.
 - 2026-05-10 server-authority pass: `npm run verify` passed: client secret scan, 11 server tests, 4 React/Jest suites / 33 tests, and production build.
+- 2026-05-10 event-log pass: `npm run verify` passed: client secret scan, 13 server tests, 4 React/Jest suites / 33 tests, and production build.
 
 ## Current Known Risks
 
 - Rotate the Cognee key that was previously committed in client code; treat it as compromised.
 - Host-only settlement and AI toggles now require a room host capability token, but durable user identity is still missing.
-- Room state, idempotency receipts, and rate-limit buckets are still in memory and will not survive process restart.
+- Room state, event logs, idempotency receipts, and rate-limit buckets are still in memory and will not survive process restart.
 - LMSR math remains duplicated between frontend and backend.
 - npm audit currently reports 47 vulnerabilities, including 28 high severity.
 - Browser E2E, load, accessibility, and deeper security test layers are still missing.
 
 ## Current Backlog Ranked By Impact
 
-1. Create an append-only room event log with replay tests.
-2. Unify backend and frontend LMSR logic behind one shared domain boundary.
-3. Add Playwright E2E coverage for host/player room flow.
-4. Address npm audit vulnerabilities without breaking CRA compatibility.
-5. Move volatile room/session state toward durable storage.
+1. Unify backend and frontend LMSR logic behind one shared domain boundary.
+2. Add Playwright E2E coverage for host/player room flow.
+3. Address npm audit vulnerabilities without breaking CRA compatibility.
+4. Move volatile room/session state toward durable storage.
+5. Add load and accessibility checks around the multiplayer room loop.
 
 ## Iteration History
 
@@ -95,6 +97,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Added route-level in-memory rate limits for room creation, joins, bets, settlement, AI toggles, and Cognee AI routes.
 - Added server tests for bad payloads, duplicate bet replay, conflicting idempotency reuse, concurrent bets, rate limiting, and request ID echo.
 
+### 2026-05-10 - Durable Room Event Log
+
+- Added `server/roomEventLog.js` with deterministic in-memory append-only storage, per-room sequence IDs, cursor reads, activity projection, and replay reconstruction.
+- Wired room creation, joins, WebSocket reconnect/leave, bets, AI toggles, AI trades, settlement, and room-scoped errors into the event stream.
+- Added host-token-protected `/api/rooms/:code/events` and `/api/rooms/:code/replay` endpoints for audit, support, and deterministic recovery.
+- Made room state responses include `event_sequence` and derive visible activity from replayed events.
+- Added tests for event ordering, cursor reads, replay state, host-only audit access, and settlement reconstruction.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -127,6 +137,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run verify` after server-authority patch -> passed: `scan:secrets`, 11 server tests, 4 React/Jest suites / 33 tests, and production build.
 - Restarted the live backend on `http://localhost:8000` after the server-authority patch; frontend remained listening on `http://localhost:3001`.
 - Live idempotency/API/WebSocket smoke through `http://127.0.0.1:8000` -> room `R5Z7` echoed request ID `live-smoke-1778479055066`, emitted a bet broadcast, replayed a duplicate bet with `idempotent_replay: true`, rejected conflicting key reuse with `409`, rejected invalid settlement with `400`, and recovered settled room state with one trade.
+- `npm run test:server` after event-log patch -> passed 13 server tests.
+- `npm run verify` after event-log patch -> passed: `scan:secrets`, 13 server tests, 4 React/Jest suites / 33 tests, and production build.
+- Restarted the live backend on `http://localhost:8000` after the event-log patch; frontend remained listening on `http://localhost:3001`.
+- Live event-log smoke through `http://127.0.0.1:8000` -> room `JUE8` produced 9 ordered events including room creation, host-token error, WebSocket reconnect/leave, join, bet, AI phase changes, and settlement; host replay reconstructed settled state with one trade and state recovery exposed the final event sequence.
 
 ## Screens And Routes Verified
 
@@ -156,10 +170,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `baa8e98` - Align room code contract.
 - `0071f82` - Cover multiplayer API and websocket flow.
 - `ea7ad72` - Harden server betting contract.
+- `8cbecb1` - Add room event log replay.
 
 ## Next Action Queue
 
-1. Create an append-only room event log with replay tests.
-2. Unify backend and frontend LMSR logic behind one shared domain boundary.
-3. Add Playwright E2E coverage for host/player room flow.
-4. Start the next loop with `npm run verify`, then design event recording and replay around existing room activity.
+1. Unify backend and frontend LMSR logic behind one shared domain boundary.
+2. Add Playwright E2E coverage for host/player room flow.
+3. Address npm audit vulnerabilities without breaking CRA compatibility.
+4. Start the next loop with `npm run verify`, then extract the shared LMSR/domain engine and prove server/client parity.
