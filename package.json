@@ -37,11 +37,12 @@
     "test:persistence:postgres": "node scripts/smoke-postgres-room-persistence.js",
     "test:persistence:live": "node scripts/smoke-live-postgres-room-persistence.js",
     "test:a11y:assistive": "node scripts/capture-assistive-tech-notes.js",
+    "typecheck": "tsc --noEmit",
     "check:bundle": "node scripts/check-bundle-size.js",
     "check:production": "node scripts/check-production-readiness.js",
     "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
-    "verify": "npm run scan:secrets && npm run test:server && npm test && npm run build && npm run check:bundle"
+    "verify": "npm run scan:secrets && npm run typecheck && npm run test:server && npm test && npm run build && npm run check:bundle"
   },
   "browserslist": {
     "production": [
@@ -69,7 +70,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^29.1.1",
     "postgres": "^3.4.9",
-    "typescript": "^4.9.5",
+    "typescript": "^6.0.3",
     "vite": "^8.0.12",
     "vitest": "^4.1.5",
     "yaml": "^2.8.4"
