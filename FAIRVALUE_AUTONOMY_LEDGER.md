@@ -32,6 +32,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Browser sessions now use server-issued signed `fv1` user identity tokens persisted in `localStorage`, with nickname/session migration preserved for existing browser state.
 - Room creation can bind a durable `host_user_id`; host-only controls accept that signed user identity while legacy room host tokens remain supported for old rooms and negative-path validation.
 - Player join and bet requests now send authenticated user IDs from the browser and reject forged token/session mismatches when a user token is present.
+- AI bot interval trades now wait for configured room snapshot persistence before broadcasting; persistence failures disable the bot, stop its interval, expose `durability_error`, and emit a room durability failure event.
+- Host-only auth/audit errors now wait for durable room error-event persistence; if persistence fails, the response returns `503 Room persistence failed` instead of claiming a normal `403` authorization result.
 
 ## Current Test Status
 
@@ -57,6 +59,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 durable-write failure pass: `npm run test:server` passed 20 server tests including forced persistence-failure 503s; `npm run test:e2e:restart` passed 1 Chromium restart test; `npm run verify` passed client secret scan, 20 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:persistence:postgres` stayed green.
 - 2026-05-11 durable identity pass: `npm run verify` passed client secret scan, 22 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed 1 Chromium restart test.
 - 2026-05-11 sustained restart pass: `npm run test:e2e:restart` passed the 3-context / 3-cycle restart recovery test; `npm run verify` passed client secret scan, 22 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-11 AI/audit durability pass: `npm run test:server` passed 24 server tests; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed the sustained restart test.
 
 ## Current Known Risks
 
@@ -64,7 +67,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host-only settlement and AI toggles now accept durable signed host identity for newly created rooms while still supporting legacy room host tokens.
 - Room connections, rate-limit buckets, and AI bot intervals are still process-local; restored rooms intentionally do not auto-resume AI intervals after restart.
 - The Postgres snapshot adapter is covered by fake-SQL tests and disposable local Postgres, but not by a live Neon smoke in this environment.
-- Room snapshot persistence still lacks retention policy, corruption recovery, encryption-at-rest, and response-critical write acknowledgment for AI bot interval trades and host-only audit error events.
+- Room snapshot persistence still lacks retention policy, corruption recovery, and encryption-at-rest.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
 - Load coverage is still a bounded synthetic burst, not a sustained soak, k6-style latency profile, or multi-browser matrix.
@@ -75,12 +78,19 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Add response-critical durability status for AI bot interval trades and host-only audit error events.
-2. Expand restart/load coverage into browser-engine matrices and longer soak profiles.
-3. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
-4. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
+1. Expand restart/load coverage into browser-engine matrices and longer soak profiles.
+2. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
+3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
 ## Iteration History
+
+### 2026-05-11 - AI And Audit Durability Status
+
+- Made AI bot ticks append AI trade events and await room snapshot persistence before broadcasting `ai_trade`.
+- Added AI persistence-failure handling that disables the bot, stops its interval, records `durability_error`, and emits `room_durability_failed`.
+- Made host capability and identity failures persist audit error events before returning `403`; failing audit persistence now returns `503`.
+- Added room snapshot/state support for `durabilityError` / `durability_error` so operators can see the last response-critical persistence failure.
+- Added focused server tests for host-only audit persistence failure and AI tick durability failure.
 
 ### 2026-05-11 - Durable Browser Identity And Host Authority
 
@@ -388,6 +398,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run test:e2e:restart` after sustained restart coverage -> passed 1 Chromium test in 16.3s; the rendered test now uses one host context, two player contexts, three repeated pre-settlement backend restart cycles, a post-reconnect bet, settlement, and final settled reload recovery.
 - `/tmp/fairvalue-browser-restart-rooms.json` after sustained restart coverage -> room `YLLG`, 37 persisted events, 3 bet receipts, 3 players, 3 total trades, settled `true`, and `aiEnabled` `false`.
 - `npm run verify` after sustained restart coverage -> passed: `scan:secrets`, 22 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `node --check server/index.js` after AI/audit durability patch -> passed.
+- `npm run test:server` after AI/audit durability patch -> passed 24 server tests, including host audit persistence-failure 503 and AI tick durability failure coverage.
+- `npm run verify` after AI/audit durability patch -> passed: `scan:secrets`, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm run test:e2e:isolated` after AI/audit durability patch -> passed 7 Chromium tests.
+- `npm run test:e2e:restart` after AI/audit durability patch -> passed 1 Chromium sustained restart test in 16.2s.
+- `/tmp/fairvalue-browser-restart-rooms.json` after AI/audit durability patch -> room `DEOB`, 45 persisted events, 3 players, 3 receipts, 3 total trades, settled `true`, `aiEnabled` `false`, and `durabilityError` `null`.
 
 ## Screens And Routes Verified
 
@@ -413,6 +429,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Server tests verified `/api/identity`, host identity authorization for AI toggle/settlement, and forged user-token/session rejection for joins and bets.
 - Isolated E2E verified durable identity migration did not regress host/player happy path, accessibility/load checks, or fake host-token UI rejection.
 - Restart E2E verified one rendered host context plus two rendered player contexts through three consecutive backend restart/reconnect cycles before settlement and another restart/reload after settlement.
+- Server tests verified AI bot durability failure status and host-only audit error durable `503` behavior.
 
 ## Screenshots Or Traces
 
@@ -452,11 +469,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `aa0f78c` - Add disposable Postgres persistence smoke.
 - `4fe4f09` - Surface durable room persistence failures.
 - `6bae782` - Add durable browser identity auth.
+- `f88ad3c` - Record durable identity evidence.
 - `2687d54` - Expand restart recovery E2E coverage.
+- `ed2fa3a` - Record sustained restart evidence.
+- `c9148e5` - Surface AI and audit durability failures.
 
 ## Next Action Queue
 
-1. Add response-critical durability status for AI bot interval trades and host-only audit error events.
-2. Expand restart/load coverage into browser-engine matrices and longer soak profiles.
-3. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
-4. Start the next loop with `npm run verify`, then inspect AI bot interval persistence and host-only audit error event durability.
+1. Expand restart/load coverage into browser-engine matrices and longer soak profiles.
+2. Expand load/accessibility coverage into sustained profiles, more routes, modals, and responsive states.
+3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
+4. Start the next loop with `npm run verify`, then inspect browser-engine matrix or longer restart/load soak gaps.
