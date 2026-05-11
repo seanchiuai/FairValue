@@ -27,6 +27,7 @@
     "test:e2e:isolated": "rm -f /tmp/fairvalue-e2e-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8010 E2E_FRONTEND_PORT=3010 playwright test",
     "test:e2e:matrix": "rm -f /tmp/fairvalue-e2e-matrix-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-matrix-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8030 E2E_FRONTEND_PORT=3030 playwright test -c playwright.matrix.config.ts",
     "test:e2e:restart": "rm -f /tmp/fairvalue-browser-restart-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-browser-restart-rooms.json playwright test -c playwright.restart.config.ts",
+    "test:e2e:restart:matrix": "rm -f /tmp/fairvalue-browser-restart-matrix-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-browser-restart-matrix-rooms.json playwright test -c playwright.restart.matrix.config.ts",
     "test:e2e:soak": "rm -f /tmp/fairvalue-e2e-soak-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-soak-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8031 E2E_FRONTEND_PORT=3031 playwright test -c playwright.soak.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:persistence:postgres": "node scripts/smoke-postgres-room-persistence.js",

@@ -173,6 +173,7 @@ npm run test:e2e
 npm run test:e2e:isolated
 npm run test:e2e:matrix
 npm run test:e2e:restart
+npm run test:e2e:restart:matrix
 npm run test:e2e:soak
 npm run test:persistence:postgres
 ```
@@ -182,6 +183,8 @@ npm run test:persistence:postgres
 `test:e2e:matrix` starts fresh backend/frontend ports (`8030`/`3030`) and runs the rendered host/player room flow across Chromium, Firefox, and WebKit projects.
 
 `test:e2e:restart` starts its own fresh backend/frontend on free local ports, keeps the rendered host/player pages open, restarts the real backend process against `/tmp/fairvalue-browser-restart-rooms.json`, runs retrying API load waves while the backend is down and recovering, and verifies room recovery, post-restart betting, settlement, and settled-state reload.
+
+`test:e2e:restart:matrix` runs that same restart/load recovery proof across Chromium, Firefox, and WebKit, using `/tmp/fairvalue-browser-restart-matrix-rooms.json`.
 
 `test:e2e:soak` starts fresh backend/frontend ports (`8031`/`3031`) and runs a longer API/WebSocket join-bet wave profile against `/tmp/fairvalue-e2e-soak-rooms.json`, including idempotency replay, settlement, and snapshot reconciliation.
 

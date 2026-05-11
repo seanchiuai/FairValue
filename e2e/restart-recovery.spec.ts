@@ -350,13 +350,19 @@ test.afterAll(async () => {
 
 test.setTimeout(180_000);
 
-test('rendered multi-player room sustains repeated real backend restarts', async ({ browser }: { browser: Browser }) => {
+test('rendered multi-player room sustains repeated real backend restarts', async ({
+  browser,
+  browserName,
+}: {
+  browser: Browser;
+  browserName: string;
+}) => {
+  const playerContextOptions =
+    browserName === 'firefox'
+      ? { viewport: playerViewport, hasTouch: true }
+      : { viewport: playerViewport, isMobile: true, hasTouch: true };
   const hostContext = await browser.newContext({ viewport: hostViewport });
-  const playerOneContext = await browser.newContext({
-    viewport: playerViewport,
-    isMobile: true,
-    hasTouch: true,
-  });
+  const playerOneContext = await browser.newContext(playerContextOptions);
   const playerTwoContext = await browser.newContext({ viewport: { width: 820, height: 1180 } });
   const host = await hostContext.newPage();
   const playerOne = await playerOneContext.newPage();
