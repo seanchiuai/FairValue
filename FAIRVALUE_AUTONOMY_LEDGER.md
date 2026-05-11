@@ -36,6 +36,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host-only auth/audit errors now wait for durable room error-event persistence; if persistence fails, the response returns `503 Room persistence failed` instead of claiming a normal `403` authorization result.
 - Browser E2E now has explicit matrix and soak commands: `test:e2e:matrix` runs the rendered host/player flow across Chromium, Firefox, and WebKit, while `test:e2e:soak` runs a 24-player API/WebSocket wave profile with idempotency replay, settlement, and snapshot reconciliation.
 - Connected room clients now perform low-frequency state reconciliation while WebSocket remains primary, so rendered state can heal if a browser misses an otherwise successful broadcast.
+- Restart E2E now combines rendered backend restart recovery with retrying API load waves while the backend is down and recovering, ending with 15 players, 15 trades, settlement, and snapshot reconciliation in the Chromium restart harness.
 
 ## Current Test Status
 
@@ -63,6 +64,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 sustained restart pass: `npm run test:e2e:restart` passed the 3-context / 3-cycle restart recovery test; `npm run verify` passed client secret scan, 22 server tests, 5 React/Jest suites / 41 tests, and production build.
 - 2026-05-11 AI/audit durability pass: `npm run test:server` passed 24 server tests; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed the sustained restart test.
 - 2026-05-11 browser matrix/soak pass: `npm run test:e2e:matrix` passed Chromium, Firefox, and WebKit rendered host/player flows; `npm run test:e2e:soak` passed the 24-player wave profile; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build; `npm run test:e2e:isolated` passed 7 Chromium tests; `npm run test:e2e:restart` passed the sustained restart test.
+- 2026-05-11 restart/load combination pass: `npm run test:e2e:restart` passed the rendered restart test with retrying load waves during backend outage/recovery; `npm run verify` passed client secret scan, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Current Known Risks
 
@@ -76,16 +78,24 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load coverage now includes a bounded synthetic burst and a 24-player wave soak, but not a k6-style latency profile, browser-driven high-concurrency soak, or production-like traffic mix.
 - Accessibility coverage currently gates serious/critical axe violations on core room surfaces, not every route, every modal state, or manual screen-reader behavior.
 - Full npm audit still reports 2 moderate dev-only `webpack-dev-server` findings through `react-scripts`; production/runtime audit is clean.
-- Broader accessibility, restart/load combination coverage, and deeper security test layers are still missing.
-- Restart recovery is proven for one rendered Chromium host/two-player path across repeated backend restarts; the normal rendered host/player flow now has browser-engine matrix coverage, but restart recovery itself is not yet multi-engine or combined with heavier traffic.
+- Broader accessibility and deeper security test layers are still missing.
+- Restart recovery is proven for one rendered Chromium host/two-player path across repeated backend restarts and retrying API load waves, but restart recovery itself is not yet multi-engine or k6/latency-profiled.
 
 ## Current Backlog Ranked By Impact
 
-1. Add restart/load combination coverage with heavier traffic during backend restart cycles and, if practical, a browser-engine restart matrix.
-2. Expand load/accessibility coverage into more routes, modals, responsive states, and manual screen-reader-adjacent checks.
+1. Expand load/accessibility coverage into more routes, modals, responsive states, and manual screen-reader-adjacent checks.
+2. Add a browser-engine restart matrix or k6-style latency profile for restart/load paths.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
 
 ## Iteration History
+
+### 2026-05-11 - Restart Load Combination Coverage
+
+- Added retrying API load waves inside `e2e/restart-recovery.spec.ts` while the backend is intentionally stopped and restarted.
+- Each of three backend restart cycles now starts four API load players that retry through connection failures, join after recovery, place idempotent bets, and prove at least one failed attempt occurred during the outage window.
+- Updated rendered host assertions after every restart cycle to verify recovered player count, total trades, total volume, leaderboard entries, and the original mobile player positions.
+- Expanded final snapshot assertions to require the expected player count, trade count, and settled state after recovery plus load.
+- Documented the stronger restart harness behavior in `README.md`.
 
 ### 2026-05-11 - Browser Matrix And Load Soak Coverage
 
@@ -426,6 +436,9 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run test:e2e:isolated` after matrix/soak patch -> passed 7 Chromium tests in 32.9s.
 - `npm run test:e2e:restart` after matrix/soak patch -> passed 1 Chromium sustained restart test in 33.7s.
 - Snapshot probe after matrix/soak patch -> matrix rooms `MHWR`, `YWAI`, and `TU8I` each had 3 players, 2 trades, 2 receipts, settled true, and no durability error; soak room `BMXD` had 24 players, 24 trades, 24 receipts, 52 events, settled true, and no durability error; restart room `G43J` had 3 players, 3 trades, 3 receipts, 41 events, settled true, and no durability error.
+- `npm run test:e2e:restart` after restart/load combination patch -> passed 1 Chromium rendered restart/load test in 16.5s.
+- Snapshot probe after restart/load combination patch -> room `GJTU`, 15 players, 12 restart-load players, 15 trades, 15 receipts, 64 events, settled true, `aiEnabled` false, and `durabilityError` null.
+- `npm run verify` after restart/load combination patch -> passed: `scan:secrets`, 24 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Screens And Routes Verified
 
@@ -454,6 +467,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Server tests verified AI bot durability failure status and host-only audit error durable `503` behavior.
 - Matrix E2E verified the rendered `/join` -> `/host/:roomCode` plus two `/play/:roomCode` player flow across Chromium, Firefox, and WebKit.
 - Soak E2E verified a 24-player / 24-bet API and WebSocket wave profile with idempotency replay, settlement, and persisted snapshot reconciliation.
+- Restart E2E verified rendered host/player recovery while retrying API load waves attempted joins/bets during real backend outage and recovery windows.
 
 ## Screenshots Or Traces
 
@@ -499,10 +513,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `c9148e5` - Surface AI and audit durability failures.
 - `864c81b` - Record AI audit durability evidence.
 - `6f63ffa` - Add browser matrix and soak E2E coverage.
+- `914f927` - Record browser matrix soak evidence.
+- `9f52d92` - Add restart load recovery E2E coverage.
 
 ## Next Action Queue
 
-1. Add restart/load combination coverage with heavier traffic during backend restart cycles and, if practical, a browser-engine restart matrix.
-2. Expand load/accessibility coverage into more routes, modals, responsive states, and manual screen-reader-adjacent checks.
+1. Expand load/accessibility coverage into more routes, modals, responsive states, and manual screen-reader-adjacent checks.
+2. Add a browser-engine restart matrix or k6-style latency profile for restart/load paths.
 3. Plan a CRA toolchain migration to remove the residual dev-server audit findings.
-4. Start the next loop with `npm run verify`, then inspect restart/load combination gaps in `e2e/restart-recovery.spec.ts` and `e2e/load-soak.spec.ts`.
+4. Start the next loop with `npm run verify`, then inspect modal/accessibility gaps in the rendered host, player, join, and market surfaces.
