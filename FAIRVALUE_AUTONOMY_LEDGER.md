@@ -58,6 +58,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
 - Backend operations now expose `GET /healthz`, `GET /readyz`, token-guarded JSON `GET /api/ops/metrics`, and token-guarded Prometheus `GET /metrics` with in-memory request, latency, room lifecycle, WebSocket, rate-limit, database-error, persistence-failure, and AI degraded/error counters.
 - Production environment readiness now has `npm run check:production`, which fails until deploy-critical env values are set for Postgres persistence, retention, identity signing, ops metrics protection, and database availability.
+- Express now disables `X-Powered-By` and emits baseline browser security headers on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
 
 ## Current Test Status
 
@@ -108,6 +109,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 production readiness pass: `node --test server/__tests__/productionReadiness.test.js` passed 3 checker tests; local `npm run check:production` failed as expected with 5 blockers and 3 warnings; a synthetic production Postgres env passed with only the optional Cognee warning; `npm run test:server` passed 37 server tests; final `npm run verify` passed client secret scan, 37 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 Prometheus metrics pass: baseline `npm run verify` passed before the exporter; `node --check server/observability.js && node --check server/index.js && node --check server/__tests__/observability.test.js && node --test server/__tests__/observability.test.js` passed 4 focused ops tests; `npm run test:server` passed 38 server tests; final `npm run verify` passed client secret scan, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 TypeScript verification pass: `npx tsc --noEmit` initially failed because TypeScript 4.9 could not resolve Vite 8 plugin package-export types; after upgrading TypeScript and switching to `moduleResolution: bundler`, `npm run typecheck` passed, `npm run verify` passed client secret scan, TypeScript type checking, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate, and `npm audit --json` reported 0 vulnerabilities.
+- 2026-05-11 HTTP security headers pass: `node --check server/index.js && node --check server/__tests__/securityHeaders.test.js && node --test server/__tests__/securityHeaders.test.js` passed 3 focused header tests; `npm run verify` passed client secret scan, TypeScript type checking, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -123,7 +125,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
 - Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, and map-popup states; it still needs a human-listened VoiceOver rotor/audio pass and deeper edge-state coverage such as toasts and every possible validation branch.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
-- Broader accessibility and deeper security test layers are still missing.
+- Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
 
 ## Current Backlog Ranked By Impact
@@ -136,6 +138,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 6. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Baseline HTTP Security Headers
+
+- Added a first-party security-header middleware to the Express server and disabled `X-Powered-By`.
+- Every response now emits `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, and a restrictive `Permissions-Policy`.
+- Added server tests proving those headers are present on successful health responses, validation errors, and unknown routes.
+- Documented the HTTP hardening baseline in the README.
 
 ### 2026-05-11 - TypeScript Verification Gate
 
@@ -745,6 +754,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run typecheck` after adding the package script -> passed.
 - `npm run verify` after wiring typecheck into the gate -> passed: `scan:secrets`, `typecheck`, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - `npm audit --json` after the TypeScript verification gate -> reported 0 vulnerabilities.
+- `node --check server/index.js && node --check server/__tests__/securityHeaders.test.js && node --test server/__tests__/securityHeaders.test.js` after HTTP security headers -> passed 3 focused tests covering success, validation-error, and unknown-route responses.
+- `npm run verify` after HTTP security headers -> passed: `scan:secrets`, `typecheck`, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Screens And Routes Verified
 
@@ -795,6 +806,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Production readiness evidence verified the deploy-env gate rejects local defaults, does not echo secret values, accepts a synthetic durable Postgres production config, and is included in the 37-test server suite.
 - Prometheus metrics evidence verified `/metrics` returns text/plain Prometheus scrape output for aggregate request/status/latency, room, WebSocket, rate-limit, database, persistence, and AI counters; it omits room host tokens and shares the configured ops-token guard.
 - TypeScript verification evidence verified the Vite/React source tree and Vite config with `tsc --noEmit`, and `npm run verify` now fails if the type gate regresses.
+- HTTP security header evidence verified `/healthz`, `/api/rooms` validation errors, and unknown routes all include the security baseline while omitting `X-Powered-By`.
 
 ## Screenshots Or Traces
 
@@ -872,6 +884,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `d27ce9b` - Add Prometheus metrics exporter.
 - `f35b95c` - Record Prometheus metrics evidence.
 - `6212616` - Add TypeScript gate to verification.
+- `7bf3b57` - Record TypeScript verification evidence.
+- `ac3002c` - Add baseline HTTP security headers.
 
 ## Next Action Queue
 
