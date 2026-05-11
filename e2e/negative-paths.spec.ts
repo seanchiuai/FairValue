@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 const backendPort = process.env.E2E_BACKEND_PORT || '8000';
@@ -25,6 +26,28 @@ async function createRoom(request: APIRequestContext): Promise<RoomResponse> {
 
 async function expectConnected(page: Page) {
   await expect(page.getByText('Connected').first()).toBeVisible({ timeout: 15_000 });
+}
+
+function formatViolations(violations: Awaited<ReturnType<AxeBuilder['analyze']>>['violations']) {
+  return violations
+    .map((violation) => {
+      const nodes = violation.nodes
+        .slice(0, 3)
+        .map((node) => `    - ${node.target.join(' ')}: ${node.failureSummary || 'no failure summary'}`)
+        .join('\n');
+      return `  ${violation.id} (${violation.impact}): ${violation.help}\n${nodes}`;
+    })
+    .join('\n\n');
+}
+
+async function expectNoSeriousAxeViolations(page: Page, label: string) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const violations = results.violations.filter((violation) =>
+    violation.impact === 'serious' || violation.impact === 'critical'
+  );
+  expect(violations, `${label} accessibility violations:\n${formatViolations(violations)}`).toEqual([]);
 }
 
 test('join flow reports malformed and nonexistent room codes', async ({ page }) => {
@@ -62,6 +85,41 @@ test('direct player join announces missing nickname before submitting', async ({
   await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
   await expect(page.getByRole('button', { name: 'Dismiss error notification: Enter your name' })).toBeVisible();
   expect(joinRequestCount).toBe(0);
+});
+
+test('market detail room creation failure is visible to the host', async ({ page }) => {
+  await page.route('**/api/rooms', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'Room persistence failed' }),
+    });
+  });
+
+  await page.goto('/market/440298192');
+  await expect(page.getByText('Multiplayer Mode')).toBeVisible({ timeout: 15_000 });
+
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/rooms') &&
+      response.request().method() === 'POST' &&
+      response.status() === 503
+    ),
+    page.getByRole('button', { name: 'Start a Bid' }).click(),
+  ]);
+
+  await expect(page.locator('#market-start-room-error')).toContainText('Room persistence failed');
+  await expect(page.getByRole('button', { name: 'Start a Bid' })).toHaveAttribute(
+    'aria-describedby',
+    'market-start-room-error'
+  );
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Room persistence failed' })).toBeVisible();
+  await expectNoSeriousAxeViolations(page, 'market start room failure notification state');
+  await expect(page).toHaveURL(/\/market\/440298192$/);
 });
 
 test('fake host token cannot settle a room from the host UI', async ({ page, request }) => {

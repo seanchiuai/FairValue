@@ -21,14 +21,33 @@ import { useSession } from '../hooks/useSession';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
+import { useToast } from '../contexts/ToastContext';
 import './MarketPage.css';
+
+const startRoomErrorId = 'market-start-room-error';
+
+type RoomCreateResponse = {
+  room_code?: string;
+  host_token?: string;
+  error?: string;
+};
+
+type RoomJoinResponse = {
+  error?: string;
+};
+
+async function readJson<T>(response: Response): Promise<T> {
+  return response.json().catch(() => ({})) as Promise<T>;
+}
 
 const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
   const navigate = useNavigate();
   const { properties, loading } = useProperties();
   const { ensureIdentity } = useSession();
+  const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
   const property = properties.find(p => p.id === propertyId) || properties[0];
 
   // Chart with historical data from DB
@@ -56,6 +75,7 @@ const MarketPage: React.FC = () => {
   const handleStartBid = async () => {
     if (!property || creating) return;
     setCreating(true);
+    setCreateError('');
     try {
       const identity = await ensureIdentity();
       const res = await fetch('/api/rooms', {
@@ -70,8 +90,9 @@ const MarketPage: React.FC = () => {
           host_user_id: identity.user_id,
         }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await readJson<RoomCreateResponse>(res);
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to create room');
+      if (!data.room_code || !data.host_token) throw new Error('Room creation response was invalid');
       saveHostToken(data.room_code, data.host_token);
 
       const joinRes = await fetch(`/api/rooms/${data.room_code}/join`, {
@@ -86,11 +107,14 @@ const MarketPage: React.FC = () => {
           nickname: 'Host',
         }),
       });
-      const joinData = await joinRes.json();
-      if (joinData.error) throw new Error(joinData.error);
+      const joinData = await readJson<RoomJoinResponse>(joinRes);
+      if (!joinRes.ok || joinData.error) throw new Error(joinData.error || 'Failed to join room as host');
 
       navigate(`/host/${data.room_code}`);
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to start room';
+      setCreateError(message);
+      showToast(message, 'error');
       setCreating(false);
     }
   };
@@ -288,11 +312,17 @@ const MarketPage: React.FC = () => {
             <div className="bid-text">
               <h2 className="section-title"><Gavel size={18} /> Multiplayer Mode</h2>
               <p className="bid-desc">Think you know the fair value? Host a live bidding game with friends and test your instincts.</p>
+              {createError && (
+                <p id={startRoomErrorId} className="bid-error" role="alert" aria-live="assertive">
+                  {createError}
+                </p>
+              )}
             </div>
             <button
               className="bid-cta-btn"
               onClick={handleStartBid}
               disabled={creating}
+              aria-describedby={createError ? startRoomErrorId : undefined}
               style={{ opacity: creating ? 0.6 : 1 }}
             >
               {creating ? 'Creating room...' : 'Start a Bid'}

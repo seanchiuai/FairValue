@@ -317,6 +317,18 @@
   margin: 0;
   line-height: 1.5;
 }
+.bid-error {
+  display: inline-flex;
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.94);
+  border: 1px solid rgba(180,35,24,0.28);
+  border-radius: 8px;
+  color: #B42318;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
 .bid-cta-btn {
   display: inline-flex;
   align-items: center;
