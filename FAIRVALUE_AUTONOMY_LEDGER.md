@@ -55,6 +55,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Accessibility edge states now expose field-level `aria-invalid` / `aria-describedby` semantics for create/join validation errors and settlement errors; map pins have accessible names and map popup contrast is gated by axe.
 - Player validation notifications now use the existing global toast system for join/bet errors while preserving inline alerts; error toasts announce assertively, non-error toasts announce politely, dismiss buttons are message-specific, mobile width is bounded, and the toast entrance no longer fades text through low-contrast states.
 - Host AI toggle failures now use the global toast system instead of console-only errors, so invalid/missing host authority is visible and announced to room operators; AI toggle success also emits a polite status notification.
+- Host settlement failures now preserve the modal inline error while also using the global toast system for announced, message-specific failure feedback; successful settlement emits a polite status toast.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
@@ -117,6 +118,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 local backend boot smoke pass: `node --check scripts/smoke-local-boot.js && npm run smoke:boot` passed with room `UL61` on a free local port; final `npm run verify` passed client secret scan, typecheck, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `KA6M`.
 - 2026-05-11 player validation notification pass: `npm test -- ToastContainer` passed 1 suite / 2 tests, `npm run typecheck` passed, focused player-validation E2E first caught a serious toast contrast regression during the opacity animation, the fixed focused E2E passed, `npm test` passed 6 Vitest suites / 43 tests, `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 5 Chromium tests, full `npm run test:e2e:isolated` passed 10 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `VAE4`.
 - 2026-05-11 host action notification pass: focused fake-token AI-toggle E2E passed, `npm run typecheck` passed, first full isolated E2E run caught a strict-locator collision between the AI control and the new success-toast dismiss button, the fixed host/player flow passed, final full `npm run test:e2e:isolated` passed 11 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `DV6G`.
+- 2026-05-11 settlement notification pass: focused fake-token settlement E2E passed, `npm run typecheck` passed, full `npm run test:e2e:isolated` passed 11 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.67 kB / 760.00 kB, and `smoke:boot` with room `3IO2`.
 
 ## Current Known Risks
 
@@ -130,7 +132,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, and host-action notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered create/join/player-wager/settle/host-toggle paths.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered create/join/player-wager/settle/host-toggle/settlement-failure paths.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -138,7 +140,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/player wager/settle/host-toggle paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/player wager/settle/host-toggle/settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
@@ -146,6 +148,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Settlement Failure Notifications
+
+- Wired host settlement API failures into `showToast` while preserving the existing inline modal error surface.
+- Added a polite success toast for completed settlement so the host receives the same global status treatment as other room actions.
+- Kept client-side settlement validation inside the dialog only, avoiding duplicate alert regions for required/invalid actual-price checks that are already covered by modal accessibility E2E.
+- Tightened the fake-host-token settlement E2E to assert the modal `#settle-error`, the message-specific `Invalid host token` toast dismiss control, and the unsettled server state.
+- Documented settlement failure notifications in the isolated E2E coverage description.
 
 ### 2026-05-11 - Host Action Notifications
 
@@ -817,6 +827,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run test:e2e:isolated -- e2e/host-player-flow.spec.ts` after exact AI-control locator fix -> passed 1 Chromium test.
 - Final `npm run test:e2e:isolated` after host action notification patch -> passed 11 Chromium tests, including host/player flow, resilience/accessibility states, keyboard flow, negative paths, and fake-token AI-toggle announcement.
 - Final `npm run verify` after host action notification patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.58 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:54670`, room `DV6G`.
+- `npm run typecheck` after settlement notification patch -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "fake host token cannot settle"` -> passed 1 Chromium test, proving the inline modal error and global error toast both announce the invalid host token.
+- Full `npm run test:e2e:isolated` after settlement notification patch -> passed 11 Chromium tests, including host/player flow, resilience/accessibility states, keyboard flow, negative paths, fake-token settlement announcement, and fake-token AI-toggle announcement.
+- Final `npm run verify` after settlement notification patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.67 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:57217`, room `3IO2`.
 
 ## Screens And Routes Verified
 
@@ -872,6 +886,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Local boot smoke evidence verified the real `node server/index.js` process starts on a free local port, serves health/readiness, runs the degraded-local multiplayer room path over HTTP plus WebSocket, writes a local room snapshot, protects metrics with the ops token, and omits host tokens from public state/metrics.
 - Player notification evidence verified `/play/:roomCode` invalid `$0` wager feedback through inline alert semantics, `aria-invalid` / `aria-describedby` linkage on the custom wager input, a message-specific dismissible error toast, and serious/critical axe coverage in the full isolated Chromium suite.
 - Host action notification evidence verified `/host/:roomCode` fake-token AI-toggle rejection through a message-specific `Invalid host token` alert toast, unchanged `aria-pressed=false` AI control state, and server state with `ai_enabled=false`; the happy-path host flow also verifies exact AI-control button names with success toasts present.
+- Settlement notification evidence verified `/host/:roomCode` fake-token settlement rejection through inline modal `#settle-error`, a message-specific `Invalid host token` alert toast, unchanged unsettled server state, and serious/critical axe coverage through the full isolated Chromium suite.
 
 ## Screenshots Or Traces
 
@@ -955,14 +970,17 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `499a324` - Expand TypeScript gate to E2E specs.
 - `a29bc1a` - Record E2E TypeScript coverage evidence.
 - `151538c` - Add local backend boot smoke.
+- `61d853d` - Record local boot smoke evidence.
 - `bff61ba` - Harden player validation notifications.
 - `60994ae` - Record player notification evidence.
 - `9aa0631` - Announce host AI toggle failures.
+- `aab465c` - Record host action notification evidence.
+- `793c0a3` - Announce settlement failures.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/player wager/settle/host-toggle paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/player wager/settle/host-toggle/settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
