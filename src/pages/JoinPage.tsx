@@ -15,6 +15,8 @@ export default function JoinPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const sanitize = (s: string, max: number) => s.trim().replace(/<[^>]*>/g, '').slice(0, max);
+  const formatRoomCodeInput = (value: string) =>
+    value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
 
   const handleCreate = async () => {
     const cleanName = sanitize(name, 20);
@@ -62,13 +64,13 @@ export default function JoinPage() {
 
   const handleJoin = async () => {
     const cleanName = sanitize(name, 20);
-    const cleanCode = roomCode.trim().toUpperCase();
+    const cleanCode = formatRoomCodeInput(roomCode);
     if (!cleanName || !cleanCode) {
       setError('Nickname and room code are required');
       return;
     }
-    if (!/^[A-Z]{4}$/.test(cleanCode)) {
-      setError('Room code must be 4 letters');
+    if (!/^[A-Z0-9]{4}$/.test(cleanCode)) {
+      setError('Room code must be 4 letters or numbers');
       return;
     }
 
@@ -183,8 +185,8 @@ export default function JoinPage() {
               <input
                 style={{ ...styles.input, textAlign: 'center', fontSize: 24, letterSpacing: 8, textTransform: 'uppercase' }}
                 value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.slice(0, 4))}
-                placeholder="ABCD"
+                onChange={(e) => setRoomCode(formatRoomCodeInput(e.target.value))}
+                placeholder="A1B2"
                 maxLength={4}
                 inputMode="text"
               />

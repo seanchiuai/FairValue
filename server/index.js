@@ -16,15 +16,21 @@ const server = http.createServer(app);
 
 const rooms = {};
 const HOST_TOKEN_HEADER = 'x-fairvalue-host-token';
+const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const ROOM_CODE_PATTERN = /^[A-Z0-9]{4}$/;
 
 function generateRoomCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code;
   do {
     code = '';
-    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 4; i++) code += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)];
   } while (rooms[code]);
   return code;
+}
+
+function normalizeRoomCode(value) {
+  const code = String(value || '').trim().toUpperCase();
+  return ROOM_CODE_PATTERN.test(code) ? code : null;
 }
 
 function generateHostToken() {
@@ -98,7 +104,8 @@ function getMarketState(market) {
 // ─── Room helpers ───────────────────────────────────────────────────
 
 async function createRoom(house, roomCode) {
-  const code = roomCode || generateRoomCode();
+  const code = roomCode ? normalizeRoomCode(roomCode) : generateRoomCode();
+  if (!code) throw new Error('Room code must be 4 letters or numbers');
   const room = {
     code,
     hostToken: generateHostToken(),
@@ -155,6 +162,22 @@ function requireHostCapability(req, res, room) {
     return false;
   }
   return true;
+}
+
+function getRoomFromCodeParam(req, res) {
+  const code = normalizeRoomCode(req.params.code);
+  if (!code) {
+    res.status(400).json({ error: 'Room code must be 4 letters or numbers' });
+    return null;
+  }
+
+  const room = rooms[code];
+  if (!room) {
+    res.status(404).json({ error: 'Room not found' });
+    return null;
+  }
+
+  return room;
 }
 
 // ─── Persist trade to Neon ──────────────────────────────────────────
@@ -390,8 +413,8 @@ app.post('/api/rooms', async (req, res) => {
 });
 
 app.post('/api/rooms/:code/join', (req, res) => {
-  const room = rooms[req.params.code.toUpperCase()];
-  if (!room) return res.status(404).json({ error: 'Room not found' });
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
 
   const { session_id, nickname } = req.body;
   let player = room.players[session_id];
@@ -421,8 +444,8 @@ app.post('/api/rooms/:code/join', (req, res) => {
 });
 
 app.get('/api/rooms/:code/state', (req, res) => {
-  const room = rooms[req.params.code.toUpperCase()];
-  if (!room) return res.status(404).json({ error: 'Room not found' });
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
 
   res.json({
     market: getMarketState(room.market),
@@ -437,8 +460,8 @@ app.get('/api/rooms/:code/state', (req, res) => {
 });
 
 app.post('/api/rooms/:code/bet', async (req, res) => {
-  const room = rooms[req.params.code.toUpperCase()];
-  if (!room) return res.status(404).json({ error: 'Room not found' });
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
   if (room.settled) return res.status(400).json({ error: 'Market is settled' });
 
   const { session_id, outcome, wager } = req.body;
@@ -483,8 +506,8 @@ app.post('/api/rooms/:code/bet', async (req, res) => {
 });
 
 app.post('/api/rooms/:code/settle', (req, res) => {
-  const room = rooms[req.params.code.toUpperCase()];
-  if (!room) return res.status(404).json({ error: 'Room not found' });
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
   if (!requireHostCapability(req, res, room)) return;
 
   if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
@@ -514,8 +537,8 @@ app.post('/api/rooms/:code/settle', (req, res) => {
 });
 
 app.post('/api/rooms/:code/toggle-ai', (req, res) => {
-  const room = rooms[req.params.code.toUpperCase()];
-  if (!room) return res.status(404).json({ error: 'Room not found' });
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
   if (!requireHostCapability(req, res, room)) return;
   if (room.settled) return res.status(400).json({ error: 'Market is settled' });
 
@@ -561,8 +584,8 @@ app.post('/api/rooms/:code/toggle-ai', (req, res) => {
 });
 
 app.get('/api/rooms/:code/leaderboard', (req, res) => {
-  const room = rooms[req.params.code.toUpperCase()];
-  if (!room) return res.status(404).json({ error: 'Room not found' });
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
 
   const sorted = Object.values(room.players).sort((a, b) => b.balance - a.balance);
   res.json({ leaderboard: sorted.map(p => ({ nickname: p.nickname, balance: Math.round(p.balance * 100) / 100 })) });
@@ -750,7 +773,8 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 wss.on('connection', (ws, req) => {
-  const roomCode = req.url.replace('/ws/', '').toUpperCase();
+  const roomCode = normalizeRoomCode(req.url.replace('/ws/', ''));
+  if (!roomCode) { ws.close(4000); return; }
   const room = rooms[roomCode];
   if (!room) { ws.close(4004); return; }
 
@@ -776,6 +800,7 @@ module.exports = {
   rooms,
   createRoom,
   generateRoomCode,
+  normalizeRoomCode,
   generateHostToken,
   requireHostCapability,
   startSimulations,

@@ -19,6 +19,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 baseline before patch: `npm run build` passed with one warning for an unused `priceOver` import in `src/hooks/useRoom.ts`.
 - 2026-05-10 post-patch: `npm run verify` passed: client secret scan, 4 test suites / 33 tests, and production build.
 - 2026-05-10 host-authority pass: `npm run verify` passed: client secret scan, server authority tests, 4 React/Jest suites / 33 tests, and production build.
+- 2026-05-10 room-code contract pass: `npm run verify` passed: client secret scan, 6 server tests, 4 React/Jest suites / 33 tests, and production build.
 
 ## Current Known Risks
 
@@ -31,13 +32,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Align room-code generation, UI validation, and API tests.
-2. Add API/WebSocket tests for create room, join, bet, leaderboard, and settlement.
-3. Add idempotency keys, validation, rate limits, and request correlation IDs.
-4. Create an append-only room event log with replay tests.
-5. Unify backend and frontend LMSR logic behind one shared domain boundary.
-6. Add Playwright E2E coverage for host/player room flow.
-7. Address npm audit vulnerabilities without breaking CRA compatibility.
+1. Add broader API/WebSocket tests for create room, join, bet, leaderboard, and settlement.
+2. Add idempotency keys, validation, rate limits, and request correlation IDs.
+3. Create an append-only room event log with replay tests.
+4. Unify backend and frontend LMSR logic behind one shared domain boundary.
+5. Add Playwright E2E coverage for host/player room flow.
+6. Address npm audit vulnerabilities without breaking CRA compatibility.
 
 ## Iteration History
 
@@ -69,6 +69,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Added server integration tests proving join/state do not expose host tokens, players cannot settle/toggle AI, and the creator token can settle/toggle.
 - Updated `npm run verify` to include `npm run test:server`.
 
+### 2026-05-10 - Room-Code Contract
+
+- Made `A-Z0-9` the canonical 4-character room-code schema.
+- Added shared backend normalization and validation for room-code route params.
+- Kept generated codes on the same schema and exported the normalizer for server tests.
+- Updated join UI normalization, placeholder, and error copy to accept letters and numbers.
+- Updated README room-code copy and local WebSocket run notes.
+- Added server tests for generated code shape, lowercase normalization, invalid codes, nonexistent rooms, and successful alphanumeric joins.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -90,6 +99,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run verify` after host-authority patch -> passed: `scan:secrets`, `test:server`, React/Jest tests, production build.
 - Host-token API smoke through `http://127.0.0.1:8000` -> room `M8QP` returned a host token, join/state did not leak it, WebSocket opened, settle/toggle without or with fake token returned 403, valid host token toggled AI on/off and settled `over`.
 - Browser host-token smoke through Playwright fallback -> room `EHPA` stored host token in host `sessionStorage`, player had no token, player settle attempt returned 403, host controls were enabled, and host UI settlement rendered on host/player.
+- `npm run test:server` after room-code patch -> passed 6 server tests.
+- `npm run verify` after room-code patch -> passed: `scan:secrets`, 6 server tests, React/Jest tests, production build.
+- Room-code API smoke through `http://127.0.0.1:8000` -> created digit-bearing room `Q4IU`, lowercase `/api/rooms/q4iu/join` returned 200, invalid `AB!2` returned 400, valid nonexistent `Z9X8` returned 404.
+- Browser room-code smoke through Playwright fallback -> `/join` accepted lowercase `q4iu`, normalized the input to `Q4IU`, navigated to `/play/Q4IU`, connected, and showed the room property.
 
 ## Screens And Routes Verified
 
@@ -100,6 +113,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/play/HMA7` rendered two mobile player sessions, connected realtime status, betting controls, and settlement result.
 - `/host/EHPA` verified host-token-backed controls and settlement.
 - `/play/EHPA` verified player session did not receive host token and saw settlement result.
+- `/join` -> `/play/Q4IU` verified lowercase alphanumeric room-code entry through the rendered mobile join flow.
 
 ## Screenshots Or Traces
 
@@ -109,16 +123,17 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-player-mobile.png`
 - `/tmp/fairvalue-settled.png`
 - `/tmp/fairvalue-host-token-settled.png`
+- `/tmp/fairvalue-room-code-digit-join.png`
 
 ## Commits Made
 
 - `7df90d6` - Harden AI boundary and realtime recovery.
 - `b1936cb` - Protect host-only room controls.
+- Pending room-code contract commit.
 
 ## Next Action Queue
 
-1. Align room-code generation, join validation, UI copy, and API tests.
-2. Add backend API/WebSocket integration tests for joins, bets, settlement, and reconnect state recovery.
-3. Add idempotency keys and payload validation for betting.
-4. Add server-side rate limits and request correlation IDs.
-5. Start the next loop with `npm run verify`, then attack the room-code contract.
+1. Add backend API/WebSocket integration tests for joins, bets, leaderboard, settlement, and reconnect state recovery.
+2. Add idempotency keys and payload validation for betting.
+3. Add server-side rate limits and request correlation IDs.
+4. Start the next loop with `npm run verify`, then widen multiplayer API/WebSocket coverage.

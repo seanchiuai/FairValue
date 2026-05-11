@@ -8,7 +8,7 @@ A host creates a room and selects a property. Players join via QR code or room c
 
 ## Modes
 
-- **Multiplayer** — Host creates a room at `/join`, gets a 4-letter code. Players scan QR or go to `/play/:roomCode` to bet from their phones. Host views live dashboard at `/host/:roomCode` with chart, leaderboard, and activity feed.
+- **Multiplayer** — Host creates a room at `/join`, gets a 4-character code using letters and numbers. Players scan QR or go to `/play/:roomCode` to bet from their phones. Host views live dashboard at `/host/:roomCode` with chart, leaderboard, and activity feed.
 - **Solo browsing** — Browse market cards at `/` and view individual markets at `/market/:propertyId` with chart and trading panel.
 
 ## Tech Stack
@@ -42,7 +42,7 @@ npm run server
 npm start
 ```
 
-The frontend dev server proxies `/api` and `/ws` to `localhost:8000`.
+The frontend dev server proxies `/api` to `localhost:8000`; local WebSocket clients connect directly to the backend port by default.
 
 ### Seed the Database
 
@@ -157,7 +157,7 @@ Security note: an older client-side Cognee key was committed in `src/services/co
 npm run verify
 ```
 
-This currently runs a client secret scan, the non-watch React test suite, and a production build.
+This currently runs a client secret scan, server integration tests, the non-watch React test suite, and a production build.
 
 ## Project Structure
 
