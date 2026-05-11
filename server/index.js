@@ -78,6 +78,7 @@ function resolveRoomPersistenceOptions() {
     mode: 'json',
     filePath,
     encryptionSecret: process.env.FAIRVALUE_ROOM_SNAPSHOT_SECRET || '',
+    retentionDays: process.env.FAIRVALUE_ROOM_RETENTION_DAYS || '30',
   };
 }
 

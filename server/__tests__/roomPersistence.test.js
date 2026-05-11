@@ -238,3 +238,48 @@ test('json room persistence can encrypt local snapshots with a configured secret
     fs.rmSync(dirPath, { recursive: true, force: true });
   }
 });
+
+test('json room persistence prunes settled rooms past the retention window', () => {
+  const dirPath = fs.mkdtempSync(path.join(os.tmpdir(), 'fairvalue-retention-room-'));
+  const filePath = path.join(dirPath, 'rooms.json');
+  const nowSeconds = Date.now() / 1000;
+  const oldTimestamp = nowSeconds - 8 * 24 * 60 * 60;
+  const recentTimestamp = nowSeconds - 24 * 60 * 60;
+
+  fs.writeFileSync(filePath, `${JSON.stringify({
+    version: SNAPSHOT_VERSION,
+    rooms: {
+      OLD1: {
+        code: 'OLD1',
+        hostToken: 'old-host',
+        settled: true,
+        events: [{ sequence: 1, type: 'settlement_completed', timestamp: oldTimestamp }],
+      },
+      NEW1: {
+        code: 'NEW1',
+        hostToken: 'new-host',
+        settled: true,
+        events: [{ sequence: 1, type: 'settlement_completed', timestamp: recentTimestamp }],
+      },
+      LIVE: {
+        code: 'LIVE',
+        hostToken: 'live-host',
+        settled: false,
+        events: [{ sequence: 1, type: 'room_created', timestamp: oldTimestamp }],
+      },
+    },
+  }, null, 2)}\n`);
+
+  try {
+    const persistence = createJsonRoomPersistence({ filePath, retentionDays: 7 });
+    const loaded = persistence.load();
+    assert.deepEqual(Object.keys(loaded.rooms).sort(), ['LIVE', 'NEW1']);
+
+    const persisted = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    assert.deepEqual(Object.keys(persisted.rooms).sort(), ['LIVE', 'NEW1']);
+    assert.equal(persisted.rooms.NEW1.hostToken, 'new-host');
+    assert.equal(persisted.rooms.LIVE.hostToken, 'live-host');
+  } finally {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  }
+});

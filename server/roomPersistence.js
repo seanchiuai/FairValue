@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const SNAPSHOT_VERSION = 1;
 const DEFAULT_POSTGRES_TABLE = 'fairvalue_room_snapshots';
 const ENCRYPTED_SNAPSHOT_FORMAT = 'fairvalue.roomSnapshot.encrypted.v1';
+const DEFAULT_LOCAL_RETENTION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -35,12 +37,38 @@ function normalizeRoomCode(value) {
   return code;
 }
 
-function createJsonRoomPersistence({ filePath, encryptionSecret } = {}) {
+function resolveRetentionMs(value) {
+  const rawValue = value === undefined || value === null || value === '' ? DEFAULT_LOCAL_RETENTION_DAYS : value;
+  const normalized = String(rawValue).trim().toLowerCase();
+  if (['0', 'false', 'off', 'disabled', 'none'].includes(normalized)) return 0;
+
+  const days = Number(normalized);
+  if (!Number.isFinite(days) || days < 0) {
+    throw new Error(`Invalid room snapshot retention days: ${value}`);
+  }
+  return days * DAY_MS;
+}
+
+function timestampToMs(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1_000_000_000_000 ? value : value * 1000;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function createJsonRoomPersistence({ filePath, encryptionSecret, retentionDays = DEFAULT_LOCAL_RETENTION_DAYS } = {}) {
   if (!filePath) return createDisabledRoomPersistence({ kind: 'json', reason: 'No room snapshot file configured' });
 
   const enabled = true;
   const resolvedPath = filePath ? path.resolve(filePath) : null;
   const snapshotSecret = typeof encryptionSecret === 'string' ? encryptionSecret.trim() : '';
+  const retentionMs = resolveRetentionMs(retentionDays);
 
   function deriveEncryptionKey(salt) {
     return crypto.scryptSync(snapshotSecret, salt, 32);
@@ -88,6 +116,64 @@ function createJsonRoomPersistence({ filePath, encryptionSecret } = {}) {
     return parsed && typeof parsed === 'object' && parsed.format === ENCRYPTED_SNAPSHOT_FORMAT;
   }
 
+  function normalizeLoadedSnapshot(parsed) {
+    if (!parsed || typeof parsed !== 'object') return { version: SNAPSHOT_VERSION, rooms: {} };
+    return {
+      version: parsed.version || SNAPSHOT_VERSION,
+      updated_at: parsed.updated_at,
+      rooms: parsed.rooms && typeof parsed.rooms === 'object' ? cloneJson(parsed.rooms) : {},
+    };
+  }
+
+  function roomLastActivityMs(roomSnapshot) {
+    const timestamps = [];
+
+    for (const event of roomSnapshot?.events || []) {
+      const timestamp = timestampToMs(event?.timestamp);
+      if (timestamp) timestamps.push(timestamp);
+    }
+
+    for (const activity of roomSnapshot?.activity || []) {
+      const timestamp = timestampToMs(activity?.timestamp);
+      if (timestamp) timestamps.push(timestamp);
+    }
+
+    return timestamps.length ? Math.max(...timestamps) : null;
+  }
+
+  function applyRetention(snapshot) {
+    if (!retentionMs) return { snapshot, prunedRooms: [] };
+
+    const cutoffMs = Date.now() - retentionMs;
+    const rooms = {};
+    const prunedRooms = [];
+
+    for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
+      if (!roomSnapshot?.settled) {
+        rooms[code] = roomSnapshot;
+        continue;
+      }
+
+      const lastActivityMs = roomLastActivityMs(roomSnapshot);
+      if (lastActivityMs && lastActivityMs < cutoffMs) {
+        prunedRooms.push(code);
+      } else {
+        rooms[code] = roomSnapshot;
+      }
+    }
+
+    if (!prunedRooms.length) return { snapshot, prunedRooms };
+    return { snapshot: { ...snapshot, rooms }, prunedRooms };
+  }
+
+  function writeSnapshotPayload(payload) {
+    fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+    const tempPath = `${resolvedPath}.${process.pid}.${Date.now()}.tmp`;
+    const snapshotJson = JSON.stringify(payload, null, 2);
+    fs.writeFileSync(tempPath, snapshotSecret ? encryptSnapshotJson(snapshotJson) : `${snapshotJson}\n`);
+    fs.renameSync(tempPath, resolvedPath);
+  }
+
   function quarantineCorruptSnapshot(parseError) {
     const baseCorruptPath = `${resolvedPath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     let corruptPath = baseCorruptPath;
@@ -127,31 +213,26 @@ function createJsonRoomPersistence({ filePath, encryptionSecret } = {}) {
       return quarantineCorruptSnapshot(error);
     }
 
-    if (isEncryptedSnapshot(parsed)) {
-      parsed = JSON.parse(decryptSnapshotJson(parsed));
-    }
+    if (isEncryptedSnapshot(parsed)) parsed = JSON.parse(decryptSnapshotJson(parsed));
 
-    if (!parsed || typeof parsed !== 'object') return { version: SNAPSHOT_VERSION, rooms: {} };
-    return {
-      version: parsed.version || SNAPSHOT_VERSION,
-      updated_at: parsed.updated_at,
-      rooms: parsed.rooms && typeof parsed.rooms === 'object' ? cloneJson(parsed.rooms) : {},
-    };
+    const loadedSnapshot = normalizeLoadedSnapshot(parsed);
+    const { snapshot, prunedRooms } = applyRetention(loadedSnapshot);
+    if (prunedRooms.length) {
+      console.warn(`Pruned ${prunedRooms.length} settled room snapshot(s) older than retention from ${resolvedPath}`);
+      writeSnapshotPayload(snapshot);
+    }
+    return snapshot;
   }
 
   function save(snapshot) {
     if (!enabled) return;
-    const payload = {
+    const payload = applyRetention({
       version: SNAPSHOT_VERSION,
       updated_at: new Date().toISOString(),
       rooms: cloneJson(snapshot?.rooms || {}),
-    };
+    }).snapshot;
 
-    fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-    const tempPath = `${resolvedPath}.${process.pid}.${Date.now()}.tmp`;
-    const snapshotJson = JSON.stringify(payload, null, 2);
-    fs.writeFileSync(tempPath, snapshotSecret ? encryptSnapshotJson(snapshotJson) : `${snapshotJson}\n`);
-    fs.renameSync(tempPath, resolvedPath);
+    writeSnapshotPayload(payload);
   }
 
   function loadRoom(roomCode) {
@@ -185,6 +266,7 @@ function createJsonRoomPersistence({ filePath, encryptionSecret } = {}) {
     enabled,
     filePath: resolvedPath,
     encrypted: Boolean(snapshotSecret),
+    retentionDays: retentionMs ? retentionMs / DAY_MS : 0,
     load,
     loadRoom,
     save,
@@ -312,7 +394,7 @@ function createPostgresRoomPersistence({ sql } = {}) {
   };
 }
 
-function createRoomPersistence({ mode = 'json', filePath, sql, encryptionSecret } = {}) {
+function createRoomPersistence({ mode = 'json', filePath, sql, encryptionSecret, retentionDays } = {}) {
   const normalizedMode = String(mode || 'json').trim().toLowerCase();
   if (['0', 'false', 'off', 'disabled', 'none'].includes(normalizedMode)) {
     return createDisabledRoomPersistence();
@@ -321,7 +403,7 @@ function createRoomPersistence({ mode = 'json', filePath, sql, encryptionSecret 
     return createPostgresRoomPersistence({ sql });
   }
   if (['json', 'file', 'local'].includes(normalizedMode)) {
-    return createJsonRoomPersistence({ filePath, encryptionSecret });
+    return createJsonRoomPersistence({ filePath, encryptionSecret, retentionDays });
   }
   throw new Error(`Unknown room persistence mode: ${mode}`);
 }
