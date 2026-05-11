@@ -15,6 +15,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Betting now requires idempotency keys, room mutations validate payloads server-side, guarded API routes have in-memory rate limits, and every API response includes a correlation ID.
 - Rooms now emit append-only events for creation, joins, reconnect/leave, bets, AI phase changes, AI trades, settlement, and room-scoped errors; host-only audit and replay endpoints reconstruct room state from the event stream.
 - Backend and frontend LMSR/domain behavior now routes through `src/lib/marketEngine.js`; server room markets use the canonical snake_case market state shape.
+- Playwright E2E now runs the primary host/player room loop through the real CRA frontend and backend with managed web servers, Chromium execution, and retained screenshots/traces/videos on failure.
 
 ## Current Test Status
 
@@ -27,6 +28,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 server-authority pass: `npm run verify` passed: client secret scan, 11 server tests, 4 React/Jest suites / 33 tests, and production build.
 - 2026-05-10 event-log pass: `npm run verify` passed: client secret scan, 13 server tests, 4 React/Jest suites / 33 tests, and production build.
 - 2026-05-10 unified-market-engine pass: `npm run verify` passed: client secret scan, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
+- 2026-05-10 Playwright E2E pass: `npm run test:e2e` passed 1 Chromium test covering host create, two player joins, bets, leaderboard/activity updates, AI toggle, reconnect/refresh, and settlement.
+- 2026-05-10 post-E2E pass: `npm run verify` passed: client secret scan, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Current Known Risks
 
@@ -35,14 +38,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room state, event logs, idempotency receipts, and rate-limit buckets are still in memory and will not survive process restart.
 - Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
 - npm audit currently reports 47 vulnerabilities, including 28 high severity.
-- Browser E2E, load, accessibility, and deeper security test layers are still missing.
+- Load, accessibility, broader E2E matrix coverage, and deeper security test layers are still missing.
 
 ## Current Backlog Ranked By Impact
 
-1. Add Playwright E2E coverage for host/player room flow.
-2. Address npm audit vulnerabilities without breaking CRA compatibility.
-3. Move volatile room/session state toward durable storage.
-4. Add load and accessibility checks around the multiplayer room loop.
+1. Address npm audit vulnerabilities without breaking CRA compatibility.
+2. Move volatile room/session state toward durable storage.
+3. Add load and accessibility checks around the multiplayer room loop.
+4. Expand Playwright beyond the happy path to auth failures, rate limits, and degraded AI.
 5. Persist room event logs outside process memory.
 
 ## Iteration History
@@ -116,6 +119,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Moved Cognee fair-value calculation onto the shared implied-price helper.
 - Added tests for numerical stability, extreme values, invalid inputs, budget buys, slippage, payout math, settlement, and frontend compatibility wrapper parity.
 
+### 2026-05-10 - Full Host/Player Playwright E2E
+
+- Installed `@playwright/test` and Chromium browser support for project-local E2E execution.
+- Added `playwright.config.ts` with managed backend/frontend web servers, `http://127.0.0.1:3001` base URL, one Chromium worker, and failure-retained screenshots, traces, and videos.
+- Added `npm run test:e2e` and `npm run test:e2e:headed`.
+- Added a deterministic E2E spec that creates a room through the UI, joins two mobile players by room code, verifies desktop and mobile viewports, places OVER and UNDER bets, checks host stats, leaderboard, and activity, toggles AI on and off, refreshes a player for reconnect recovery, and settles the room.
+- Added small accessibility/testability labels and stable test IDs to join, bet, host stat, leaderboard, activity, position, and settlement surfaces without changing visual behavior.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -159,6 +170,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run verify` after unified-market-engine patch -> passed: `scan:secrets`, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
 - Restarted the live backend on `http://localhost:8000` after the unified-market-engine patch; frontend remained listening on `http://localhost:3001`.
 - Live shared-engine smoke through `http://127.0.0.1:8000` -> room `U8DB` produced API bet market output matching `marketEngine.placeBetWithBudget`, settlement results matching `marketEngine.settlePlayers`, canonical snake_case market fields with no camel-case market keys, and replay recovered one settled trade.
+- `npm run verify` before Playwright E2E patch -> passed: `scan:secrets`, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
+- `npm install -D @playwright/test` -> added Playwright 1.59.1; npm still reported the known 47 vulnerabilities.
+- `npx playwright install chromium` -> completed successfully.
+- `npm run test:e2e` after Playwright E2E patch -> passed 1 Chromium test covering host creation, two player joins, two bets, host stats, leaderboard, activity feed, AI toggle, player refresh/reconnect, and settlement.
+- `npm run verify` after Playwright E2E patch -> passed: `scan:secrets`, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Screens And Routes Verified
 
@@ -170,6 +186,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/host/EHPA` verified host-token-backed controls and settlement.
 - `/play/EHPA` verified player session did not receive host token and saw settlement result.
 - `/join` -> `/play/Q4IU` verified lowercase alphanumeric room-code entry through the rendered mobile join flow.
+- Playwright E2E verified `/join` -> `/host/:roomCode` on a 1440x900 desktop viewport and two `/join` -> `/play/:roomCode` player sessions on 390x844 mobile viewports.
+- Playwright E2E verified host stats, leaderboard, activity feed, AI toggle, refreshed player state recovery, settlement modal, and settled result rendering.
 
 ## Screenshots Or Traces
 
@@ -180,6 +198,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-settled.png`
 - `/tmp/fairvalue-host-token-settled.png`
 - `/tmp/fairvalue-room-code-digit-join.png`
+- Playwright E2E is configured to retain screenshots, traces, and videos on failure under `test-results/e2e-artifacts`; the passing run produced no failure screenshots/videos.
+- `playwright-report/index.html` was generated locally for the passing E2E run and is ignored by git.
 
 ## Commits Made
 
@@ -190,10 +210,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `ea7ad72` - Harden server betting contract.
 - `8cbecb1` - Add room event log replay.
 - `1249f4b` - Unify LMSR market engine.
+- `3c6b3e2` - Add Playwright room flow E2E.
 
 ## Next Action Queue
 
-1. Add Playwright E2E coverage for host/player room flow.
-2. Address npm audit vulnerabilities without breaking CRA compatibility.
-3. Move volatile room/session state toward durable storage.
-4. Start the next loop with `npm run verify`, then build a deterministic E2E harness for host/player/bet/settle/reconnect.
+1. Address npm audit vulnerabilities without breaking CRA compatibility.
+2. Move volatile room/session state toward durable storage.
+3. Add load and accessibility checks around the multiplayer room loop.
+4. Start the next loop with `npm run verify`, then triage npm audit fixes in small compatibility-safe batches.
