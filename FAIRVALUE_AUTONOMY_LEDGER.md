@@ -9,7 +9,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Baseline dependency install: `npm ci` completed on 2026-05-10 with deprecation warnings and 47 reported npm audit vulnerabilities.
 - Baseline backend load before patch failed because `DATABASE_URL` was missing and `server/db.js` called Neon at module load.
 - Backend now supports local degraded database mode when `DATABASE_URL` is missing.
-- Cognee AI now routes through server endpoints and degrades when `COGNEE_API_KEY` is missing.
+- Cognee AI now routes through server endpoints and, when `COGNEE_API_KEY` is missing, returns a deterministic local room-state analyst response with citations, limitations, and no browser-visible 503 resource failure.
 - Local verification stack has run with backend on `http://localhost:8000` and frontend on managed Vite ports such as `http://127.0.0.1:3010`.
 - Local frontend WebSockets now connect directly to the backend in Vite dev mode when the frontend runs on a different port.
 - Betting now requires idempotency keys, room mutations validate payloads server-side, guarded API routes have in-memory rate limits, and every API response includes a correlation ID.
@@ -66,6 +66,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host pages opened without the original host authority now render a visible warning and link disabled AI/Settle controls to that warning with `aria-describedby`, so missing capability is explained without requiring hover.
 - Browser identity minting now treats non-JSON outages and malformed 200 responses as controlled identity errors, so create/join flows show stable inline/toast messages instead of JSON parser internals and do not mutate rooms without a valid signed identity.
 - Initial host/player room state loads now validate HTTP status and payload shape, show a retryable room-load alert for transient or malformed state failures, keep genuine missing rooms as `Room not found`, and ignore invalid refresh/poll payloads instead of mutating rendered room state.
+- The AI Analyst conversation log is keyboard-focusable when responses become scrollable, so cited local analysis remains accessible after longer evidence/limitations output.
 - The unused `useCloudFairValue` hook and `cloudPersistence` stub were removed so the client no longer carries a fake `api.fairvalue.io` fair-value sync surface or mock/stub cloud logging path.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
@@ -145,6 +146,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 missing host authority controls pass: focused E2E passed 1 Chromium test for `/host/:roomCode` without host authority, full `npm run test:e2e:isolated` passed 24 Chromium tests, rendered visual probe on room `CFHB` confirmed the warning and disabled-control descriptions with zero console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.65 kB / 240.00 kB and total JS 667.13 kB / 760.00 kB, and `smoke:boot` room `TGHR`.
 - 2026-05-11 identity failure handling pass: focused identity E2E passed 2 Chromium tests, full `npm run test:e2e:isolated` passed 26 Chromium tests, rendered visual probe on room `XEPD` confirmed create-room identity outage and malformed player-join identity states with 2 expected `/api/identity` 503 resource console entries and zero unexpected console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.72 kB / 240.00 kB and total JS 667.20 kB / 760.00 kB, and `smoke:boot` room `REAG`.
 - 2026-05-11 room state load failure pass: focused room-state E2E passed 2 Chromium tests; the first full isolated run caught an anonymous create-room rate-limit harness issue, the helper was fixed to send a unique `session_id`, the rerun passed 28 Chromium tests, a rendered visual probe on rooms `I39X` and `XON8` confirmed host state-outage and player malformed-state alerts with 1 expected state `503` resource error and zero unexpected console/page errors, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with largest JS 195.71 kB / 240.00 kB and total JS 669.25 kB / 760.00 kB, and `smoke:boot` room `P6T9`.
+- 2026-05-11 cited local AI analyst pass: focused server AI tests passed 2 node tests, focused Cognee service Vitest passed 4 tests, focused AI E2E passed 1 Chromium test, the broader accessibility/keyboard E2E passed 2 Chromium tests after adding keyboard access to the scrollable AI log, full `npm run test:e2e:isolated` passed 28 Chromium tests, rendered visual probe on room `RL7D` confirmed initialize/state/search all return 200 with cited local analysis and zero unexpected console issues, and final `npm run verify` passed client secret scan, typecheck, 43 server tests, 6 Vitest suites / 44 tests, Vite production build, bundle budgets with largest JS 195.71 kB / 240.00 kB and total JS 669.75 kB / 760.00 kB, and `smoke:boot` room `EWKR`.
 
 ## Current Known Risks
 
@@ -158,8 +160,9 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, identity-minting failure, room-state load failure, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, identity-minting failure, room-state load failure, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, cited local AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, identity-minting failure, room-state load failure, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, identity-minting failure, room-state load failure, cited local AI fallback, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 - Market detail and multiplayer entry/settlement surfaces now make simulated-credit and non-appraisal authority explicit; future share, invite, public recap, or exported-result surfaces still need the same trust language when they exist.
+- The cited local AI fallback is deterministic and covered without credentials; real Cognee-backed citation quality still needs live-key verification once a usable `COGNEE_API_KEY` is available.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -169,12 +172,19 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-6. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-7. Run `npm run check:production` against the actual deployment environment once production env values are available.
+4. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
+5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+6. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
+7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+8. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Cited Local AI Analyst
+
+- Replaced the missing-key AI Analyst search outage with a deterministic local room-state analysis that cites the room market snapshot, LMSR fair-value formula, and recent room flow.
+- Updated the client to send structured local market context, render evidence and limitation sections, and treat missing-Cognee analysis as useful degraded output instead of an error bubble.
+- Added server, service, and browser coverage proving missing Cognee returns 200, remains secret-safe, has citations/limitations, avoids browser-visible resource failures, and keeps the scrollable AI conversation keyboard-accessible.
 
 ### 2026-05-11 - Room State Load Failures
 
@@ -1046,6 +1056,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Browser plugin fallback for room-state load visual QA -> Browser skill was available, but tool discovery exposed Playwright MCP only and not the required Node REPL JavaScript execution tool; shell Playwright was used for the rendered probe.
 - Rendered visual probe against temporary `http://127.0.0.1:3010` frontend and `http://127.0.0.1:8010` backend verified `/host/I39X` forced state-store `503` and `/play/XON8` malformed state JSON branches, with 1 expected `/api/rooms/:code/state` `503` resource error, zero unexpected console/page errors, and screenshots at `/tmp/fairvalue-host-room-state-outage.png` and `/tmp/fairvalue-player-malformed-room-state.png`.
 - Final `npm run verify` after room-state load failure patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.71 kB / 240.00 kB, total JS 669.25 kB / 760.00 kB, largest CSS 14.74 kB / 25.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:56230`, room `P6T9`.
+- `npm run typecheck` after cited local AI analyst patch -> passed.
+- Initial focused `node --test server/__tests__/aiAnalyst.test.js` failed because the new test assumed a nonexistent `observability.reset()` helper; the test cleanup was narrowed to restore `COGNEE_API_KEY`, then focused server AI tests passed 2 node tests.
+- Focused `npm test -- cogneeService` after adding local AI context transport -> passed 1 Vitest file / 4 tests.
+- Initial focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "AI analyst"` failed because the assertion used case-sensitive `No external comps`; the rendered output used lowercase `no external comps`, then the focused AI E2E passed 1 Chromium test.
+- Focused `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts -g "expanded routes|keyboard"` first caught an axe `scrollable-region-focusable` violation on the longer AI conversation log; after adding `aria-label="AI analyst conversation"` and `tabIndex={0}`, the focused accessibility/keyboard E2E passed 2 Chromium tests.
+- Full `npm run test:e2e:isolated` after cited local AI analyst patch and console-warning cleanup -> passed 28 Chromium tests.
+- Browser plugin fallback for cited local AI visual QA -> Browser skill was available, but tool discovery exposed Playwright MCP and not the required Node REPL JavaScript execution tool; shell Playwright was used for the rendered probe.
+- First cited local AI visual probe used the wrong Vite backend env and did not reach connected state; rerun with `VITE_BACKEND_PORT=8010` reached room `CLGM`, and the final focused screenshot probe on room `RL7D` verified `/host/RL7D` local AI analysis, evidence, limitations, AI initialize/state/search all `200`, one expected React/Vite dev WebSocket close warning, zero unexpected console/page issues, and screenshot `/tmp/fairvalue-ai-local-analyst-evidence.png`.
+- Final `npm run verify` after cited local AI analyst patch -> passed: `scan:secrets`, `typecheck`, 43 server tests, 6 Vitest suites / 44 tests, Vite production build, bundle budget gate with largest JS 195.71 kB / 240.00 kB, total JS 669.75 kB / 760.00 kB, largest CSS 14.74 kB / 25.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:52164`, room `EWKR`.
 
 ## Screens And Routes Verified
 
@@ -1117,6 +1136,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Missing host authority evidence verified `/host/CFHB` without the original host browser authority renders `Host controls unavailable`, keeps AI and Settle disabled with `aria-describedby="host-authority-warning"`, leaves `ai_enabled=false` and `settled=false`, and passes serious/critical axe checks with zero console/page errors.
 - Identity failure evidence verified `/join` create-room identity outage shows `Identity unavailable` inline and in the toast without sending `POST /api/rooms`, while `/play/XEPD` malformed identity success shows `Identity response was invalid` inline and in the toast without sending the room join mutation; both pass serious/critical axe checks.
 - Room-state load failure evidence verified `/host/I39X` forced state-store `503` renders a retryable `Room temporarily unavailable` alert with `Room state unavailable`, while `/play/XON8` malformed state JSON renders `Room state response was invalid`, hides the player join form, leaves the real room with zero players, and passes serious/critical axe checks.
+- Cited local AI evidence verified `/host/RL7D` without `COGNEE_API_KEY` returns 200 from initialize/state/search, renders `Local AI analyst`, `Evidence used`, `Room market snapshot`, and `Limits`, keeps the AI conversation log keyboard-focusable, and has zero unexpected console/page issues in the rendered probe.
 
 ## Screenshots Or Traces
 
@@ -1142,8 +1162,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-malformed-identity-player.png`
 - `/tmp/fairvalue-host-room-state-outage.png`
 - `/tmp/fairvalue-player-malformed-room-state.png`
+- `/tmp/fairvalue-ai-local-analyst-evidence.png`
 - `test-results/e2e-artifacts/negative-paths-join-route--02189-en-server-rate-limit-is-hit-chromium/trace.zip`
 - `test-results/e2e-artifacts/negative-paths-AI-analyst--293b5-instead-of-failing-silently-chromium/trace.zip`
+- `test-results/e2e-artifacts/negative-paths-AI-analyst--6e256-en-Cognee-is-not-configured-chromium/trace.zip`
+- `test-results/e2e-artifacts/multiplayer-resilience-exp-9d752-erious-accessibility-checks-chromium/trace.zip`
 - Playwright E2E is configured to retain screenshots, traces, and videos on failure under `test-results/e2e-artifacts`; the passing run produced no failure screenshots/videos.
 - `playwright-report/index.html` was generated locally for the passing E2E run and is ignored by git.
 - `docs/accessibility-assistive-tech-notes.md` records the macOS AX and Playwright ARIA excerpts from the headed assistive-tech pass.
@@ -1253,6 +1276,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `8014a2a` - Harden identity failure handling.
 - `f150b59` - Record identity failure evidence.
 - `f782c28` - Explain room state load failures.
+- `86d9e4e` - Record room state load evidence.
+- `6a8b81e` - Add cited local AI analyst fallback.
 
 ## Next Action Queue
 
@@ -1260,8 +1285,9 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 3. Extend the same trust/risk language to future share, invite, public recap, or exported-result surfaces once those surfaces exist.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-6. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-8. Run `npm run check:production` against the actual deployment environment once production env values are available.
-9. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
+5. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
+6. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+7. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
+8. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+9. Run `npm run check:production` against the actual deployment environment once production env values are available.
+10. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
