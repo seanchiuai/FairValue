@@ -129,7 +129,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 - `7df90d6` - Harden AI boundary and realtime recovery.
 - `b1936cb` - Protect host-only room controls.
-- Pending room-code contract commit.
+- `baa8e98` - Align room code contract.
 
 ## Next Action Queue
 
