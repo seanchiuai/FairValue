@@ -55,6 +55,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Accessibility edge states now expose field-level `aria-invalid` / `aria-describedby` semantics for create/join validation errors and settlement errors; map pins have accessible names and map popup contrast is gated by axe.
 - Player validation notifications now use the existing global toast system for join/bet errors while preserving inline alerts; error toasts announce assertively, non-error toasts announce politely, dismiss buttons are message-specific, mobile width is bounded, and the toast entrance no longer fades text through low-contrast states.
 - Direct player join validation now has browser proof that an empty nickname on `/play/:roomCode` announces inline plus a message-specific toast before any join API request is sent.
+- Market detail room-start failures now surface inline on `/market/:propertyId` and through the global toast system instead of silently re-enabling the Start a Bid button.
 - Host AI toggle failures now use the global toast system instead of console-only errors, so invalid/missing host authority is visible and announced to room operators; AI toggle success also emits a polite status notification.
 - Host settlement failures now preserve the modal inline error while also using the global toast system for announced, message-specific failure feedback; successful settlement emits a polite status toast.
 - The unused `useCloudFairValue` hook and `cloudPersistence` stub were removed so the client no longer carries a fake `api.fairvalue.io` fair-value sync surface or mock/stub cloud logging path.
@@ -123,6 +124,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 settlement notification pass: focused fake-token settlement E2E passed, `npm run typecheck` passed, full `npm run test:e2e:isolated` passed 11 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.67 kB / 760.00 kB, and `smoke:boot` with room `3IO2`.
 - 2026-05-11 fake cloud-sync removal pass: repository search found no remaining `useCloudFairValue`, `cloudPersistence`, `fairvalue_cloud_data`, `api.fairvalue.io`, `VITE_COGNEE_API_URL`, mock API endpoint, or stub implementation references under `src`, `server`, `e2e`, `README.md`, or `package.json`; `npm run scan:secrets`, `npm run typecheck`, `git diff --check`, and final `npm run verify` passed with 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets, and `smoke:boot` room `CVKK`.
 - 2026-05-11 direct player join validation pass: focused E2E initially failed because the test incorrectly waited for the post-join `Connected` badge on the pre-join player form; after aligning the test with the actual pre-join surface, focused direct-player-join E2E passed, full `npm run test:e2e:isolated` passed 12 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets, and `smoke:boot` room `K7HY`.
+- 2026-05-11 market-start failure notification pass: focused market detail room-creation failure E2E passed with an axe serious/critical check, full `npm run test:e2e:isolated` passed 13 Chromium tests, and final `npm run verify` passed client secret scan, typecheck, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budgets with total JS 659.15 kB / 760.00 kB, and `smoke:boot` room `IIAA`.
 
 ## Current Known Risks
 
@@ -136,7 +138,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered create/join/direct-player-join/player-wager/settle/host-toggle/settlement-failure paths.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, host-action notification, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start/create/join/direct-player-join/player-wager/settle/host-toggle/settlement-failure paths.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
@@ -144,7 +146,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/direct player join/player wager/settle/host-toggle/settlement-failure paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start/create/join/direct player join/player wager/settle/host-toggle/settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
@@ -152,6 +154,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Market Start Failure Notifications
+
+- Replaced the silent `/market/:propertyId` Start a Bid failure path with a visible inline alert and a global error toast.
+- Validated both room-creation and host-join responses before navigating to `/host/:roomCode`, including malformed success payloads.
+- Linked the Start a Bid button to the inline failure with `aria-describedby` and styled the alert for contrast on the blue market-start section.
+- Added a negative-path browser test that forces `POST /api/rooms` to return `503 Room persistence failed`, verifies the inline alert, message-specific toast, preserved `/market/440298192` URL, and serious/critical axe cleanliness.
+- Updated README isolated E2E coverage wording to include market-start failure notifications.
 
 ### 2026-05-11 - Direct Player Join Validation Coverage
 
@@ -859,6 +869,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "direct player join announces missing nickname"` after aligning to the real pre-join UI -> passed 1 Chromium test.
 - Full `npm run test:e2e:isolated` after direct player join validation coverage -> passed 12 Chromium tests, including the new direct-player empty-nickname notification branch.
 - Final `npm run verify` after direct player join validation coverage -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 658.67 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:62603`, room `K7HY`.
+- `npm run typecheck` after market-start failure notification patch -> passed.
+- Focused `npm run test:e2e:isolated -- e2e/negative-paths.spec.ts -g "market detail room creation failure"` after adding inline/toast failure feedback and axe check -> passed 1 Chromium test.
+- Full `npm run test:e2e:isolated` after market-start failure notification patch -> passed 13 Chromium tests, including the new market detail room creation failure branch.
+- Final `npm run verify` after market-start failure notification patch -> passed: `scan:secrets`, `typecheck`, 41 server tests, 6 Vitest suites / 43 tests, Vite production build, bundle budget gate with largest JS 195.47 kB / 240.00 kB and total JS 659.15 kB / 760.00 kB, and `smoke:boot` with real backend child process on `http://127.0.0.1:49820`, room `IIAA`.
 
 ## Screens And Routes Verified
 
@@ -917,6 +931,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Settlement notification evidence verified `/host/:roomCode` fake-token settlement rejection through inline modal `#settle-error`, a message-specific `Invalid host token` alert toast, unchanged unsettled server state, and serious/critical axe coverage through the full isolated Chromium suite.
 - Fake cloud-sync removal evidence verified the client source no longer contains the unused mock `api.fairvalue.io` fair-value sync hook, its local `fairvalue_cloud_data` cache key, or the stub cloud persistence listener; the real backend boot smoke still proved the degraded-local HTTP/WebSocket room path with room `CVKK`.
 - Direct player join notification evidence verified `/play/:roomCode` empty nickname feedback through inline `#player-join-error`, `aria-invalid` / `aria-describedby` linkage on the nickname input, a message-specific dismissible error toast, and zero `/api/rooms/:roomCode/join` submissions before valid input.
+- Market-start notification evidence verified `/market/440298192` forced `POST /api/rooms` 503 feedback through inline `#market-start-room-error`, Start a Bid `aria-describedby` linkage, a message-specific dismissible error toast, preserved market-detail URL, and serious/critical axe coverage.
 
 ## Screenshots Or Traces
 
@@ -1010,11 +1025,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `9615bdf` - Remove unused cloud fair value stub.
 - `0867c1d` - Record cloud stub removal evidence.
 - `af87f05` - Cover direct player join validation.
+- `38e9d9a` - Record direct player validation evidence.
+- `b4a7b23` - Announce market room start failures.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond create/join/direct player join/player wager/settle/host-toggle/settlement-failure paths.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start/create/join/direct player join/player wager/settle/host-toggle/settlement-failure paths.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 5. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
