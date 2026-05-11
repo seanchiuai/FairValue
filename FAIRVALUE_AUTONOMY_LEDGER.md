@@ -139,7 +139,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `7df90d6` - Harden AI boundary and realtime recovery.
 - `b1936cb` - Protect host-only room controls.
 - `baa8e98` - Align room code contract.
-- Pending multiplayer protocol coverage commit.
+- `0071f82` - Cover multiplayer API and websocket flow.
 
 ## Next Action Queue
 
