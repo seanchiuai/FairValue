@@ -333,6 +333,54 @@ test('market detail room creation failure is visible to the host', async ({ page
   await expect(page).toHaveURL(/\/market\/440298192$/);
 });
 
+test('market detail host auto-join failure is visible to the host', async ({ page, request }) => {
+  let createdRoomCode = '';
+  await page.route(/\/api\/rooms\/[A-Z0-9]{4}\/join$/, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    createdRoomCode = route.request().url().match(/\/api\/rooms\/([A-Z0-9]{4})\/join$/)?.[1] || '';
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'temporary host join outage',
+    });
+  });
+
+  await page.goto('/market/440298192');
+  await expect(page.getByText('Multiplayer Mode')).toBeVisible({ timeout: 15_000 });
+
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/rooms') &&
+      response.request().method() === 'POST' &&
+      response.status() === 200
+    ),
+    page.waitForResponse((response) =>
+      /\/api\/rooms\/[A-Z0-9]{4}\/join$/.test(response.url()) &&
+      response.request().method() === 'POST' &&
+      response.status() === 503
+    ),
+    page.getByRole('button', { name: 'Start a Bid' }).click(),
+  ]);
+
+  expect(createdRoomCode).toMatch(/^[A-Z0-9]{4}$/);
+  await expect(page.locator('#market-start-room-error')).toContainText('Failed to join room as host');
+  await expect(page.getByRole('button', { name: 'Start a Bid' })).toHaveAttribute(
+    'aria-describedby',
+    'market-start-room-error'
+  );
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Failed to join room as host' })).toBeVisible();
+  await expect(page).toHaveURL(/\/market\/440298192$/);
+
+  const stateResponse = await request.get(`${apiBaseUrl}/api/rooms/${createdRoomCode}/state`);
+  expect(stateResponse.status()).toBe(200);
+  const state = await stateResponse.json();
+  expect(state.players).toHaveLength(0);
+  await expectNoSeriousAxeViolations(page, 'market detail host auto-join failure notification state');
+});
+
 test('fake host token cannot settle a room from the host UI', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.addInitScript((code) => {
