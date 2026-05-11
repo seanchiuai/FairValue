@@ -9,12 +9,29 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     stdio: options.stdio || 'pipe',
+    timeout: options.timeoutMs,
+    killSignal: 'SIGKILL',
   });
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(`${command} ${args.join(' ')} timed out after ${options.timeoutMs}ms`);
+  }
   if (result.status !== 0) {
     const details = [result.stdout, result.stderr].filter(Boolean).join('\n');
     throw new Error(`${command} ${args.join(' ')} failed\n${details}`);
   }
   return result.stdout.trim();
+}
+
+function startContainer(containerName) {
+  try {
+    run('docker', ['start', containerName], { timeoutMs: 5000 });
+    return;
+  } catch (error) {
+    const stateJson = run('docker', ['inspect', containerName, '--format', '{{json .State}}']);
+    const state = JSON.parse(stateJson);
+    if (state.Running) return;
+    run('docker', ['start', containerName], { timeoutMs: 15_000 });
+  }
 }
 
 function getFreePort() {
@@ -58,9 +75,7 @@ async function main() {
 
   try {
     run('docker', [
-      'run',
-      '--rm',
-      '-d',
+      'create',
       '--name',
       containerName,
       '-e',
@@ -73,6 +88,7 @@ async function main() {
       `127.0.0.1:${port}:5432`,
       image,
     ]);
+    startContainer(containerName);
 
     sql = postgres(databaseUrl, { max: 1 });
     await waitForPostgres(sql);
@@ -119,6 +135,35 @@ async function main() {
     assert.equal(loaded.rooms.NEXT.settled, true);
 
     await persistence.clear();
+    const oldTimestamp = Date.now() / 1000 - 8 * 24 * 60 * 60;
+    const recentTimestamp = Date.now() / 1000 - 24 * 60 * 60;
+    await persistence.saveRoom('OLDP', {
+      code: 'OLDP',
+      hostToken: 'old-postgres-host-token',
+      settled: true,
+      events: [{ sequence: 1, type: 'settlement_completed', timestamp: oldTimestamp }],
+    });
+    await persistence.saveRoom('NEWP', {
+      code: 'NEWP',
+      hostToken: 'new-postgres-host-token',
+      settled: true,
+      events: [{ sequence: 1, type: 'settlement_completed', timestamp: recentTimestamp }],
+    });
+    await persistence.saveRoom('LIVE', {
+      code: 'LIVE',
+      hostToken: 'active-postgres-host-token',
+      settled: false,
+      events: [{ sequence: 1, type: 'room_created', timestamp: oldTimestamp }],
+    });
+
+    const retentionPersistence = createPostgresRoomPersistence({ sql, retentionDays: 7 });
+    loaded = await retentionPersistence.load();
+    assert.deepEqual(Object.keys(loaded.rooms).sort(), ['LIVE', 'NEWP']);
+    assert.equal(loaded.rooms.NEWP.hostToken, 'new-postgres-host-token');
+    assert.equal(loaded.rooms.LIVE.hostToken, 'active-postgres-host-token');
+    assert.equal(await retentionPersistence.loadRoom('OLDP'), null);
+
+    await persistence.clear();
     loaded = await persistence.load();
     assert.deepEqual(loaded.rooms, {});
 
@@ -126,6 +171,7 @@ async function main() {
       ok: true,
       adapter: persistence.kind,
       table: persistence.tableName,
+      retentionPruned: true,
       image,
       port,
     }));

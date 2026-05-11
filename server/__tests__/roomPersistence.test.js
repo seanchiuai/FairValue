@@ -26,9 +26,12 @@ function createFakeSql() {
         updated_at: row.updated_at,
       }));
     }
-    if (query.startsWith('SELECT snapshot FROM fairvalue_room_snapshots WHERE room_code')) {
+    if (
+      query.startsWith('SELECT snapshot FROM fairvalue_room_snapshots WHERE room_code') ||
+      query.startsWith('SELECT snapshot, updated_at FROM fairvalue_room_snapshots WHERE room_code')
+    ) {
       const row = rows.get(values[0]);
-      return row ? [{ snapshot: row.snapshot }] : [];
+      return row ? [{ snapshot: row.snapshot, updated_at: row.updated_at }] : [];
     }
     if (query.startsWith('SELECT room_code FROM fairvalue_room_snapshots')) {
       return Array.from(rows.keys()).map((room_code) => ({ room_code }));
@@ -139,6 +142,63 @@ test('postgres room persistence supports targeted room read, write, and delete',
   assert.deepEqual(Object.keys(loaded.rooms), ['KEEP']);
   assert.equal(loaded.rooms.KEEP.hostToken, 'keep-host');
   assert.equal(await persistence.loadRoom('TMP1'), null);
+});
+
+test('postgres room persistence prunes settled rooms past configured retention', async () => {
+  const sql = createFakeSql();
+  const noRetention = createPostgresRoomPersistence({ sql });
+  const oldTimestamp = Date.now() / 1000 - 8 * 24 * 60 * 60;
+  const recentTimestamp = Date.now() / 1000 - 24 * 60 * 60;
+
+  await noRetention.save({
+    rooms: {
+      OLDP: {
+        code: 'OLDP',
+        hostToken: 'old-postgres-host',
+        settled: true,
+        events: [{ sequence: 1, type: 'settlement_completed', timestamp: oldTimestamp }],
+      },
+      NEWP: {
+        code: 'NEWP',
+        hostToken: 'new-postgres-host',
+        settled: true,
+        events: [{ sequence: 1, type: 'settlement_completed', timestamp: recentTimestamp }],
+      },
+      LIVE: {
+        code: 'LIVE',
+        hostToken: 'live-postgres-host',
+        settled: false,
+        events: [{ sequence: 1, type: 'room_created', timestamp: oldTimestamp }],
+      },
+    },
+  });
+
+  const retention = createPostgresRoomPersistence({ sql, retentionDays: 7 });
+  assert.equal(retention.retentionDays, 7);
+
+  let loaded = await retention.load();
+  assert.deepEqual(Object.keys(loaded.rooms).sort(), ['LIVE', 'NEWP']);
+  assert.equal(sql.rows.has('OLDP'), false);
+  assert.equal(sql.rows.get('NEWP').snapshot.hostToken, 'new-postgres-host');
+  assert.equal(sql.rows.get('LIVE').snapshot.hostToken, 'live-postgres-host');
+
+  await noRetention.saveRoom('TARG', {
+    code: 'TARG',
+    hostToken: 'targeted-old-host',
+    settled: true,
+    events: [{ sequence: 1, type: 'settlement_completed', timestamp: oldTimestamp }],
+  });
+  assert.equal(await retention.loadRoom('TARG'), null);
+  assert.equal(sql.rows.has('TARG'), false);
+
+  await retention.saveRoom('SAVE', {
+    code: 'SAVE',
+    hostToken: 'old-save-host',
+    settled: true,
+    events: [{ sequence: 1, type: 'settlement_completed', timestamp: oldTimestamp }],
+  });
+  loaded = await noRetention.load();
+  assert.equal(loaded.rooms.SAVE, undefined);
 });
 
 test('postgres room persistence disables cleanly when the database is unavailable', async () => {

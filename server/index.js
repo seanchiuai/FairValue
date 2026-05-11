@@ -69,7 +69,11 @@ function resolveRoomPersistenceOptions() {
   }
 
   if (['postgres', 'neon', 'db', 'database'].includes(storeMode)) {
-    return { mode: 'postgres', sql };
+    return {
+      mode: 'postgres',
+      sql,
+      retentionDays: process.env.FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS || '0',
+    };
   }
 
   const filePath = process.env.FAIRVALUE_ROOM_STORE_PATH ||

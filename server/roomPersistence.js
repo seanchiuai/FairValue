@@ -37,8 +37,8 @@ function normalizeRoomCode(value) {
   return code;
 }
 
-function resolveRetentionMs(value) {
-  const rawValue = value === undefined || value === null || value === '' ? DEFAULT_LOCAL_RETENTION_DAYS : value;
+function resolveRetentionMs(value, defaultDays = DEFAULT_LOCAL_RETENTION_DAYS) {
+  const rawValue = value === undefined || value === null || value === '' ? defaultDays : value;
   const normalized = String(rawValue).trim().toLowerCase();
   if (['0', 'false', 'off', 'disabled', 'none'].includes(normalized)) return 0;
 
@@ -50,6 +50,8 @@ function resolveRetentionMs(value) {
 }
 
 function timestampToMs(value) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.getTime();
+
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value > 1_000_000_000_000 ? value : value * 1000;
   }
@@ -60,6 +62,47 @@ function timestampToMs(value) {
   }
 
   return null;
+}
+
+function roomLastActivityMs(roomSnapshot) {
+  const timestamps = [];
+
+  for (const event of roomSnapshot?.events || []) {
+    const timestamp = timestampToMs(event?.timestamp);
+    if (timestamp) timestamps.push(timestamp);
+  }
+
+  for (const activity of roomSnapshot?.activity || []) {
+    const timestamp = timestampToMs(activity?.timestamp);
+    if (timestamp) timestamps.push(timestamp);
+  }
+
+  return timestamps.length ? Math.max(...timestamps) : null;
+}
+
+function isSettledRoomExpired(roomSnapshot, retentionMs, { fallbackTimestampMs = null, nowMs = Date.now() } = {}) {
+  if (!retentionMs || !roomSnapshot?.settled) return false;
+  const lastActivityMs = roomLastActivityMs(roomSnapshot) || fallbackTimestampMs;
+  return Boolean(lastActivityMs && lastActivityMs < nowMs - retentionMs);
+}
+
+function applyRetention(snapshot, retentionMs) {
+  if (!retentionMs) return { snapshot, prunedRooms: [] };
+
+  const rooms = {};
+  const prunedRooms = [];
+  const nowMs = Date.now();
+
+  for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
+    if (isSettledRoomExpired(roomSnapshot, retentionMs, { nowMs })) {
+      prunedRooms.push(code);
+    } else {
+      rooms[code] = roomSnapshot;
+    }
+  }
+
+  if (!prunedRooms.length) return { snapshot, prunedRooms };
+  return { snapshot: { ...snapshot, rooms }, prunedRooms };
 }
 
 function createJsonRoomPersistence({ filePath, encryptionSecret, retentionDays = DEFAULT_LOCAL_RETENTION_DAYS } = {}) {
@@ -125,47 +168,6 @@ function createJsonRoomPersistence({ filePath, encryptionSecret, retentionDays =
     };
   }
 
-  function roomLastActivityMs(roomSnapshot) {
-    const timestamps = [];
-
-    for (const event of roomSnapshot?.events || []) {
-      const timestamp = timestampToMs(event?.timestamp);
-      if (timestamp) timestamps.push(timestamp);
-    }
-
-    for (const activity of roomSnapshot?.activity || []) {
-      const timestamp = timestampToMs(activity?.timestamp);
-      if (timestamp) timestamps.push(timestamp);
-    }
-
-    return timestamps.length ? Math.max(...timestamps) : null;
-  }
-
-  function applyRetention(snapshot) {
-    if (!retentionMs) return { snapshot, prunedRooms: [] };
-
-    const cutoffMs = Date.now() - retentionMs;
-    const rooms = {};
-    const prunedRooms = [];
-
-    for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
-      if (!roomSnapshot?.settled) {
-        rooms[code] = roomSnapshot;
-        continue;
-      }
-
-      const lastActivityMs = roomLastActivityMs(roomSnapshot);
-      if (lastActivityMs && lastActivityMs < cutoffMs) {
-        prunedRooms.push(code);
-      } else {
-        rooms[code] = roomSnapshot;
-      }
-    }
-
-    if (!prunedRooms.length) return { snapshot, prunedRooms };
-    return { snapshot: { ...snapshot, rooms }, prunedRooms };
-  }
-
   function writeSnapshotPayload(payload) {
     fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
     const tempPath = `${resolvedPath}.${process.pid}.${Date.now()}.tmp`;
@@ -216,7 +218,7 @@ function createJsonRoomPersistence({ filePath, encryptionSecret, retentionDays =
     if (isEncryptedSnapshot(parsed)) parsed = JSON.parse(decryptSnapshotJson(parsed));
 
     const loadedSnapshot = normalizeLoadedSnapshot(parsed);
-    const { snapshot, prunedRooms } = applyRetention(loadedSnapshot);
+    const { snapshot, prunedRooms } = applyRetention(loadedSnapshot, retentionMs);
     if (prunedRooms.length) {
       console.warn(`Pruned ${prunedRooms.length} settled room snapshot(s) older than retention from ${resolvedPath}`);
       writeSnapshotPayload(snapshot);
@@ -230,7 +232,7 @@ function createJsonRoomPersistence({ filePath, encryptionSecret, retentionDays =
       version: SNAPSHOT_VERSION,
       updated_at: new Date().toISOString(),
       rooms: cloneJson(snapshot?.rooms || {}),
-    }).snapshot;
+    }, retentionMs).snapshot;
 
     writeSnapshotPayload(payload);
   }
@@ -282,7 +284,7 @@ function parseSnapshotJson(value) {
   return cloneJson(value);
 }
 
-function createPostgresRoomPersistence({ sql } = {}) {
+function createPostgresRoomPersistence({ sql, retentionDays = 0 } = {}) {
   if (!sql || sql.isConfigured === false) {
     return createDisabledRoomPersistence({
       kind: 'postgres',
@@ -290,6 +292,7 @@ function createPostgresRoomPersistence({ sql } = {}) {
     });
   }
 
+  const retentionMs = resolveRetentionMs(retentionDays, 0);
   let schemaReady = false;
 
   async function ensureSchema() {
@@ -304,7 +307,41 @@ function createPostgresRoomPersistence({ sql } = {}) {
     schemaReady = true;
   }
 
+  async function pruneExpiredSettledRows() {
+    if (!retentionMs) return [];
+    await ensureSchema();
+
+    const rows = await sql`
+      SELECT room_code, snapshot, updated_at
+      FROM fairvalue_room_snapshots
+      ORDER BY room_code
+    `;
+
+    const expiredRoomCodes = [];
+    const nowMs = Date.now();
+    for (const row of rows || []) {
+      const code = String(row.room_code || '').trim().toUpperCase();
+      if (!code) continue;
+      const snapshot = parseSnapshotJson(row.snapshot);
+      const fallbackTimestampMs = timestampToMs(row.updated_at);
+      if (isSettledRoomExpired(snapshot, retentionMs, { fallbackTimestampMs, nowMs })) {
+        expiredRoomCodes.push(code);
+      }
+    }
+
+    for (const roomCode of expiredRoomCodes) {
+      await sql`DELETE FROM fairvalue_room_snapshots WHERE room_code = ${roomCode}`;
+    }
+
+    return expiredRoomCodes;
+  }
+
   async function load() {
+    const prunedRows = await pruneExpiredSettledRows();
+    if (prunedRows.length) {
+      console.warn(`Pruned ${prunedRows.length} settled Postgres room snapshot row(s) older than retention`);
+    }
+
     await ensureSchema();
     const rows = await sql`
       SELECT room_code, snapshot, updated_at
@@ -329,21 +366,35 @@ function createPostgresRoomPersistence({ sql } = {}) {
     await ensureSchema();
     const code = normalizeRoomCode(roomCode);
     const rows = await sql`
-      SELECT snapshot
+      SELECT snapshot, updated_at
       FROM fairvalue_room_snapshots
       WHERE room_code = ${code}
       LIMIT 1
     `;
     const row = rows?.[0];
-    return row ? parseSnapshotJson(row.snapshot) : null;
+    if (!row) return null;
+
+    const snapshot = parseSnapshotJson(row.snapshot);
+    if (isSettledRoomExpired(snapshot, retentionMs, { fallbackTimestampMs: timestampToMs(row.updated_at) })) {
+      await sql`DELETE FROM fairvalue_room_snapshots WHERE room_code = ${code}`;
+      return null;
+    }
+
+    return snapshot;
   }
 
   async function saveRoom(roomCode, roomSnapshot) {
     await ensureSchema();
     const code = normalizeRoomCode(roomCode);
+    const snapshot = cloneJson(roomSnapshot);
+    if (isSettledRoomExpired(snapshot, retentionMs)) {
+      await sql`DELETE FROM fairvalue_room_snapshots WHERE room_code = ${code}`;
+      return;
+    }
+
     await sql`
       INSERT INTO fairvalue_room_snapshots (room_code, snapshot, updated_at)
-      VALUES (${code}, ${JSON.stringify(cloneJson(roomSnapshot))}::jsonb, now())
+      VALUES (${code}, ${JSON.stringify(snapshot)}::jsonb, now())
       ON CONFLICT (room_code) DO UPDATE
       SET snapshot = EXCLUDED.snapshot,
           updated_at = now()
@@ -358,7 +409,10 @@ function createPostgresRoomPersistence({ sql } = {}) {
 
   async function save(snapshot) {
     await ensureSchema();
-    const rooms = cloneJson(snapshot?.rooms || {});
+    const rooms = applyRetention({
+      version: SNAPSHOT_VERSION,
+      rooms: cloneJson(snapshot?.rooms || {}),
+    }, retentionMs).snapshot.rooms;
     const roomCodes = Object.keys(rooms);
     const existing = await sql`SELECT room_code FROM fairvalue_room_snapshots`;
     const nextCodes = new Set(roomCodes);
@@ -385,6 +439,7 @@ function createPostgresRoomPersistence({ sql } = {}) {
     enabled: true,
     tableName: DEFAULT_POSTGRES_TABLE,
     filePath: null,
+    retentionDays: retentionMs ? retentionMs / DAY_MS : 0,
     load,
     loadRoom,
     save,
@@ -400,7 +455,7 @@ function createRoomPersistence({ mode = 'json', filePath, sql, encryptionSecret,
     return createDisabledRoomPersistence();
   }
   if (['postgres', 'neon', 'db', 'database'].includes(normalizedMode)) {
-    return createPostgresRoomPersistence({ sql });
+    return createPostgresRoomPersistence({ sql, retentionDays });
   }
   if (['json', 'file', 'local'].includes(normalizedMode)) {
     return createJsonRoomPersistence({ filePath, encryptionSecret, retentionDays });
