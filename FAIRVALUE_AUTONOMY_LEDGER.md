@@ -47,6 +47,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Vite route splitting now keeps the `/join` entry flow eager for keyboard reliability while lazy-loading browse, market detail, host, and player routes; the largest production JS chunk dropped from about 512 kB to 199 kB and the build no longer emits the large-chunk warning.
 - `npm run verify` now includes a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
+- Assistive-technology evidence now also covers the browse route, sort menu, property detail route, host AI degraded alert, and settled host/player result states; dense browse/detail routes use bounded Playwright ARIA evidence while room/dialog/player states still capture macOS AX.
 - Rendered browser load coverage now has an explicit Chromium command that runs one desktop host plus 10 mobile player pages through concurrent joins, concurrent bets, settlement broadcast checks, and persisted snapshot reconciliation.
 - Cold production performance coverage now builds the Vite production bundle, serves `dist` through a local static/API proxy, and times cold join route load, room creation, player route load, player join, bet sync, and settlement broadcast through headless Chromium.
 - Mixed-traffic coverage now combines one rendered host, throttled rendered mobile clients, concurrent API join/bet churn, state polling, settlement broadcast checks, and durable snapshot reconciliation.
@@ -90,6 +91,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 cold production performance pass: `npm run test:performance:cold` passed with room `P4AZ`, production build 1778ms, cold join route ready 94ms, create-to-connected 162ms, cold player route ready 832ms, player join 166ms, bet-to-host sync 97ms, settlement broadcast 63ms, and all local budgets passing; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 mixed traffic pass: `npm run test:e2e:mixed-traffic` passed with room `6PD9`, 4 throttled rendered mobile players, 12 API churn players, 18 state reads, 17 persisted players including host, 16 trades, 65 events, 419 total wagered, join/churn 127295ms, rendered slow bets 780ms, settlement 510ms, total 129663ms; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 live Postgres readiness path pass: `npm run test:persistence:live` passed in no-credential degraded/skip mode, `npm run test:server` passed 26 server tests including targeted room persistence methods, `npm run test:persistence:postgres` passed against Docker `postgres:16-alpine` on local port `60192`, and `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 expanded assistive route coverage pass: `npm run test:a11y:assistive` passed with room `TFKC` on frontend `57887` / backend `57886`, recording PASS for browse, sort menu, property detail, join pick, create-room form, host dashboard, AI degraded alert, settle modal, player join, betting controls, host settled result, and player settled result; `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -101,18 +103,25 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the most important join, host, player, settle, and AI fallback states; it still does not cover every route, every possible modal branch, or a human-listened VoiceOver rotor/audio pass.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, join, host, player, settle, AI fallback, and settled-result states; it still needs a human-listened VoiceOver rotor/audio pass and deeper edge-state coverage such as map popups, toasts, and every validation branch.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing.
 - Restart recovery is proven across Chromium, Firefox, and WebKit rendered host/two-player paths with retrying API load waves, plus a local restart/load latency budget profile.
 
 ## Current Backlog Ranked By Impact
 
-1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
+1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 
 ## Iteration History
+
+### 2026-05-11 - Expanded Assistive Route Coverage
+
+- Expanded `scripts/capture-assistive-tech-notes.js` beyond the room core to include browse route, sort menu, property detail route, host AI degraded alert, and host/player settled-result states.
+- Added a 20-second timeout to macOS System Events AX extraction so the harness fails bounded instead of hanging indefinitely.
+- Kept macOS AX capture for room/dialog/player states, but switched dense browse/detail states to bounded Playwright ARIA assertions after the unbounded System Events full-window crawl hung on the browse page.
+- Updated `docs/accessibility-assistive-tech-notes.md` with a 12-surface PASS table and refreshed manual VoiceOver checklist.
 
 ### 2026-05-11 - Live Postgres Readiness Smoke
 
@@ -609,6 +618,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run test:persistence:live` with no `DATABASE_URL` -> passed with `ok: true`, `ready: false`, `skipped: true`, `roomStore: default-json`, and a next-step message for `FAIRVALUE_LIVE_POSTGRES_SMOKE=1`.
 - `npm run test:persistence:postgres` after targeted adapter methods -> passed against Docker `postgres:16-alpine`, adapter `postgres`, table `fairvalue_room_snapshots`, local port `60192`.
 - `npm run verify` after live-readiness smoke -> passed: `scan:secrets`, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- Initial `npm run test:a11y:assistive` after adding browse/detail states exposed that full-window macOS System Events traversal can hang on dense browse pages; the harness now uses bounded Playwright ARIA evidence for those dense routes and applies a 20-second timeout to AX extraction.
+- Follow-up `npm run test:a11y:assistive` runs exposed truthful AX-name mismatches for the host degraded-AI response, the settlement confirm button, and split `OVER` / `WINS` static text; expected names now match the actual platform tree.
+- Final `npm run test:a11y:assistive` -> passed with room `TFKC`, frontend `57887`, backend `57886`, and 12 PASS surfaces across browse, sort, property detail, join, host, AI degraded alert, settle modal, player betting, and settled results.
+- `npm run verify` after expanded assistive coverage -> passed: `scan:secrets`, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Screens And Routes Verified
 
@@ -649,6 +662,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Cold production profile verified production `dist` serving, `/join`, `/host/:roomCode`, `/play/:roomCode`, player betting, host sync, settlement broadcast, and local snapshot recovery using room `P4AZ`.
 - Mixed-traffic E2E verified `/join`, `/host/:roomCode`, and throttled rendered `/play/:roomCode` clients while concurrent API clients joined/bet and state reads churned, ending with settlement broadcast and snapshot reconciliation using room `6PD9`.
 - Live persistence readiness verified the local no-credential production database path reports degraded/skip truthfully, and disposable Postgres verified targeted room persistence plus whole-snapshot compatibility against `fairvalue_room_snapshots`.
+- Expanded assistive-tech capture verified `/`, `/market/440298192`, `/join`, `/host/:roomCode`, and `/play/:roomCode` across browse, sort, property detail, create-room, host dashboard, AI degraded alert, settle modal, betting controls, and settled host/player states using room `TFKC`.
 
 ## Screenshots Or Traces
 
@@ -713,10 +727,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `6a78c08` - Add cold production performance profile.
 - `d92de55` - Add mixed traffic resilience profile.
 - `97b6235` - Add live Postgres readiness smoke.
+- `4777bec` - Expand assistive technology route coverage.
 
 ## Next Action Queue
 
-1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
+1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 4. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
