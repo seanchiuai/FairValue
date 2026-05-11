@@ -156,8 +156,9 @@ export default function JoinPage() {
           <div style={styles.form}>
             <h2 style={styles.formTitle}>Create a Room</h2>
             <div style={styles.field}>
-              <label style={styles.label}>Your Nickname</label>
+              <label style={styles.label} htmlFor="create-host-nickname">Your Nickname</label>
               <input
+                id="create-host-nickname"
                 style={styles.input}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -168,8 +169,9 @@ export default function JoinPage() {
               />
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>Property Address</label>
+              <label style={styles.label} htmlFor="create-property-address">Property Address</label>
               <input
+                id="create-property-address"
                 style={styles.input}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
@@ -179,8 +181,9 @@ export default function JoinPage() {
               />
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>Asking Price ($)</label>
+              <label style={styles.label} htmlFor="create-asking-price">Asking Price ($)</label>
               <input
+                id="create-asking-price"
                 style={styles.input}
                 value={askingPrice}
                 onChange={(e) => setAskingPrice(e.target.value)}
@@ -189,7 +192,7 @@ export default function JoinPage() {
                 inputMode="numeric"
               />
             </div>
-            {(error || identityError) && <p style={styles.error}>{error || identityError}</p>}
+            {(error || identityError) && <p style={styles.error} role="alert">{error || identityError}</p>}
             <button
               style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
               onClick={handleCreate}
@@ -207,8 +210,9 @@ export default function JoinPage() {
           <div style={styles.form}>
             <h2 style={styles.formTitle}>Join a Room</h2>
             <div style={styles.field}>
-              <label style={styles.label}>Your Nickname</label>
+              <label style={styles.label} htmlFor="join-player-nickname">Your Nickname</label>
               <input
+                id="join-player-nickname"
                 style={styles.input}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -219,8 +223,9 @@ export default function JoinPage() {
               />
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>Room Code</label>
+              <label style={styles.label} htmlFor="join-room-code">Room Code</label>
               <input
+                id="join-room-code"
                 style={{ ...styles.input, textAlign: 'center', fontSize: 24, letterSpacing: 8, textTransform: 'uppercase' }}
                 value={roomCode}
                 onChange={(e) => setRoomCode(formatRoomCodeInput(e.target.value))}
@@ -230,7 +235,7 @@ export default function JoinPage() {
                 inputMode="text"
               />
             </div>
-            {(error || identityError) && <p style={styles.error}>{error || identityError}</p>}
+            {(error || identityError) && <p style={styles.error} role="alert">{error || identityError}</p>}
             <button
               style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
               onClick={handleJoin}

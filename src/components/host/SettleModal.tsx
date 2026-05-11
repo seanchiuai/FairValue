@@ -59,15 +59,23 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
   }, [roomCode, hostToken, userToken, actualPrice, onClose]);
 
   return (
-    <div style={s.overlay} onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settle-title">
+    <div
+      style={s.overlay}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settle-title"
+      aria-describedby="settle-desc"
+    >
       <div style={s.modal} onClick={(e) => e.stopPropagation()}>
         <h3 id="settle-title" style={s.title}>Settle Market</h3>
-        <p style={s.desc}>
+        <p id="settle-desc" style={s.desc}>
           Enter the actual appraisal/sale price to determine the winner.
         </p>
         <div style={s.field}>
-          <label style={s.label}>Actual Price ($)</label>
+          <label style={s.label} htmlFor="settle-actual-price">Actual Price ($)</label>
           <input
+            id="settle-actual-price"
             ref={inputRef}
             style={s.input}
             value={actualPrice}
@@ -86,7 +94,7 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
               : 'UNDER wins'
             : 'enter a price'}
         </p>
-        {error && <p style={s.error}>{error}</p>}
+        {error && <p style={s.error} role="alert">{error}</p>}
         <div style={s.buttons}>
           <button style={s.cancel} onClick={onClose}>Cancel</button>
           <button

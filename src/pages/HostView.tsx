@@ -48,6 +48,7 @@ export default function HostView() {
   );
   const hasHostAuthority = Boolean(canUseHostIdentity || hostToken);
   const wasConnectedRef = useRef(false);
+  const settleButtonRef = useRef<HTMLButtonElement>(null);
   if (connectionState === 'connected') wasConnectedRef.current = true;
 
   // Chart
@@ -108,6 +109,11 @@ export default function HostView() {
   const handleNgrokChange = useCallback((url: string) => {
     setNgrokUrl(url);
     sessionStorage.setItem('fv_ngrok_url', url);
+  }, []);
+
+  const closeSettleModal = useCallback(() => {
+    setShowSettleModal(false);
+    window.requestAnimationFrame(() => settleButtonRef.current?.focus());
   }, []);
 
   const sortedPlayers = useMemo(
@@ -176,6 +182,7 @@ export default function HostView() {
                 <Bot size={14} /> AI {aiEnabled ? 'ON' : 'OFF'}
               </button>
               <button
+                ref={settleButtonRef}
                 style={{
                   ...s.controlBtn,
                   background: 'var(--accent-warning)',
@@ -284,7 +291,7 @@ export default function HostView() {
           roomCode={roomCode || ''}
           hostToken={hostToken}
           userToken={canUseHostIdentity ? userToken : ''}
-          onClose={() => setShowSettleModal(false)}
+          onClose={closeSettleModal}
         />
       )}
     </div>

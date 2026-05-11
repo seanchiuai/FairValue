@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import {
   Search,
   ChevronDown,
@@ -34,6 +34,7 @@ function Markets() {
   const [minBeds, setMinBeds] = useState('Any');
   const [showMap, setShowMap] = useState(true);
   const [chartDataMap, setChartDataMap] = useState({});
+  const sortButtonRef = useRef(null);
 
   const fetchCharts = useCallback(() => {
     fetch('/api/markets/charts')
@@ -78,6 +79,23 @@ function Markets() {
       default: return 0;
     }
   }), [filteredProperties, sortBy]);
+
+  const selectSort = useCallback((value) => {
+    setSortBy(value);
+    setShowSortDropdown(false);
+    window.requestAnimationFrame(() => sortButtonRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!showSortDropdown) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      setShowSortDropdown(false);
+      sortButtonRef.current?.focus();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showSortDropdown]);
 
   const hasFilters = homeType !== 'All' || minBeds !== 'Any' || searchQuery;
   const featuredProperty = properties.length > 0
@@ -177,20 +195,27 @@ function Markets() {
           <div className="sort-dropdown">
             <span className="sort-label">Sort</span>
             <button
+              ref={sortButtonRef}
               className="sort-trigger"
               onClick={() => setShowSortDropdown(!showSortDropdown)}
+              aria-label={`Sort markets by ${SORT_OPTIONS.find(o => o.value === sortBy)?.label}`}
+              aria-expanded={showSortDropdown}
+              aria-haspopup="menu"
+              aria-controls="markets-sort-menu"
             >
               {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
               <ChevronDown size={14} className={showSortDropdown ? 'open' : ''} />
             </button>
 
             {showSortDropdown && (
-              <div className="sort-menu">
+              <div className="sort-menu" id="markets-sort-menu" role="menu">
                 {SORT_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     className={`sort-option ${sortBy === option.value ? 'active' : ''}`}
-                    onClick={() => { setSortBy(option.value); setShowSortDropdown(false); }}
+                    onClick={() => selectSort(option.value)}
+                    role="menuitemradio"
+                    aria-checked={sortBy === option.value}
                   >
                     {option.label}
                     {sortBy === option.value && <span className="check">✓</span>}

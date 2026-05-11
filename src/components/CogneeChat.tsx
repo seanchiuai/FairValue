@@ -66,7 +66,7 @@ export default function CogneeChat({ propertyId, askingPrice, market, activity, 
 
       {/* Messages */}
       {(messages.length > 0 || isLoading) && (
-        <div style={s.messages}>
+        <div style={s.messages} role="log" aria-live="polite" aria-relevant="additions text">
           {messages.map((msg) => (
             <MessageBubble key={msg.id} msg={msg} />
           ))}
@@ -127,6 +127,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
     <div style={{ ...s.bubble, alignSelf: isUser ? 'flex-end' : 'flex-start', flexDirection: isUser ? 'row-reverse' : 'row' }}>
       {!isUser && <Sparkles size={12} color="var(--accent-primary)" style={{ flexShrink: 0, marginTop: 8 }} />}
       <div
+        role={isError ? 'alert' : undefined}
         style={{
           ...(isUser ? s.bubbleUser : isError ? s.bubbleError : s.bubbleAssistant),
         }}

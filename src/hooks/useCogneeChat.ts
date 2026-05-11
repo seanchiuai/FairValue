@@ -101,12 +101,16 @@ export function useCogneeChat({ propertyId, askingPrice, market, activity, playe
 
       const response = await searchMarketInsights(contextQuery, propertyId);
       const content = formatCogneeResponse(response);
+      const isDegradedInsight =
+        typeof response === 'string' &&
+        (/COGNEE_API_KEY/i.test(response) || /AI Analyst is unavailable/i.test(response));
 
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: content || 'No insights available for that question. Try asking about the market state, bet patterns, or fair value.',
         timestamp: new Date(),
+        isError: isDegradedInsight,
       };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (error) {

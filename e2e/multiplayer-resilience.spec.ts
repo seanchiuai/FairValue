@@ -266,7 +266,7 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
     await expectNoSeriousAxeViolations(desktop, 'desktop market browse route');
 
     await desktop.getByRole('button', { name: /Price: High to Low/ }).click();
-    await expect(desktop.getByRole('button', { name: /Price: Low to High/ })).toBeVisible();
+    await expect(desktop.getByRole('menuitemradio', { name: /Price: Low to High/ })).toBeVisible();
     await expectNoSeriousAxeViolations(desktop, 'desktop market sort menu state');
 
     await desktop.goto('/market/440298192');
@@ -315,6 +315,123 @@ test('expanded routes, forms, and modal states pass serious accessibility checks
     expect(unexpectedConsoleIssues).toEqual([]);
     expect([...cognee503Endpoints].sort()).toEqual(['initialize', 'search', 'state']);
     expect(expectedResourceErrorCount).toBe(cognee503Endpoints.size);
+  } finally {
+    await desktopContext.close();
+    await mobileContext.close();
+  }
+});
+
+test('keyboard and screen-reader-adjacent flows stay operable', async ({
+  browser,
+}: {
+  browser: Browser;
+}) => {
+  const consoleIssues: string[] = [];
+  const desktopContext = await browser.newContext({ viewport: hostViewport });
+  const mobileContext = await browser.newContext({
+    viewport: playerViewport,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const desktop = await desktopContext.newPage();
+  const mobile = await mobileContext.newPage();
+  const cognee503Endpoints = new Set<string>();
+
+  for (const [label, page] of [['desktop', desktop], ['mobile', mobile]] as const) {
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleIssues.push(`${label}: ${message.text()}`);
+    });
+    page.on('pageerror', (error) => consoleIssues.push(`${label}: ${error.message}`));
+  }
+  desktop.on('response', (response) => {
+    if (response.status() !== 503) return;
+    const endpoint = new URL(response.url()).pathname.match(/\/api\/ai\/cognee\/markets\/[^/]+\/([^/]+)$/)?.[1];
+    if (endpoint) cognee503Endpoints.add(endpoint);
+  });
+
+  try {
+    await desktop.goto('/');
+    const search = desktop.getByLabel('Search properties');
+    await search.focus();
+    await desktop.keyboard.type('resilience');
+    await expect(search).toHaveValue('resilience');
+    const clearSearch = desktop.getByRole('button', { name: 'Clear search' });
+    await clearSearch.focus();
+    await desktop.keyboard.press('Enter');
+    await expect(search).toHaveValue('');
+
+    const sortTrigger = desktop.getByRole('button', { name: /Sort markets by Price: High to Low/ });
+    await sortTrigger.focus();
+    await expect(sortTrigger).toBeFocused();
+    await desktop.keyboard.press('Enter');
+    await expect(sortTrigger).toHaveAttribute('aria-expanded', 'true');
+    const lowToHigh = desktop.getByRole('menuitemradio', { name: /Price: Low to High/ });
+    await lowToHigh.focus();
+    await desktop.keyboard.press('Enter');
+    await expect(desktop.getByRole('button', { name: /Sort markets by Price: Low to High/ })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    await desktop.keyboard.press('Enter');
+    await expect(desktop.getByRole('menu')).toBeVisible();
+    await desktop.keyboard.press('Escape');
+    await expect(desktop.getByRole('menu')).toBeHidden();
+    await expect(desktop.getByRole('button', { name: /Sort markets by Price: Low to High/ })).toBeFocused();
+
+    await desktop.goto('/join');
+    await desktop.keyboard.press('Tab');
+    await expect(desktop.getByRole('button', { name: /Create Room/ })).toBeFocused();
+    await desktop.keyboard.press('Enter');
+    await expect(desktop.getByLabel('Host nickname')).toBeFocused();
+    await desktop.getByRole('button', { name: /Back/ }).focus();
+    await desktop.keyboard.press('Enter');
+    await expect(desktop.getByRole('button', { name: /Create Room/ })).toBeVisible();
+
+    await desktop.getByRole('button', { name: /Join Room/ }).focus();
+    await desktop.keyboard.press('Enter');
+    await expect(desktop.getByLabel('Player nickname')).toBeFocused();
+    await desktop.getByRole('button', { name: /^Join Room$/ }).focus();
+    await desktop.keyboard.press('Enter');
+    await expect(desktop.getByRole('alert')).toContainText('Nickname and room code are required');
+
+    const roomCode = await createRoomThroughUi(desktop);
+    const settleButton = desktop.getByRole('button', { name: /Settle/ });
+    await settleButton.focus();
+    await desktop.keyboard.press('Enter');
+    await expect(desktop.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
+    await expect(desktop.getByLabel('Actual price')).toBeFocused();
+    await desktop.keyboard.press('Escape');
+    await expect(desktop.getByRole('dialog', { name: 'Settle Market' })).toBeHidden();
+    await expect(settleButton).toBeFocused();
+
+    const marketSummary = desktop.getByRole('button', { name: 'Market summary' });
+    await marketSummary.focus();
+    await Promise.all([
+      desktop.waitForResponse((response) =>
+        response.url().includes('/api/ai/cognee/markets/') &&
+        response.url().includes('/search') &&
+        response.status() === 503
+      ),
+      desktop.keyboard.press('Enter'),
+    ]);
+    await expect(
+      desktop.getByRole('alert').filter({
+        hasText: 'Set COGNEE_API_KEY on the server to enable Cognee analysis.',
+      })
+    ).toBeVisible({ timeout: 15_000 });
+
+    await joinRoomThroughUi(mobile, roomCode);
+    const wager100 = mobile.getByRole('button', { name: 'Set wager to $100' });
+    await wager100.focus();
+    await mobile.keyboard.press('Enter');
+    await expect(mobile.getByLabel('Custom wager')).toHaveValue('100');
+    await expect(mobile.getByRole('button', { name: /Bet \$100 on OVER/ })).toBeEnabled();
+
+    const expectedCogneeResourceError =
+      'desktop: Failed to load resource: the server responded with a status of 503 (Service Unavailable)';
+    const unexpectedConsoleIssues = consoleIssues.filter((issue) => issue !== expectedCogneeResourceError);
+    expect(unexpectedConsoleIssues).toEqual([]);
+    expect([...cognee503Endpoints].sort()).toEqual(['initialize', 'search', 'state']);
   } finally {
     await desktopContext.close();
     await mobileContext.close();
