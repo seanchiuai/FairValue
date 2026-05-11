@@ -34,18 +34,20 @@ async function clickBetAndWait(page: Page, roomCode: string, buttonName: RegExp)
   ]);
 }
 
-test('host and two players can bet, reconnect, toggle AI, and settle a room', async ({ browser }: { browser: Browser }) => {
+test('host and two players can bet, reconnect, toggle AI, and settle a room', async ({
+  browser,
+  browserName,
+}: {
+  browser: Browser;
+  browserName: string;
+}) => {
+  const playerContextOptions =
+    browserName === 'firefox'
+      ? { viewport: playerViewport, hasTouch: true }
+      : { viewport: playerViewport, isMobile: true, hasTouch: true };
   const hostContext = await browser.newContext({ viewport: hostViewport });
-  const playerOneContext = await browser.newContext({
-    viewport: playerViewport,
-    isMobile: true,
-    hasTouch: true,
-  });
-  const playerTwoContext = await browser.newContext({
-    viewport: playerViewport,
-    isMobile: true,
-    hasTouch: true,
-  });
+  const playerOneContext = await browser.newContext(playerContextOptions);
+  const playerTwoContext = await browser.newContext(playerContextOptions);
 
   const host = await hostContext.newPage();
   const playerOne = await playerOneContext.newPage();

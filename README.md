@@ -171,13 +171,19 @@ For browser flow coverage, run:
 ```bash
 npm run test:e2e
 npm run test:e2e:isolated
+npm run test:e2e:matrix
 npm run test:e2e:restart
+npm run test:e2e:soak
 npm run test:persistence:postgres
 ```
 
 `test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst and serious axe accessibility checks.
 
+`test:e2e:matrix` starts fresh backend/frontend ports (`8030`/`3030`) and runs the rendered host/player room flow across Chromium, Firefox, and WebKit projects.
+
 `test:e2e:restart` starts its own fresh backend/frontend on free local ports, keeps the rendered host/player pages open, restarts the real backend process against `/tmp/fairvalue-browser-restart-rooms.json`, and verifies room recovery, post-restart betting, settlement, and settled-state reload.
+
+`test:e2e:soak` starts fresh backend/frontend ports (`8031`/`3031`) and runs a longer API/WebSocket join-bet wave profile against `/tmp/fairvalue-e2e-soak-rooms.json`, including idempotency replay, settlement, and snapshot reconciliation.
 
 `test:persistence:postgres` requires Docker. It starts a disposable `postgres:16-alpine` container, verifies the Postgres room snapshot adapter against a real database, and removes the container afterward.
 

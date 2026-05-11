@@ -15,6 +15,8 @@ import type {
   WsSettleMessage,
 } from '../types';
 
+const CONNECTED_RECONCILE_INTERVAL_MS = 5000;
+
 function generateBetIdempotencyKey() {
   const randomUUID = window.crypto?.randomUUID;
   if (typeof randomUUID === 'function') return randomUUID.call(window.crypto);
@@ -179,6 +181,13 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     onSettle,
     onReconnected: fetchRoomState,
   });
+
+  // WebSocket remains the primary path; this catches rare missed broadcasts while a browser still reports connected.
+  useEffect(() => {
+    if (!connected || !roomCode) return;
+    const interval = setInterval(fetchRoomState, CONNECTED_RECONCILE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [connected, roomCode, fetchRoomState]);
 
   // Poll for state when WebSocket is disconnected (fallback)
   useEffect(() => {

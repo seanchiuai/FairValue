@@ -1,12 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const frontendPort = process.env.E2E_FRONTEND_PORT || '3001';
-const backendPort = process.env.E2E_BACKEND_PORT || '8000';
+const frontendPort = process.env.E2E_FRONTEND_PORT || '3030';
+const backendPort = process.env.E2E_BACKEND_PORT || '8030';
 const reuseExistingServer = !process.env.CI && process.env.E2E_REUSE_EXISTING !== 'false';
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: [/restart-recovery\.spec\.ts/, /load-soak\.spec\.ts/],
+  testMatch: /host-player-flow\.spec\.ts/,
+  timeout: 120_000,
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
@@ -22,6 +23,14 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
     },
   ],
   webServer: [
