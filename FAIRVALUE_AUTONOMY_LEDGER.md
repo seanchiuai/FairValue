@@ -113,7 +113,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Commits Made
 
 - `7df90d6` - Harden AI boundary and realtime recovery.
-- Pending host-authority commit.
+- `b1936cb` - Protect host-only room controls.
 
 ## Next Action Queue
 
