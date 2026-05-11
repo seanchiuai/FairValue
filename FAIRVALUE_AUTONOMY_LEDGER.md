@@ -19,6 +19,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Runtime dependencies are now separated from frontend test/type tooling; full `npm audit --json` and production `npm audit --omit=dev --json` both report zero vulnerabilities after migrating off CRA/react-scripts.
 - Rooms, room event logs, settlement state, and bet idempotency receipts now survive local backend restarts through file-backed JSON snapshots at `.fairvalue/rooms.json` by default, with `FAIRVALUE_ROOM_STORE_PATH` and `FAIRVALUE_ROOM_PERSISTENCE=off` controls.
 - Local JSON room snapshots now quarantine malformed snapshot files as `.corrupt-*` beside the configured path, log the quarantine path without snapshot contents, and restart with an empty room map instead of crashing on parse.
+- Local JSON room snapshots can now be encrypted at rest with `FAIRVALUE_ROOM_SNAPSHOT_SECRET`; plaintext snapshots still load, encrypted snapshots fail closed without the secret, and the E2E/profile snapshot readers use the persistence adapter so encrypted evidence runs remain supported.
 - Vite dev proxying honors the same backend target env as the WebSocket client, so `/api` and `/ws` both point at the intended backend when fresh E2E/dev servers run on non-default ports.
 - Browser E2E now has an isolated fresh-server script, a multiplayer burst/API/WebSocket test, and a serious axe accessibility gate over join, host, and mobile player surfaces.
 - Accessibility pass tightened the app color tokens and added missing names for the AI send button, public URL input, QR SVG, and host settle button contrast.
@@ -96,6 +97,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 expanded assistive route coverage pass: `npm run test:a11y:assistive` passed with room `TFKC` on frontend `57887` / backend `57886`, recording PASS for browse, sort menu, property detail, join pick, create-room form, host dashboard, AI degraded alert, settle modal, player join, betting controls, host settled result, and player settled result; `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 accessibility edge-state pass: focused edge E2E first caught serious Leaflet popup contrast failures, then passed after popup styling fixes; full `npm run test:e2e:isolated -- e2e/multiplayer-resilience.spec.ts` passed 5 Chromium tests, full `npm run test:e2e:isolated` passed 10 Chromium tests, and `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 corrupt snapshot recovery pass: `npm run test:server` passed 27 server tests including malformed JSON snapshot quarantine/rewrite coverage; `npm run test:e2e:restart` passed the Chromium repeated-backend-restart harness; `npm run verify` passed client secret scan, 27 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 encrypted snapshot pass: `node --test server/__tests__/restartPersistence.test.js` passed plaintext and encrypted child-process restart restore cases; `FAIRVALUE_ROOM_SNAPSHOT_SECRET=playwright-encrypted-restart npm run test:e2e:restart` passed the Chromium repeated-backend-restart harness with encrypted local snapshots; final `npm run verify` passed client secret scan, 29 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
@@ -103,7 +105,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host-only settlement and AI toggles now accept durable signed host identity for newly created rooms while still supporting legacy room host tokens.
 - Room connections, rate-limit buckets, and AI bot intervals are still process-local; restored rooms intentionally do not auto-resume AI intervals after restart.
 - The Postgres snapshot adapter is covered by fake-SQL tests, disposable local Postgres, and a no-credential live-readiness skip path; actual Neon write/read/delete smoke still needs `DATABASE_URL` in this environment.
-- Room snapshot persistence still lacks retention policy and encryption-at-rest.
+- Room snapshot persistence still lacks a retention policy.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
@@ -119,6 +121,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 
 ## Iteration History
+
+### 2026-05-11 - Encrypted Local Snapshots
+
+- Added optional AES-256-GCM encryption for local JSON room snapshots behind `FAIRVALUE_ROOM_SNAPSHOT_SECRET`.
+- Kept plaintext snapshots backward-compatible; loading a plaintext snapshot with the secret configured rewrites it encrypted on the next save.
+- Made encrypted snapshots fail closed when the secret is missing or wrong, instead of silently returning empty room state.
+- Wired the secret through the real server persistence factory and documented it in `.env.example` and the README.
+- Updated Playwright/profile snapshot readers to load through the persistence adapter so encrypted local snapshot evidence remains readable in those harnesses.
+- Added unit coverage for encrypted snapshot contents and child-process restart coverage proving encrypted local snapshots restore rooms across backend restarts.
 
 ### 2026-05-11 - Corrupt Snapshot Recovery
 
@@ -690,6 +701,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Expanded assistive-tech capture verified `/`, `/market/440298192`, `/join`, `/host/:roomCode`, and `/play/:roomCode` across browse, sort, property detail, create-room, host dashboard, AI degraded alert, settle modal, betting controls, and settled host/player states using room `TFKC`.
 - Accessibility edge-state E2E verified `/join` create/join validation alerts with field-level invalid/described-by semantics, `/host/:roomCode` settle validation alerts, `/` map marker accessible labels, and Leaflet popup link/contrast behavior.
 - Corrupt snapshot recovery verified a malformed local JSON room snapshot is renamed to `.corrupt-*`, the recovery path logs only the quarantine/source paths, fresh snapshot writes still work afterward, and the rendered backend restart harness remains green.
+- Encrypted snapshot evidence verified local JSON snapshots omit host token/address plaintext when `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, wrong/missing secrets fail closed, encrypted child-process restart restores the room, and the rendered restart harness passes with encrypted snapshots enabled.
 
 ## Screenshots Or Traces
 
@@ -757,6 +769,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `4777bec` - Expand assistive technology route coverage.
 - `e6c71fe` - Harden accessibility edge states.
 - `31e54db` - Recover corrupt room snapshots.
+- `e4a099a` - Encrypt local room snapshots.
 
 ## Next Action Queue
 
