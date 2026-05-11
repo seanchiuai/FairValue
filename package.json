@@ -36,6 +36,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "scan:secrets": "node scripts/scan-client-secrets.js",
+    "verify": "npm run scan:secrets && npm test -- --watchAll=false && npm run build",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

@@ -58,7 +58,7 @@ Populates the Neon database with properties from `public/data/properties.json`.
 Browser (React)
   ├── /api/*  ──proxy──▶  Express server (port 8000)  ──▶  Neon Postgres
   ├── /ws/*   ──proxy──▶  WebSocket server
-  ├── Cognee AI API (market analysis chat)
+  ├── /api/ai/cognee/* ──▶ server-side Cognee AI proxy
   └── IndexedDB (local image cache)
 ```
 
@@ -74,6 +74,7 @@ Browser (React)
 - **Trades** are persisted to Neon on every bet
 - **Solo market simulation** runs on startup — contrarian AI bot trades every 15s per market to generate 24/7 activity
 - **WebSocket** broadcasts `bet`, `join`, `ai_trade`, `settle` events to all room connections
+- **AI analyst calls** are proxied through server routes so Cognee credentials never ship to browser bundles
 
 ### LMSR Market Maker (`src/lib/lmsr.ts`)
 
@@ -126,11 +127,35 @@ Client sends `ping` every 30s for keepalive.
 ## Integrations
 
 - **Neon Postgres** — persistent storage for markets, trades, LMSR state
-- **Cognee AI** — knowledge graph API for AI market analysis chat
+- **Cognee AI** — server-side knowledge graph API for AI market analysis chat
 - **Zillow** — static property dataset (7.87 MB, `public/data/properties.json`)
 - **TradingView Lightweight Charts** — dual-axis probability/fair-value charting
 - **QR Code** (`qrcode.react`) — room join codes on host dashboard
 - **ngrok** (optional) — public URL for QR codes when on LAN
+
+## Environment
+
+Copy `.env.example` to `.env` for local backend configuration.
+
+```bash
+cp .env.example .env
+```
+
+- `DATABASE_URL` enables Neon-backed market persistence. If it is missing, the server boots in degraded mode and in-memory multiplayer rooms still work, while database-backed routes return DB errors.
+- `COGNEE_API_KEY` enables the AI Analyst. It must stay server-side only and must never be added as a `REACT_APP_*` variable.
+- `COGNEE_BASE_URL` defaults to `https://api.cognee.ai`.
+- `REACT_APP_BACKEND_PORT` defaults local frontend WebSockets to the backend on port `8000` when CRA runs on another port.
+- `REACT_APP_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.
+
+Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
+
+## Verification
+
+```bash
+npm run verify
+```
+
+This currently runs a client secret scan, the non-watch React test suite, and a production build.
 
 ## Project Structure
 

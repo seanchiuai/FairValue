@@ -102,6 +102,7 @@ async function createRoom(house, roomCode) {
     aiEnabled: false,
     aiInterval: null,
     settled: false,
+    settlement: null,
     activity: [],
     marketId: null,
   };
@@ -161,6 +162,208 @@ async function updateMarketState(marketId, market) {
   }
 }
 
+// ─── Server-side Cognee AI boundary ─────────────────────────────────
+
+const COGNEE_BASE_URL = process.env.COGNEE_BASE_URL || 'https://api.cognee.ai';
+
+function cogneeUnavailable(res) {
+  return res.status(503).json({
+    degraded: true,
+    error: 'AI analyst unavailable',
+    message: 'Set COGNEE_API_KEY on the server to enable Cognee analysis.',
+  });
+}
+
+function safeDatasetSuffix(value) {
+  const cleaned = String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  return cleaned || 'unknown';
+}
+
+function numberOrZero(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function cogneeRequest(path, { method = 'GET', body } = {}) {
+  const apiKey = process.env.COGNEE_API_KEY;
+  if (!apiKey) {
+    const err = new Error('COGNEE_API_KEY is not configured');
+    err.degraded = true;
+    err.status = 503;
+    throw err;
+  }
+
+  const response = await fetch(`${COGNEE_BASE_URL}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': apiKey,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json') ? await response.json() : await response.text();
+  if (!response.ok) {
+    const err = new Error(`Cognee request failed with status ${response.status}`);
+    err.status = response.status;
+    err.payload = payload;
+    throw err;
+  }
+  return payload;
+}
+
+function handleCogneeError(res, error) {
+  if (error.degraded) return cogneeUnavailable(res);
+  const status = error.status && error.status >= 400 && error.status < 600 ? error.status : 502;
+  return res.status(status).json({
+    error: 'Cognee request failed',
+    message: error.message || 'Unexpected Cognee integration failure',
+  });
+}
+
+app.post('/api/ai/cognee/markets/:propertyId/initialize', async (req, res) => {
+  const propertyId = safeDatasetSuffix(req.params.propertyId);
+  const askingPrice = numberOrZero(req.body.asking_price);
+  const marketDescription = `
+Property Market ${propertyId}: Real estate prediction market with asking price $${askingPrice}.
+This market uses LMSR (Logarithmic Market Scoring Rule) algorithm for fair value pricing.
+Bettors predict if the property will appraise OVER or UNDER the asking price.
+The fair value is calculated as: asking_price + (prob_over - 0.5) * 2 * asking_price * 0.10
+`;
+
+  try {
+    await cogneeRequest('/api/add', {
+      method: 'POST',
+      body: {
+        data: marketDescription,
+        dataset_name: `property_market_${propertyId}`,
+      },
+    });
+    await cogneeRequest('/api/cognify', {
+      method: 'POST',
+      body: {
+        datasets: [`property_market_${propertyId}`],
+      },
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    handleCogneeError(res, error);
+  }
+});
+
+app.post('/api/ai/cognee/markets/:propertyId/state', async (req, res) => {
+  const propertyId = safeDatasetSuffix(req.params.propertyId);
+  const { state, bet } = req.body;
+  if (!state) return res.status(400).json({ error: 'State payload is required' });
+
+  const qOver = numberOrZero(state.qOver);
+  const qUnder = numberOrZero(state.qUnder);
+  const totalWagered = numberOrZero(state.totalWagered);
+  const totalTrades = numberOrZero(state.totalTrades);
+  const fairValue = numberOrZero(state.fairValue);
+  const askingPrice = numberOrZero(state.askingPrice);
+  const timestamp = state.timestamp || new Date().toISOString();
+
+  const stateDescription = `
+LMSR Market State at ${timestamp}:
+- Property ID: ${propertyId}
+- Asking Price: $${askingPrice}
+- Current Fair Value: $${fairValue.toFixed(2)}
+- qOver (OVER shares outstanding): ${qOver.toFixed(2)}
+- qUnder (UNDER shares outstanding): ${qUnder.toFixed(2)}
+- Total Wagered: $${totalWagered.toFixed(2)}
+- Total Trades: ${totalTrades}
+- Probability OVER: ${(qOver / (qOver + qUnder || 1)).toFixed(4)}
+`;
+
+  try {
+    await cogneeRequest('/api/add', {
+      method: 'POST',
+      body: {
+        data: stateDescription,
+        dataset_name: `lmsr_state_${propertyId}`,
+      },
+    });
+
+    const datasets = [`lmsr_state_${propertyId}`];
+    if (bet) {
+      const amount = numberOrZero(bet.amount);
+      const shares = numberOrZero(bet.shares);
+      const actualCost = numberOrZero(bet.actualCost);
+      const priceAtBet = numberOrZero(bet.priceAtBet);
+      const betDescription = `
+Trade Executed at ${bet.timestamp || new Date().toISOString()}:
+- Property: ${propertyId}
+- Direction: ${bet.direction === 'higher' ? 'OVER (higher)' : 'UNDER (lower)'}
+- Wager Amount: $${amount.toFixed(2)}
+- Shares Purchased: ${shares.toFixed(2)}
+- Actual Cost: $${actualCost.toFixed(2)}
+- Price at Bet: $${priceAtBet.toFixed(2)}
+- Bet ID: ${bet.id || 'unknown'}
+This trade updated the market state through LMSR cost function mechanics.
+`;
+
+      await cogneeRequest('/api/add', {
+        method: 'POST',
+        body: {
+          data: betDescription,
+          dataset_name: `bets_${propertyId}`,
+        },
+      });
+      datasets.push(`bets_${propertyId}`);
+    }
+
+    await cogneeRequest('/api/cognify', {
+      method: 'POST',
+      body: { datasets },
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    handleCogneeError(res, error);
+  }
+});
+
+app.post('/api/ai/cognee/markets/:propertyId/search', async (req, res) => {
+  const propertyId = safeDatasetSuffix(req.params.propertyId);
+  const query = String(req.body.query || '').trim();
+  if (!query) return res.status(400).json({ error: 'Query is required' });
+
+  try {
+    const data = await cogneeRequest('/api/search', {
+      method: 'POST',
+      body: {
+        query,
+        search_type: req.body.search_type || 'GRAPH_COMPLETION',
+        datasets: [`property_market_${propertyId}`, `lmsr_state_${propertyId}`, `bets_${propertyId}`],
+      },
+    });
+    res.json(data);
+  } catch (error) {
+    handleCogneeError(res, error);
+  }
+});
+
+app.get('/api/ai/cognee/markets/:propertyId/graph', async (req, res) => {
+  const propertyId = safeDatasetSuffix(req.params.propertyId);
+  try {
+    const data = await cogneeRequest(`/api/datasets/property_market_${propertyId}/graph`);
+    res.json(data);
+  } catch (error) {
+    handleCogneeError(res, error);
+  }
+});
+
+app.get('/api/ai/cognee/visualize', async (req, res) => {
+  const outputPath = req.query.output_path ? `?output_path=${encodeURIComponent(req.query.output_path)}` : '';
+  try {
+    const html = await cogneeRequest(`/api/visualize${outputPath}`);
+    res.type('html').send(html);
+  } catch (error) {
+    handleCogneeError(res, error);
+  }
+});
+
 // ─── Room API routes ────────────────────────────────────────────────
 
 app.post('/api/rooms', async (req, res) => {
@@ -196,6 +399,8 @@ app.post('/api/rooms/:code/join', (req, res) => {
     players: Object.values(room.players),
     house: room.house,
     activity: room.activity.slice(-50),
+    settled: room.settled,
+    settlement: room.settlement,
   });
 });
 
@@ -211,6 +416,7 @@ app.get('/api/rooms/:code/state', (req, res) => {
     activity: room.activity.slice(-50),
     ai_enabled: room.aiEnabled,
     settled: room.settled,
+    settlement: room.settlement,
   });
 });
 
@@ -283,9 +489,11 @@ app.post('/api/rooms/:code/settle', (req, res) => {
   const activityEntry = { type: 'settle', actual_price, winning_outcome: winningOutcome, timestamp: Date.now() / 1000 };
   room.activity.push(activityEntry);
 
-  broadcast(room, { type: 'settle', actual_price, winning_outcome: winningOutcome, results, activity: activityEntry });
+  room.settlement = { winning_outcome: winningOutcome, actual_price, results };
 
-  res.json({ winning_outcome: winningOutcome, actual_price, results });
+  broadcast(room, { type: 'settle', ...room.settlement, activity: activityEntry });
+
+  res.json(room.settlement);
 });
 
 app.post('/api/rooms/:code/toggle-ai', (req, res) => {
@@ -358,6 +566,8 @@ app.get('/api/markets', async (req, res) => {
 
 // Chart endpoints — must be before /api/markets/:id to avoid "charts" matching as :id
 app.get('/api/markets/charts', async (req, res) => {
+  if (sql.isConfigured === false) return res.json({});
+
   try {
     const rows = await sql`
       SELECT m.property_id, t.prob_over_after, t.created_at
@@ -381,6 +591,8 @@ app.get('/api/markets/charts', async (req, res) => {
 });
 
 app.get('/api/markets/by-property/:propertyId/chart', async (req, res) => {
+  if (sql.isConfigured === false) return res.json([]);
+
   try {
     const rows = await sql`
       SELECT t.prob_over_after, t.created_at
@@ -506,7 +718,18 @@ function weightedRandom(items, weights) {
 
 // ─── WebSocket ──────────────────────────────────────────────────────
 
-const wss = new WebSocketServer({ server, path: /^\/ws\// });
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  if (!req.url || !req.url.startsWith('/ws/')) {
+    socket.destroy();
+    return;
+  }
+
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req);
+  });
+});
 
 wss.on('connection', (ws, req) => {
   const roomCode = req.url.replace('/ws/', '').toUpperCase();

@@ -13,6 +13,24 @@ export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'fai
 const BASE_DELAY = 1000;
 const MAX_DELAY = 30000;
 const MAX_RETRIES = 10;
+const DEFAULT_DEV_BACKEND_PORT = '8000';
+
+function getWebSocketBaseUrl() {
+  const configured = process.env.REACT_APP_WS_BASE_URL;
+  if (configured) return configured.replace(/\/$/, '');
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.hostname;
+  const port = window.location.port;
+  const isLocalDevHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  const backendPort = process.env.REACT_APP_BACKEND_PORT || DEFAULT_DEV_BACKEND_PORT;
+
+  if (isLocalDevHost && port && port !== backendPort) {
+    return `${protocol}//${host}:${backendPort}`;
+  }
+
+  return `${protocol}//${window.location.host}`;
+}
 
 interface UseWebSocketOptions {
   roomCode: string;
@@ -61,8 +79,7 @@ export function useWebSocket({
 
     setConnectionState('connecting');
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/${roomCode}`);
+    const ws = new WebSocket(`${getWebSocketBaseUrl()}/ws/${roomCode}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

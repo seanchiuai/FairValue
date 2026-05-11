@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
-import { executeBuy, priceOver, buyWithBudget } from '../lib/lmsr';
+import { executeBuy, buyWithBudget } from '../lib/lmsr';
 import type {
   Market,
   PlayerData,
@@ -43,6 +43,7 @@ export function useRoom(roomCode: string, sessionId: string) {
           setActivity(data.activity || []);
           setAiEnabled(data.ai_enabled);
           setSettled(data.settled);
+          if (data.settlement) setSettleResult(data.settlement);
         }
       }
     } catch { /* ignore corrupt cache */ }
@@ -57,6 +58,7 @@ export function useRoom(roomCode: string, sessionId: string) {
           setActivity(data.activity || []);
           setAiEnabled(data.ai_enabled);
           setSettled(data.settled);
+          if (data.settlement) setSettleResult(data.settlement);
           // Persist to cache
           try {
             localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
@@ -149,6 +151,7 @@ export function useRoom(roomCode: string, sessionId: string) {
           setActivity(data.activity || []);
           setAiEnabled(data.ai_enabled);
           if (data.settled) setSettled(true);
+          if (data.settlement) setSettleResult(data.settlement);
           try {
             localStorage.setItem(`fv_room_${roomCode}`, JSON.stringify({ data, ts: Date.now() }));
           } catch { /* quota exceeded */ }
@@ -179,6 +182,7 @@ export function useRoom(roomCode: string, sessionId: string) {
             setActivity(data.activity || []);
             setAiEnabled(data.ai_enabled);
             if (data.settled) setSettled(true);
+            if (data.settlement) setSettleResult(data.settlement);
           }
         })
         .catch(() => console.warn('Polling fallback: failed to fetch room state'));
@@ -201,6 +205,8 @@ export function useRoom(roomCode: string, sessionId: string) {
       if (data.players) setPlayers(data.players);
       if (data.house) setHouse(data.house);
       if (data.activity) setActivity(data.activity);
+      if (data.settled) setSettled(true);
+      if (data.settlement) setSettleResult(data.settlement);
       return data;
     },
     [roomCode, sessionId]

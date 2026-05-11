@@ -1,8 +1,5 @@
-// Cognee AI Memory Service for FairValue
-// API Documentation: https://docs.cognee.ai
-
-const COGNEE_BASE_URL = 'https://api.cognee.ai';
-const API_KEY = 'eb6226f5d948d3a48e1c5867043fc5fba7573ec9db11a56f';
+// Cognee AI Memory Service for FairValue.
+// Browser code must call the local server boundary only; the server owns secrets.
 
 interface LMSRState {
   qOver: number;
@@ -26,48 +23,61 @@ interface BetData {
   actualCost: number;
 }
 
+interface DegradedAIResponse {
+  degraded?: boolean;
+  error?: string;
+  message?: string;
+}
+
 const headers = {
   'Content-Type': 'application/json',
-  'X-Api-Key': API_KEY,
 };
 
+function isDegradedAIResponse(data: unknown): data is DegradedAIResponse {
+  return Boolean(data && typeof data === 'object' && 'degraded' in data);
+}
+
+async function requestAI(path: string, init?: RequestInit) {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      ...headers,
+      ...(init?.headers || {}),
+    },
+  });
+  const contentType = response.headers.get('content-type') || '';
+  const data = contentType.includes('application/json') ? await response.json() : await response.text();
+
+  if (response.status === 503 && isDegradedAIResponse(data)) {
+    return data;
+  }
+
+  if (!response.ok) {
+    const message =
+      data && typeof data === 'object' && 'message' in data
+        ? String((data as { message?: string }).message)
+        : `AI request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 /**
- * Initialize the knowledge graph for a property market
+ * Initialize the knowledge graph for a property market.
  */
 export const initializeMarketGraph = async (propertyId: string, askingPrice: number) => {
   try {
-    const marketDescription = `
-Property Market ${propertyId}: Real estate prediction market with asking price $${askingPrice}.
-This market uses LMSR (Logarithmic Market Scoring Rule) algorithm for fair value pricing.
-Bettors predict if the property will appraise OVER or UNDER the asking price.
-The fair value is calculated as: asking_price + (prob_over - 0.5) * 2 * asking_price * 0.10
-`;
-
-    // Add market context to Cognee
-    const addResponse = await fetch(`${COGNEE_BASE_URL}/api/add`, {
+    const data = await requestAI(`/api/ai/cognee/markets/${encodeURIComponent(propertyId)}/initialize`, {
       method: 'POST',
-      headers,
       body: JSON.stringify({
-        data: marketDescription,
-        dataset_name: `property_market_${propertyId}`,
+        asking_price: askingPrice,
       }),
     });
 
-    if (!addResponse.ok) {
-      throw new Error(`Failed to add market data: ${addResponse.statusText}`);
-    }
-
-    // Cognify the data into knowledge graph
-    const cognifyResponse = await fetch(`${COGNEE_BASE_URL}/api/cognify`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        datasets: [`property_market_${propertyId}`],
-      }),
-    });
-
-    if (!cognifyResponse.ok) {
-      throw new Error(`Failed to cognify market data: ${cognifyResponse.statusText}`);
+    if (isDegradedAIResponse(data)) {
+      console.warn(data.message || 'AI analyst unavailable');
+      return false;
     }
 
     console.log(`Market graph initialized for property ${propertyId}`);
@@ -79,75 +89,21 @@ The fair value is calculated as: asking_price + (prob_over - 0.5) * 2 * asking_p
 };
 
 /**
- * Store LMSR state and bet data to Cognee knowledge graph
+ * Store LMSR state and bet data to the server-side Cognee boundary.
  */
 export const storeLMSRState = async (state: LMSRState, bet?: BetData) => {
   try {
-    const stateDescription = `
-LMSR Market State at ${state.timestamp}:
-- Property ID: ${state.propertyId}
-- Asking Price: $${state.askingPrice}
-- Current Fair Value: $${state.fairValue.toFixed(2)}
-- qOver (OVER shares outstanding): ${state.qOver.toFixed(2)}
-- qUnder (UNDER shares outstanding): ${state.qUnder.toFixed(2)}
-- Total Wagered: $${state.totalWagered.toFixed(2)}
-- Total Trades: ${state.totalTrades}
-- Probability OVER: ${(state.qOver / (state.qOver + state.qUnder || 1)).toFixed(4)}
-`;
-
-    // Add market state
-    const addResponse = await fetch(`${COGNEE_BASE_URL}/api/add`, {
+    const data = await requestAI(`/api/ai/cognee/markets/${encodeURIComponent(state.propertyId)}/state`, {
       method: 'POST',
-      headers,
       body: JSON.stringify({
-        data: stateDescription,
-        dataset_name: `lmsr_state_${state.propertyId}`,
+        state,
+        bet,
       }),
     });
 
-    if (!addResponse.ok) {
-      throw new Error(`Failed to add LMSR state: ${addResponse.statusText}`);
-    }
-
-    // Add bet data if provided
-    if (bet) {
-      const betDescription = `
-Trade Executed at ${bet.timestamp.toISOString()}:
-- Property: ${bet.propertyId}
-- Direction: ${bet.direction === 'higher' ? 'OVER (higher)' : 'UNDER (lower)'}
-- Wager Amount: $${bet.amount.toFixed(2)}
-- Shares Purchased: ${bet.shares.toFixed(2)}
-- Actual Cost: $${bet.actualCost.toFixed(2)}
-- Price at Bet: $${bet.priceAtBet.toFixed(2)}
-- Bet ID: ${bet.id}
-This trade updated the market state through LMSR cost function mechanics.
-`;
-
-      const betResponse = await fetch(`${COGNEE_BASE_URL}/api/add`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          data: betDescription,
-          dataset_name: `bets_${bet.propertyId}`,
-        }),
-      });
-
-      if (!betResponse.ok) {
-        throw new Error(`Failed to add bet data: ${betResponse.statusText}`);
-      }
-    }
-
-    // Cognify to update knowledge graph
-    const cognifyResponse = await fetch(`${COGNEE_BASE_URL}/api/cognify`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        datasets: [`lmsr_state_${state.propertyId}`, `bets_${state.propertyId}`],
-      }),
-    });
-
-    if (!cognifyResponse.ok) {
-      throw new Error(`Failed to cognify state: ${cognifyResponse.statusText}`);
+    if (isDegradedAIResponse(data)) {
+      console.warn(data.message || 'AI analyst unavailable');
+      return false;
     }
 
     console.log('LMSR state stored in Cognee');
@@ -159,7 +115,7 @@ This trade updated the market state through LMSR cost function mechanics.
 };
 
 /**
- * Search the knowledge graph with natural language query
+ * Search the knowledge graph with natural language query.
  */
 export const searchMarketInsights = async (
   query: string,
@@ -167,21 +123,18 @@ export const searchMarketInsights = async (
   searchType: 'GRAPH_COMPLETION' | 'CHUNKS' | 'SUMMARIES' | 'INSIGHTS' = 'GRAPH_COMPLETION'
 ) => {
   try {
-    const response = await fetch(`${COGNEE_BASE_URL}/api/search`, {
+    const data = await requestAI(`/api/ai/cognee/markets/${encodeURIComponent(propertyId)}/search`, {
       method: 'POST',
-      headers,
       body: JSON.stringify({
         query,
         search_type: searchType,
-        datasets: [`property_market_${propertyId}`, `lmsr_state_${propertyId}`, `bets_${propertyId}`],
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Search failed: ${response.statusText}`);
+    if (isDegradedAIResponse(data)) {
+      return data.message || 'AI Analyst is unavailable until COGNEE_API_KEY is configured on the server.';
     }
 
-    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error searching market insights:', error);
@@ -190,23 +143,14 @@ export const searchMarketInsights = async (
 };
 
 /**
- * Get dataset graph structure
+ * Get dataset graph structure.
  */
 export const getMarketGraph = async (propertyId: string) => {
   try {
-    const response = await fetch(
-      `${COGNEE_BASE_URL}/api/datasets/property_market_${propertyId}/graph`,
-      {
-        method: 'GET',
-        headers,
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get graph: ${response.statusText}`);
-    }
-
-    const data = await response.json();
+    const data = await requestAI(`/api/ai/cognee/markets/${encodeURIComponent(propertyId)}/graph`, {
+      method: 'GET',
+    });
+    if (isDegradedAIResponse(data)) return null;
     return data;
   } catch (error) {
     console.error('Error fetching market graph:', error);
@@ -215,26 +159,19 @@ export const getMarketGraph = async (propertyId: string) => {
 };
 
 /**
- * Generate graph visualization HTML
+ * Generate graph visualization HTML.
  */
 export const visualizeMarketGraph = async (outputPath?: string) => {
   try {
-    const url = outputPath 
-      ? `${COGNEE_BASE_URL}/api/visualize?output_path=${encodeURIComponent(outputPath)}`
-      : `${COGNEE_BASE_URL}/api/visualize`;
-    
-    const response = await fetch(url, {
+    const url = outputPath
+      ? `/api/ai/cognee/visualize?output_path=${encodeURIComponent(outputPath)}`
+      : '/api/ai/cognee/visualize';
+
+    const data = await requestAI(url, {
       method: 'GET',
-      headers,
     });
-
-    if (!response.ok) {
-      throw new Error(`Visualization failed: ${response.statusText}`);
-    }
-
-    // Returns HTML content for the graph
-    const html = await response.text();
-    return html;
+    if (isDegradedAIResponse(data)) return null;
+    return typeof data === 'string' ? data : JSON.stringify(data);
   } catch (error) {
     console.error('Error generating visualization:', error);
     return null;
