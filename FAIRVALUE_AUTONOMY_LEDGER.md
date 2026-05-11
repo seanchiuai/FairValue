@@ -14,6 +14,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Local frontend WebSockets now connect directly to the backend in CRA dev mode when the frontend runs on a different port.
 - Betting now requires idempotency keys, room mutations validate payloads server-side, guarded API routes have in-memory rate limits, and every API response includes a correlation ID.
 - Rooms now emit append-only events for creation, joins, reconnect/leave, bets, AI phase changes, AI trades, settlement, and room-scoped errors; host-only audit and replay endpoints reconstruct room state from the event stream.
+- Backend and frontend LMSR/domain behavior now routes through `src/lib/marketEngine.js`; server room markets use the canonical snake_case market state shape.
 
 ## Current Test Status
 
@@ -25,23 +26,24 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-10 multiplayer protocol pass: `npm run verify` passed: client secret scan, 7 server tests, 4 React/Jest suites / 33 tests, and production build.
 - 2026-05-10 server-authority pass: `npm run verify` passed: client secret scan, 11 server tests, 4 React/Jest suites / 33 tests, and production build.
 - 2026-05-10 event-log pass: `npm run verify` passed: client secret scan, 13 server tests, 4 React/Jest suites / 33 tests, and production build.
+- 2026-05-10 unified-market-engine pass: `npm run verify` passed: client secret scan, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
 
 ## Current Known Risks
 
 - Rotate the Cognee key that was previously committed in client code; treat it as compromised.
 - Host-only settlement and AI toggles now require a room host capability token, but durable user identity is still missing.
 - Room state, event logs, idempotency receipts, and rate-limit buckets are still in memory and will not survive process restart.
-- LMSR math remains duplicated between frontend and backend.
+- Shared LMSR/domain logic is still implemented as CommonJS under `src/lib` so CRA and Node can both consume it; this is intentional but should be revisited if the build system changes.
 - npm audit currently reports 47 vulnerabilities, including 28 high severity.
 - Browser E2E, load, accessibility, and deeper security test layers are still missing.
 
 ## Current Backlog Ranked By Impact
 
-1. Unify backend and frontend LMSR logic behind one shared domain boundary.
-2. Add Playwright E2E coverage for host/player room flow.
-3. Address npm audit vulnerabilities without breaking CRA compatibility.
-4. Move volatile room/session state toward durable storage.
-5. Add load and accessibility checks around the multiplayer room loop.
+1. Add Playwright E2E coverage for host/player room flow.
+2. Address npm audit vulnerabilities without breaking CRA compatibility.
+3. Move volatile room/session state toward durable storage.
+4. Add load and accessibility checks around the multiplayer room loop.
+5. Persist room event logs outside process memory.
 
 ## Iteration History
 
@@ -105,6 +107,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Made room state responses include `event_sequence` and derive visible activity from replayed events.
 - Added tests for event ordering, cursor reads, replay state, host-only audit access, and settlement reconstruction.
 
+### 2026-05-10 - Unified Market Engine
+
+- Added `src/lib/marketEngine.js` as the single shared LMSR/domain implementation for CRA and the Node server.
+- Moved stable LMSR cost/price math, implied value, canonical market-state construction, public market formatting, budget buys, trade application, slippage, winner selection, and settlement payout logic into that shared boundary.
+- Replaced server-local LMSR functions and camel-case room market state with shared-engine imports and snake_case canonical state.
+- Kept `src/lib/lmsr.ts` as a compatibility wrapper that delegates to the shared engine for existing frontend imports.
+- Moved Cognee fair-value calculation onto the shared implied-price helper.
+- Added tests for numerical stability, extreme values, invalid inputs, budget buys, slippage, payout math, settlement, and frontend compatibility wrapper parity.
+
 ## Commands Run And Results
 
 - `git status --short --branch` -> `## main...origin/main [ahead 1]`.
@@ -141,6 +152,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npm run verify` after event-log patch -> passed: `scan:secrets`, 13 server tests, 4 React/Jest suites / 33 tests, and production build.
 - Restarted the live backend on `http://localhost:8000` after the event-log patch; frontend remained listening on `http://localhost:3001`.
 - Live event-log smoke through `http://127.0.0.1:8000` -> room `JUE8` produced 9 ordered events including room creation, host-token error, WebSocket reconnect/leave, join, bet, AI phase changes, and settlement; host replay reconstructed settled state with one trade and state recovery exposed the final event sequence.
+- `npm run verify` before unified-market-engine patch -> passed: `scan:secrets`, 13 server tests, 4 React/Jest suites / 33 tests, and production build.
+- `npm run test:server` after unified-market-engine patch -> passed 13 server tests.
+- `npm test -- --watchAll=false` after unified-market-engine patch -> passed 5 suites / 41 tests.
+- `npm run build` after unified-market-engine patch -> passed.
+- `npm run verify` after unified-market-engine patch -> passed: `scan:secrets`, 13 server tests, 5 React/Jest suites / 41 tests, and production build.
+- Restarted the live backend on `http://localhost:8000` after the unified-market-engine patch; frontend remained listening on `http://localhost:3001`.
+- Live shared-engine smoke through `http://127.0.0.1:8000` -> room `U8DB` produced API bet market output matching `marketEngine.placeBetWithBudget`, settlement results matching `marketEngine.settlePlayers`, canonical snake_case market fields with no camel-case market keys, and replay recovered one settled trade.
 
 ## Screens And Routes Verified
 
@@ -171,10 +189,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `0071f82` - Cover multiplayer API and websocket flow.
 - `ea7ad72` - Harden server betting contract.
 - `8cbecb1` - Add room event log replay.
+- `1249f4b` - Unify LMSR market engine.
 
 ## Next Action Queue
 
-1. Unify backend and frontend LMSR logic behind one shared domain boundary.
-2. Add Playwright E2E coverage for host/player room flow.
-3. Address npm audit vulnerabilities without breaking CRA compatibility.
-4. Start the next loop with `npm run verify`, then extract the shared LMSR/domain engine and prove server/client parity.
+1. Add Playwright E2E coverage for host/player room flow.
+2. Address npm audit vulnerabilities without breaking CRA compatibility.
+3. Move volatile room/session state toward durable storage.
+4. Start the next loop with `npm run verify`, then build a deterministic E2E harness for host/player/bet/settle/reconnect.
