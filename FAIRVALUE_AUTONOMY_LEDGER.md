@@ -28,6 +28,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart E2E now drives one host plus two player browser contexts through three repeated pre-settlement backend restart cycles, a post-reconnect bet, settlement, and a final reload-after-restart recovery.
 - Room persistence now has an adapter boundary: JSON remains the default local store, while `FAIRVALUE_ROOM_STORE=postgres` targets a Neon/Postgres `fairvalue_room_snapshots` table and startup can await async room loads before listening.
 - Postgres room persistence now has a Docker-backed smoke command that verifies the adapter against a real disposable `postgres:16-alpine` database and removes the container afterward.
+- Room persistence adapters now expose targeted `loadRoom`, `saveRoom`, and `deleteRoom` methods so readiness tooling can safely inspect or mutate one room row without invoking whole-table snapshot replacement.
+- Live database readiness now has `npm run test:persistence:live`; without `DATABASE_URL` it records an honest local degraded/skip result, with credentials it checks connectivity/table presence, and with `FAIRVALUE_LIVE_POSTGRES_SMOKE=1` it writes, reads, and deletes one temporary `FV**` room row.
 - Critical room mutations now wait for configured durable snapshot writes and return `503 Room persistence failed` instead of claiming success when create/join/bet/settle persistence fails.
 - Browser sessions now use server-issued signed `fv1` user identity tokens persisted in `localStorage`, with nickname/session migration preserved for existing browser state.
 - Room creation can bind a durable `host_user_id`; host-only controls accept that signed user identity while legacy room host tokens remain supported for old rooms and negative-path validation.
@@ -87,13 +89,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 rendered browser load pass: `npm run test:e2e:browser-load` passed with room `VF08`, 10 rendered mobile player pages, 11 persisted players including host, 10 trades, 77 events, settlement, join wave 1703ms, bet wave 502ms, settlement 130ms, total 5031ms; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 cold production performance pass: `npm run test:performance:cold` passed with room `P4AZ`, production build 1778ms, cold join route ready 94ms, create-to-connected 162ms, cold player route ready 832ms, player join 166ms, bet-to-host sync 97ms, settlement broadcast 63ms, and all local budgets passing; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 mixed traffic pass: `npm run test:e2e:mixed-traffic` passed with room `6PD9`, 4 throttled rendered mobile players, 12 API churn players, 18 state reads, 17 persisted players including host, 16 trades, 65 events, 419 total wagered, join/churn 127295ms, rendered slow bets 780ms, settlement 510ms, total 129663ms; `npm run verify` passed client secret scan, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- 2026-05-11 live Postgres readiness path pass: `npm run test:persistence:live` passed in no-credential degraded/skip mode, `npm run test:server` passed 26 server tests including targeted room persistence methods, `npm run test:persistence:postgres` passed against Docker `postgres:16-alpine` on local port `60192`, and `npm run verify` passed client secret scan, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Current Known Risks
 
 - Rotate the Cognee key that was previously committed in client code; treat it as compromised.
 - Host-only settlement and AI toggles now accept durable signed host identity for newly created rooms while still supporting legacy room host tokens.
 - Room connections, rate-limit buckets, and AI bot intervals are still process-local; restored rooms intentionally do not auto-resume AI intervals after restart.
-- The Postgres snapshot adapter is covered by fake-SQL tests and disposable local Postgres, but not by a live Neon smoke in this environment.
+- The Postgres snapshot adapter is covered by fake-SQL tests, disposable local Postgres, and a no-credential live-readiness skip path; actual Neon write/read/delete smoke still needs `DATABASE_URL` in this environment.
 - Room snapshot persistence still lacks retention policy, corruption recovery, and encryption-at-rest.
 - Room snapshots include host capability tokens, so `.fairvalue/` must remain local runtime state and out of git.
 - Shared LMSR/domain logic still has a server CommonJS canonical module and a browser ESM wrapper; parity tests guard the browser wrapper, but a future package-level dual-build could remove the duplication.
@@ -106,10 +109,18 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
-2. Add a live Neon/Postgres smoke path when credentials are available, or a stricter local production-deploy readiness check if they are not.
+2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 
 ## Iteration History
+
+### 2026-05-11 - Live Postgres Readiness Smoke
+
+- Added targeted `loadRoom`, `saveRoom`, and `deleteRoom` methods to JSON and Postgres room persistence adapters.
+- Kept the existing server-facing `save(snapshot)` whole-store semantics, but made live readiness tooling use targeted row mutation so it does not delete unrelated production rows.
+- Added `scripts/smoke-live-postgres-room-persistence.js` and `npm run test:persistence:live`.
+- The live readiness script loads `.env`, reports a degraded/skip result when `DATABASE_URL` is absent, fails missing credentials when Postgres room storage is explicitly required, checks connectivity/table presence when credentials exist, and only performs a live write/read/delete when `FAIRVALUE_LIVE_POSTGRES_SMOKE=1`.
+- Documented the live readiness flags in `.env.example` and `README.md`.
 
 ### 2026-05-11 - Mixed Traffic Resilience Profile
 
@@ -594,6 +605,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-mixed-traffic-rooms.json` after the mixed-traffic run -> room `6PD9`, 17 players including host, 16 trades, 65 events, settled true, and persisted wagered amount close to 419.
 - `npx playwright test --list` after adding mixed-traffic coverage -> default Playwright suite stayed at 9 tests in 3 files, excluding the heavier mixed-traffic spec.
 - `npm run verify` after mixed-traffic profile -> passed: `scan:secrets`, 24 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
+- `npm run test:server` after live-readiness adapter methods -> passed 26 server tests, including targeted JSON/Postgres room read/write/delete coverage.
+- `npm run test:persistence:live` with no `DATABASE_URL` -> passed with `ok: true`, `ready: false`, `skipped: true`, `roomStore: default-json`, and a next-step message for `FAIRVALUE_LIVE_POSTGRES_SMOKE=1`.
+- `npm run test:persistence:postgres` after targeted adapter methods -> passed against Docker `postgres:16-alpine`, adapter `postgres`, table `fairvalue_room_snapshots`, local port `60192`.
+- `npm run verify` after live-readiness smoke -> passed: `scan:secrets`, 26 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 
 ## Screens And Routes Verified
 
@@ -633,6 +648,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Browser-load E2E verified `/join`, `/host/:roomCode`, and 10 simultaneous rendered `/play/:roomCode` mobile pages through concurrent joins, concurrent bets, host totals/activity, all-player settlement broadcasts, and durable snapshot reconciliation using room `VF08`.
 - Cold production profile verified production `dist` serving, `/join`, `/host/:roomCode`, `/play/:roomCode`, player betting, host sync, settlement broadcast, and local snapshot recovery using room `P4AZ`.
 - Mixed-traffic E2E verified `/join`, `/host/:roomCode`, and throttled rendered `/play/:roomCode` clients while concurrent API clients joined/bet and state reads churned, ending with settlement broadcast and snapshot reconciliation using room `6PD9`.
+- Live persistence readiness verified the local no-credential production database path reports degraded/skip truthfully, and disposable Postgres verified targeted room persistence plus whole-snapshot compatibility against `fairvalue_room_snapshots`.
 
 ## Screenshots Or Traces
 
@@ -696,10 +712,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `f188062` - Add rendered browser load profile.
 - `6a78c08` - Add cold production performance profile.
 - `d92de55` - Add mixed traffic resilience profile.
+- `97b6235` - Add live Postgres readiness smoke.
 
 ## Next Action Queue
 
 1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal accessibility states.
-2. Add a live Neon/Postgres smoke path when credentials are available, or a stricter local production-deploy readiness check if they are not.
+2. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 3. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
 4. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
