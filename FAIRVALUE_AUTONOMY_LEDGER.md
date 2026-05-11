@@ -49,7 +49,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Restart/load latency now has a deterministic local profile command that starts the real backend, drives create/join/bet/state traffic through a backend restart, records p50/p95/max plus recovery timings, and fails on explicit local latency budgets.
 - Frontend dev/build/test tooling now uses Vite and Vitest instead of Create React App/react-scripts; the old CRA proxy template, web-vitals hook, and `%PUBLIC_URL%` HTML template are removed.
 - Vite route splitting now keeps the `/join` entry flow eager for keyboard reliability while lazy-loading browse, market detail, host, and player routes; the largest production JS chunk dropped from about 512 kB to 199 kB and the build no longer emits the large-chunk warning.
-- `npm run verify` now includes TypeScript `tsc --noEmit` type checking over the Vite/React source tree, Vite config, Playwright configs, and E2E specs, plus a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS.
+- `npm run verify` now includes TypeScript `tsc --noEmit` type checking over the Vite/React source tree, Vite config, Playwright configs, and E2E specs, plus a post-build bundle budget gate with defaults of 240 kB per JS chunk, 25 kB per CSS chunk, and 760 kB total JS, plus a real backend child-process boot smoke.
 - Assistive-technology evidence now has a headed Playwright command that starts fresh backend/frontend ports, opens Chrome with renderer accessibility enabled, captures the macOS app-region AX tree plus Playwright ARIA snapshots, and records join/host/settle/player findings in `docs/accessibility-assistive-tech-notes.md`.
 - Assistive-technology evidence now also covers the browse route, sort menu, property detail route, host AI degraded alert, and settled host/player result states; dense browse/detail routes use bounded Playwright ARIA evidence while room/dialog/player states still capture macOS AX.
 - Accessibility edge states now expose field-level `aria-invalid` / `aria-describedby` semantics for create/join validation errors and settlement errors; map pins have accessible names and map popup contrast is gated by axe.
@@ -59,6 +59,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Backend operations now expose `GET /healthz`, `GET /readyz`, token-guarded JSON `GET /api/ops/metrics`, and token-guarded Prometheus `GET /metrics` with in-memory request, latency, room lifecycle, WebSocket, rate-limit, database-error, persistence-failure, and AI degraded/error counters.
 - Production environment readiness now has `npm run check:production`, which fails until deploy-critical env values are set for Postgres persistence, retention, identity signing, ops metrics protection, and database availability.
 - Express now disables `X-Powered-By` and emits baseline browser security headers on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
+- Local boot readiness now has `npm run smoke:boot`, which launches `node server/index.js` on a free local port with an isolated temporary room snapshot, checks health/readiness/security headers, proves ops-token gating, drives create/join/bet/settle plus a WebSocket join broadcast, confirms host-token non-leakage, and verifies snapshot persistence wrote.
 
 ## Current Test Status
 
@@ -111,6 +112,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - 2026-05-11 TypeScript verification pass: `npx tsc --noEmit` initially failed because TypeScript 4.9 could not resolve Vite 8 plugin package-export types; after upgrading TypeScript and switching to `moduleResolution: bundler`, `npm run typecheck` passed, `npm run verify` passed client secret scan, TypeScript type checking, 38 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate, and `npm audit --json` reported 0 vulnerabilities.
 - 2026-05-11 HTTP security headers pass: `node --check server/index.js && node --check server/__tests__/securityHeaders.test.js && node --test server/__tests__/securityHeaders.test.js` passed 3 focused header tests; `npm run verify` passed client secret scan, TypeScript type checking, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - 2026-05-11 E2E TypeScript coverage pass: a broad `tsc` probe first exposed unchecked Playwright/WebSocket spec types and a nullable restart-process guard; after adding `@types/ws`, fixing the guard, and expanding `tsconfig.json`, `npm run typecheck` passed over E2E specs and Playwright configs, `npx playwright test --list -c playwright.restart.config.ts` listed the restart test, `npm run verify` passed client secret scan, typecheck, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate, and `npm audit --json` reported 0 vulnerabilities.
+- 2026-05-11 local backend boot smoke pass: `node --check scripts/smoke-local-boot.js && npm run smoke:boot` passed with room `UL61` on a free local port; final `npm run verify` passed client secret scan, typecheck, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, bundle budget gate, and `smoke:boot` with room `KA6M`.
 
 ## Current Known Risks
 
@@ -139,6 +141,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 6. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-11 - Local Backend Boot Smoke
+
+- Added `scripts/smoke-local-boot.js` and `npm run smoke:boot`.
+- The smoke starts the real `server/index.js` process on a free local port with a temporary JSON room snapshot path, then shuts it down and removes the temp state.
+- It verifies `/healthz`, `/readyz`, security headers, ops metrics token gating, room creation, WebSocket join broadcast, join, bet, settlement, state recovery, host-token non-leakage, aggregate metrics, and snapshot-file creation.
+- Wired `smoke:boot` into `npm run verify` so the standard gate now proves a real backend child process can boot and serve the core degraded-local multiplayer path.
 
 ### 2026-05-11 - E2E TypeScript Coverage
 
@@ -770,6 +779,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `npx playwright test --list -c playwright.restart.config.ts` after fixing the restart harness guard -> listed 1 Chromium restart-recovery test.
 - `npm run verify` after E2E TypeScript coverage -> passed: `scan:secrets`, `typecheck`, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, and bundle budget gate.
 - `npm audit --json` after E2E TypeScript coverage -> reported 0 vulnerabilities.
+- `node --check scripts/smoke-local-boot.js && npm run smoke:boot` -> passed with real backend child process on `http://127.0.0.1:62005`, room `UL61`, and a temporary snapshot path under `/var/folders/.../fairvalue-local-boot-*`.
+- `npm run verify` after wiring `smoke:boot` into the standard gate -> passed: `scan:secrets`, `typecheck`, 41 server tests, 5 Vitest suites / 41 tests, Vite production build, bundle budget gate, and `smoke:boot` with real backend child process on `http://127.0.0.1:62172`, room `KA6M`.
 
 ## Screens And Routes Verified
 
@@ -822,6 +833,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - TypeScript verification evidence verified the Vite/React source tree and Vite config with `tsc --noEmit`, and `npm run verify` now fails if the type gate regresses.
 - HTTP security header evidence verified `/healthz`, `/api/rooms` validation errors, and unknown routes all include the security baseline while omitting `X-Powered-By`.
 - E2E TypeScript evidence verified Playwright specs/configs are now inside `npm run typecheck`, including WebSocket-backed load/accessibility specs and the restart recovery harness.
+- Local boot smoke evidence verified the real `node server/index.js` process starts on a free local port, serves health/readiness, runs the degraded-local multiplayer room path over HTTP plus WebSocket, writes a local room snapshot, protects metrics with the ops token, and omits host tokens from public state/metrics.
 
 ## Screenshots Or Traces
 
@@ -903,6 +915,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `ac3002c` - Add baseline HTTP security headers.
 - `81fb66b` - Record HTTP security header evidence.
 - `499a324` - Expand TypeScript gate to E2E specs.
+- `a29bc1a` - Record E2E TypeScript coverage evidence.
+- `151538c` - Add local backend boot smoke.
 
 ## Next Action Queue
 
