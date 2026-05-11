@@ -34,6 +34,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:latency:restart": "node scripts/profile-restart-latency.js",
     "test:performance:cold": "node scripts/profile-cold-production-flow.js",
+    "smoke:boot": "node scripts/smoke-local-boot.js",
     "test:persistence:postgres": "node scripts/smoke-postgres-room-persistence.js",
     "test:persistence:live": "node scripts/smoke-live-postgres-room-persistence.js",
     "test:a11y:assistive": "node scripts/capture-assistive-tech-notes.js",
@@ -42,7 +43,7 @@
     "check:production": "node scripts/check-production-readiness.js",
     "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
-    "verify": "npm run scan:secrets && npm run typecheck && npm run test:server && npm test && npm run build && npm run check:bundle"
+    "verify": "npm run scan:secrets && npm run typecheck && npm run test:server && npm test && npm run build && npm run check:bundle && npm run smoke:boot"
   },
   "browserslist": {
     "production": [

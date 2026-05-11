@@ -180,7 +180,7 @@ HTTP hardening note: the Express server disables `X-Powered-By` and emits baseli
 npm run verify
 ```
 
-This currently runs a client secret scan, TypeScript type checking, server integration tests, the non-watch Vitest suite, a production build, and the bundle budget check.
+This currently runs a client secret scan, TypeScript type checking, server integration tests, the non-watch Vitest suite, a production build, the bundle budget check, and a real backend child-process boot smoke.
 
 `npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 760 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
 
@@ -205,10 +205,13 @@ npm run test:e2e:browser-load
 npm run test:e2e:mixed-traffic
 npm run test:latency:restart
 npm run test:performance:cold
+npm run smoke:boot
 npm run test:persistence:postgres
 npm run test:persistence:live
 npm run test:a11y:assistive
 ```
+
+`smoke:boot` starts `node server/index.js` on a free local port with an isolated temporary room snapshot file, checks health/readiness, verifies ops metrics token gating, creates/joins/bets/settles one room through HTTP plus a WebSocket join broadcast, verifies host token non-leakage, and confirms local room snapshot persistence wrote.
 
 `test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, join forms, host/player room surfaces, settle modal, missing-key AI fallback, and mobile wager controls.
 
