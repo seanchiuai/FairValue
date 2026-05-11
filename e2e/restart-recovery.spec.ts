@@ -181,10 +181,10 @@ async function createRoomThroughUi(page: Page) {
   return roomCode;
 }
 
-async function joinRoomThroughUi(page: Page, roomCode: string) {
+async function joinRoomThroughUi(page: Page, roomCode: string, nickname = 'Restart Player') {
   await page.goto(`${frontendBaseUrl}/join`);
   await page.getByRole('button', { name: /Join Room/ }).click();
-  await page.getByLabel('Player nickname').fill('Restart Player');
+  await page.getByLabel('Player nickname').fill(nickname);
   await page.getByLabel('Room code').fill(roomCode.toLowerCase());
   await page.getByRole('button', { name: /^Join Room$/ }).click();
 
@@ -235,69 +235,90 @@ test.afterAll(async () => {
   await stopProcess(backend);
 });
 
-test.setTimeout(120_000);
+test.setTimeout(180_000);
 
-test('rendered host and player recover from real backend restarts', async ({ browser }: { browser: Browser }) => {
+test('rendered multi-player room sustains repeated real backend restarts', async ({ browser }: { browser: Browser }) => {
   const hostContext = await browser.newContext({ viewport: hostViewport });
-  const playerContext = await browser.newContext({
+  const playerOneContext = await browser.newContext({
     viewport: playerViewport,
     isMobile: true,
     hasTouch: true,
   });
+  const playerTwoContext = await browser.newContext({ viewport: { width: 820, height: 1180 } });
   const host = await hostContext.newPage();
-  const player = await playerContext.newPage();
+  const playerOne = await playerOneContext.newPage();
+  const playerTwo = await playerTwoContext.newPage();
   const pageErrors: string[] = [];
 
-  for (const page of [host, player]) {
+  for (const page of [host, playerOne, playerTwo]) {
     page.on('pageerror', (error) => pageErrors.push(error.message));
   }
 
   try {
     const roomCode = await createRoomThroughUi(host);
-    await joinRoomThroughUi(player, roomCode);
+    await joinRoomThroughUi(playerOne, roomCode, 'Restart Player One');
+    await joinRoomThroughUi(playerTwo, roomCode, 'Restart Player Two');
 
-    await expect(host.getByTestId('host-player-count')).toContainText('2 players', { timeout: 15_000 });
-    await clickBetAndWait(player, roomCode, /Bet \$25 on OVER/);
-    await expect(host.getByTestId('total-trades')).toHaveText('1', { timeout: 15_000 });
-    await expect(player.getByTestId('player-positions')).toContainText('OVER');
-    await expect(player.getByTestId('player-positions')).toContainText('$25');
-
-    await stopProcess(backend);
-    backend = null;
-    await expectReconnecting(host);
-    await expectReconnecting(player);
-
-    await startBackend();
-    await expectConnected(host);
-    await expectConnected(player);
-    await expect(host.getByTestId('host-player-count')).toContainText('2 players', { timeout: 20_000 });
-    await expect(host.getByTestId('total-trades')).toHaveText('1');
-    await expect(host.getByTestId('leaderboard')).toContainText('Restart Player');
-    await expect(player.getByTestId('player-positions')).toContainText('OVER');
-    await expect(player.getByTestId('player-positions')).toContainText('$25');
-
-    await player.getByRole('button', { name: 'Set wager to $50' }).click();
-    await clickBetAndWait(player, roomCode, /Bet \$50 on UNDER/);
+    await expect(host.getByTestId('host-player-count')).toContainText('3 players', { timeout: 15_000 });
+    await clickBetAndWait(playerOne, roomCode, /Bet \$25 on OVER/);
+    await playerTwo.getByRole('button', { name: 'Set wager to $50' }).click();
+    await clickBetAndWait(playerTwo, roomCode, /Bet \$50 on UNDER/);
     await expect(host.getByTestId('total-trades')).toHaveText('2', { timeout: 15_000 });
     await expect(host.getByTestId('total-volume')).toHaveText('$75');
+    await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
+    await expect(playerTwo.getByTestId('player-positions')).toContainText('UNDER');
+
+    for (let cycle = 1; cycle <= 3; cycle += 1) {
+      await stopProcess(backend);
+      backend = null;
+      await expectReconnecting(host);
+      await expectReconnecting(playerOne);
+      await expectReconnecting(playerTwo);
+
+      await startBackend();
+      await expectConnected(host);
+      await expectConnected(playerOne);
+      await expectConnected(playerTwo);
+      await expect(host.getByTestId('host-player-count')).toContainText('3 players', { timeout: 20_000 });
+      await expect(host.getByTestId('total-trades')).toHaveText('2');
+      await expect(host.getByTestId('leaderboard')).toContainText('Restart Player One');
+      await expect(host.getByTestId('leaderboard')).toContainText('Restart Player Two');
+      await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
+      await expect(playerTwo.getByTestId('player-positions')).toContainText('UNDER');
+    }
+
+    await expect(host.getByTestId('host-player-count')).toContainText('3 players', { timeout: 20_000 });
+    await expect(host.getByTestId('total-trades')).toHaveText('2');
+    await expect(host.getByTestId('leaderboard')).toContainText('Restart Player');
+    await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
+    await expect(playerTwo.getByTestId('player-positions')).toContainText('UNDER');
+
+    await clickBetAndWait(playerOne, roomCode, /Bet \$25 on OVER/);
+    await expect(host.getByTestId('total-trades')).toHaveText('3', { timeout: 15_000 });
+    await expect(host.getByTestId('total-volume')).toHaveText('$100');
 
     await settleRoom(host, roomCode);
     await expect(host.getByTestId('host-settlement-result')).toContainText('OVER WINS', { timeout: 15_000 });
-    await expect(player.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
+    await expect(playerOne.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
+    await expect(playerTwo.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
 
     await restartBackend();
     await host.reload();
-    await player.reload();
+    await playerOne.reload();
+    await playerTwo.reload();
     await expectConnected(host);
-    await expectConnected(player);
+    await expectConnected(playerOne);
+    await expectConnected(playerTwo);
     await expect(host.getByTestId('host-settlement-result')).toContainText('OVER WINS', { timeout: 15_000 });
-    await expect(player.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
+    await expect(playerOne.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
+    await expect(playerTwo.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
     await expect(host.getByTestId('activity-feed')).toContainText('Market settled');
 
     expect(pageErrors).toEqual([]);
     expect(JSON.parse(fs.readFileSync(storePath, 'utf8')).rooms[roomCode]).toBeTruthy();
   } finally {
     await hostContext.close();
-    await playerContext.close();
+    await playerOneContext.close();
+    await playerTwoContext.close();
   }
 });
