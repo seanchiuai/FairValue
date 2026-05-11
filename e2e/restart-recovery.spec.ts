@@ -8,6 +8,7 @@ import path from 'node:path';
 const repoRoot = path.resolve(__dirname, '..');
 const hostViewport = { width: 1440, height: 900 };
 const playerViewport = { width: 390, height: 844 };
+const restartLoadPlayersPerCycle = 4;
 const storePath =
   process.env.FAIRVALUE_ROOM_STORE_PATH ||
   path.join(os.tmpdir(), `fairvalue-browser-restart-${process.pid}.json`);
@@ -16,6 +17,27 @@ type ManagedProcess = {
   child: ChildProcess;
   label: string;
   logs: string[];
+};
+
+type RestartLoadPlayer = {
+  sessionId: string;
+  nickname: string;
+  outcome: 'over' | 'under';
+  wager: number;
+  idempotencyKey: string;
+};
+
+type RestartLoadWave = {
+  promise: Promise<RestartLoadWaveResult>;
+  getFailedAttempts: () => number;
+};
+
+type RestartLoadWaveResult = {
+  players: number;
+  trades: number;
+  wagered: number;
+  failedAttempts: number;
+  lastNickname: string;
 };
 
 let backendPort = Number(process.env.E2E_RESTART_BACKEND_PORT || 0);
@@ -202,6 +224,97 @@ async function clickBetAndWait(page: Page, roomCode: string, buttonName: RegExp)
   ]);
 }
 
+async function postJson(pathname: string, body: unknown, headers: Record<string, string> = {}) {
+  const response = await fetch(`http://127.0.0.1:${backendPort}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  return { response, data };
+}
+
+function buildRestartLoadPlayers(cycle: number): RestartLoadPlayer[] {
+  return Array.from({ length: restartLoadPlayersPerCycle }, (_, index) => {
+    const absoluteIndex = (cycle - 1) * restartLoadPlayersPerCycle + index;
+    return {
+      sessionId: `restart-load-${Date.now()}-${cycle}-${index}`,
+      nickname: `Restart Load ${cycle}.${index + 1}`,
+      outcome: absoluteIndex % 2 === 0 ? 'over' : 'under',
+      wager: 10 + (index * 5),
+      idempotencyKey: `restart-load-bet-${cycle}-${index}-${Date.now()}`,
+    };
+  });
+}
+
+function startRestartLoadWave(roomCode: string, cycle: number): RestartLoadWave {
+  const players = buildRestartLoadPlayers(cycle);
+  let failedAttempts = 0;
+
+  async function retryUntilAccepted<T>(operation: () => Promise<T>): Promise<T> {
+    const deadline = Date.now() + 30_000;
+    let lastError: unknown = null;
+
+    while (Date.now() < deadline) {
+      try {
+        return await operation();
+      } catch (error) {
+        failedAttempts += 1;
+        lastError = error;
+        await delay(250);
+      }
+    }
+
+    throw lastError || new Error(`Timed out running restart load wave ${cycle}`);
+  }
+
+  const promise = (async (): Promise<RestartLoadWaveResult> => {
+    await Promise.all(
+      players.map((player) =>
+        retryUntilAccepted(async () => {
+          const { response, data } = await postJson(`/api/rooms/${roomCode}/join`, {
+            session_id: player.sessionId,
+            nickname: player.nickname,
+          });
+          if (response.status !== 200) throw new Error(`join ${player.nickname} returned ${response.status}`);
+          return data;
+        })
+      )
+    );
+
+    await Promise.all(
+      players.map((player) =>
+        retryUntilAccepted(async () => {
+          const { response, data } = await postJson(
+            `/api/rooms/${roomCode}/bet`,
+            {
+              session_id: player.sessionId,
+              outcome: player.outcome,
+              wager: player.wager,
+            },
+            { 'Idempotency-Key': player.idempotencyKey }
+          );
+          if (response.status !== 200) throw new Error(`bet ${player.nickname} returned ${response.status}`);
+          return data;
+        })
+      )
+    );
+
+    return {
+      players: players.length,
+      trades: players.length,
+      wagered: players.reduce((sum, player) => sum + player.wager, 0),
+      failedAttempts,
+      lastNickname: players[players.length - 1].nickname,
+    };
+  })();
+
+  return { promise, getFailedAttempts: () => failedAttempts };
+}
+
 async function settleRoom(page: Page, roomCode: string) {
   await page.getByRole('button', { name: /Settle/ }).click();
   await expect(page.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
@@ -267,35 +380,62 @@ test('rendered multi-player room sustains repeated real backend restarts', async
     await expect(host.getByTestId('total-volume')).toHaveText('$75');
     await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
     await expect(playerTwo.getByTestId('player-positions')).toContainText('UNDER');
+    let expectedPlayers = 3;
+    let expectedTrades = 2;
+    let expectedWagered = 75;
+    let lastLoadNickname = '';
 
     for (let cycle = 1; cycle <= 3; cycle += 1) {
       await stopProcess(backend);
       backend = null;
+      const loadWave = startRestartLoadWave(roomCode, cycle);
+      await expect.poll(loadWave.getFailedAttempts, { timeout: 5000 }).toBeGreaterThan(0);
       await expectReconnecting(host);
       await expectReconnecting(playerOne);
       await expectReconnecting(playerTwo);
 
       await startBackend();
+      const loadResult = await loadWave.promise;
+      expect(loadResult.failedAttempts).toBeGreaterThan(0);
+      expectedPlayers += loadResult.players;
+      expectedTrades += loadResult.trades;
+      expectedWagered += loadResult.wagered;
+      lastLoadNickname = loadResult.lastNickname;
+
       await expectConnected(host);
       await expectConnected(playerOne);
       await expectConnected(playerTwo);
-      await expect(host.getByTestId('host-player-count')).toContainText('3 players', { timeout: 20_000 });
-      await expect(host.getByTestId('total-trades')).toHaveText('2');
+      await expect(host.getByTestId('host-player-count')).toContainText(`${expectedPlayers} players`, {
+        timeout: 20_000,
+      });
+      await expect(host.getByTestId('total-trades')).toHaveText(String(expectedTrades), { timeout: 20_000 });
+      await expect(host.getByTestId('total-volume')).toHaveText(`$${expectedWagered.toFixed(0)}`, {
+        timeout: 20_000,
+      });
       await expect(host.getByTestId('leaderboard')).toContainText('Restart Player One');
       await expect(host.getByTestId('leaderboard')).toContainText('Restart Player Two');
+      await expect(host.getByTestId('leaderboard')).toContainText(lastLoadNickname);
       await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
       await expect(playerTwo.getByTestId('player-positions')).toContainText('UNDER');
     }
 
-    await expect(host.getByTestId('host-player-count')).toContainText('3 players', { timeout: 20_000 });
-    await expect(host.getByTestId('total-trades')).toHaveText('2');
+    await expect(host.getByTestId('host-player-count')).toContainText(`${expectedPlayers} players`, {
+      timeout: 20_000,
+    });
+    await expect(host.getByTestId('total-trades')).toHaveText(String(expectedTrades), { timeout: 20_000 });
+    await expect(host.getByTestId('total-volume')).toHaveText(`$${expectedWagered.toFixed(0)}`, {
+      timeout: 20_000,
+    });
     await expect(host.getByTestId('leaderboard')).toContainText('Restart Player');
+    await expect(host.getByTestId('leaderboard')).toContainText(lastLoadNickname);
     await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
     await expect(playerTwo.getByTestId('player-positions')).toContainText('UNDER');
 
     await clickBetAndWait(playerOne, roomCode, /Bet \$25 on OVER/);
-    await expect(host.getByTestId('total-trades')).toHaveText('3', { timeout: 15_000 });
-    await expect(host.getByTestId('total-volume')).toHaveText('$100');
+    expectedTrades += 1;
+    expectedWagered += 25;
+    await expect(host.getByTestId('total-trades')).toHaveText(String(expectedTrades), { timeout: 15_000 });
+    await expect(host.getByTestId('total-volume')).toHaveText(`$${expectedWagered.toFixed(0)}`);
 
     await settleRoom(host, roomCode);
     await expect(host.getByTestId('host-settlement-result')).toContainText('OVER WINS', { timeout: 15_000 });
@@ -315,7 +455,11 @@ test('rendered multi-player room sustains repeated real backend restarts', async
     await expect(host.getByTestId('activity-feed')).toContainText('Market settled');
 
     expect(pageErrors).toEqual([]);
-    expect(JSON.parse(fs.readFileSync(storePath, 'utf8')).rooms[roomCode]).toBeTruthy();
+    const snapshotRoom = JSON.parse(fs.readFileSync(storePath, 'utf8')).rooms[roomCode];
+    expect(snapshotRoom).toBeTruthy();
+    expect(Object.keys(snapshotRoom.players)).toHaveLength(expectedPlayers);
+    expect(snapshotRoom.market.total_trades).toBe(expectedTrades);
+    expect(snapshotRoom.settled).toBe(true);
   } finally {
     await hostContext.close();
     await playerOneContext.close();
