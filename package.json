@@ -30,6 +30,7 @@
     "test:e2e:restart:matrix": "rm -f /tmp/fairvalue-browser-restart-matrix-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-browser-restart-matrix-rooms.json playwright test -c playwright.restart.matrix.config.ts",
     "test:e2e:soak": "rm -f /tmp/fairvalue-e2e-soak-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-e2e-soak-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8031 E2E_FRONTEND_PORT=3031 playwright test -c playwright.soak.config.ts",
     "test:e2e:browser-load": "rm -f /tmp/fairvalue-browser-load-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-browser-load-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8032 E2E_FRONTEND_PORT=3032 playwright test -c playwright.browser-load.config.ts",
+    "test:e2e:mixed-traffic": "rm -f /tmp/fairvalue-mixed-traffic-rooms.json && FAIRVALUE_ROOM_STORE_PATH=/tmp/fairvalue-mixed-traffic-rooms.json E2E_REUSE_EXISTING=false E2E_BACKEND_PORT=8033 E2E_FRONTEND_PORT=3033 playwright test -c playwright.mixed-traffic.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:latency:restart": "node scripts/profile-restart-latency.js",
     "test:performance:cold": "node scripts/profile-cold-production-flow.js",

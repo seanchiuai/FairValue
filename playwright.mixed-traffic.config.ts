@@ -1,12 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const frontendPort = process.env.E2E_FRONTEND_PORT || '3001';
-const backendPort = process.env.E2E_BACKEND_PORT || '8000';
+const frontendPort = process.env.E2E_FRONTEND_PORT || '3033';
+const backendPort = process.env.E2E_BACKEND_PORT || '8033';
 const reuseExistingServer = !process.env.CI && process.env.E2E_REUSE_EXISTING !== 'false';
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: [/restart-recovery\.spec\.ts/, /load-soak\.spec\.ts/, /browser-load\.spec\.ts/, /mixed-traffic\.spec\.ts/],
+  testMatch: /mixed-traffic\.spec\.ts/,
+  timeout: 300_000,
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
