@@ -152,6 +152,7 @@ test('multiplayer API and WebSocket flow covers joins, bets, leaderboard, settle
     );
     const overBet = await request(`/api/rooms/${code}/bet`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': 'multiplayer-over-bet-001' },
       body: { session_id: 'player-1', outcome: 'over', wager: 25 },
     });
     assert.equal(overBet.status, 200);
@@ -165,6 +166,7 @@ test('multiplayer API and WebSocket flow covers joins, bets, leaderboard, settle
 
     const underBet = await request(`/api/rooms/${code}/bet`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': 'multiplayer-under-bet-001' },
       body: { session_id: 'player-2', outcome: 'under', wager: 40 },
     });
     assert.equal(underBet.status, 200);

@@ -14,6 +14,12 @@ import type {
   WsSettleMessage,
 } from '../types';
 
+function generateBetIdempotencyKey() {
+  const randomUUID = window.crypto?.randomUUID;
+  if (typeof randomUUID === 'function') return randomUUID.call(window.crypto);
+  return `bet-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export function useRoom(roomCode: string, sessionId: string) {
   const [market, setMarket] = useState<Market | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
@@ -238,9 +244,13 @@ export function useRoom(roomCode: string, sessionId: string) {
       }
 
       try {
+        const idempotencyKey = generateBetIdempotencyKey();
         const res = await fetch(`/api/rooms/${roomCode}/bet`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey,
+          },
           body: JSON.stringify({ session_id: sessionId, outcome, wager }),
         });
         const data = await res.json();

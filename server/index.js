@@ -18,6 +18,13 @@ const rooms = {};
 const HOST_TOKEN_HEADER = 'x-fairvalue-host-token';
 const ROOM_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{4}$/;
+const MAX_ASKING_PRICE = 100_000_000;
+const MAX_TEXT_LENGTH = 120;
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
+const REQUEST_ID_HEADER = 'x-request-id';
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitBuckets = new Map();
 
 function generateRoomCode() {
   let code;
@@ -35,6 +42,117 @@ function normalizeRoomCode(value) {
 
 function generateHostToken() {
   return crypto.randomBytes(32).toString('base64url');
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().replace(/<[^>]*>/g, '').slice(0, maxLength);
+  return trimmed || null;
+}
+
+function parsePositiveNumber(value, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > max) return null;
+  return parsed;
+}
+
+function getIdempotencyKey(req) {
+  const key = String(req.get('Idempotency-Key') || req.body?.idempotency_key || '').trim();
+  return IDEMPOTENCY_KEY_PATTERN.test(key) ? key : null;
+}
+
+function normalizeRequestId(value) {
+  const requestId = String(value || '').trim();
+  return REQUEST_ID_PATTERN.test(requestId) ? requestId : crypto.randomUUID();
+}
+
+function rateLimitKey(req, scope) {
+  const roomCode = normalizeRoomCode(req.params?.code) || req.params?.code || 'global';
+  const sessionId = sanitizeText(req.body?.session_id, 100) || 'anonymous';
+  return `${scope}:${req.ip || req.socket.remoteAddress || 'unknown'}:${roomCode}:${sessionId}`;
+}
+
+function pruneRateLimitBuckets(now = Date.now()) {
+  if (rateLimitBuckets.size < 5000) return;
+  for (const [key, bucket] of rateLimitBuckets.entries()) {
+    if (bucket.resetAt <= now) rateLimitBuckets.delete(key);
+  }
+}
+
+function limitRequests(scope, { max, windowMs = RATE_LIMIT_WINDOW_MS } = {}) {
+  return (req, res, next) => {
+    const now = Date.now();
+    pruneRateLimitBuckets(now);
+
+    const key = rateLimitKey(req, scope);
+    const bucket = rateLimitBuckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      next();
+      return;
+    }
+
+    bucket.count += 1;
+    if (bucket.count <= max) {
+      next();
+      return;
+    }
+
+    const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    res.set('Retry-After', String(retryAfterSeconds));
+    res.status(429).json({
+      error: 'Too many requests',
+      retry_after: retryAfterSeconds,
+    });
+  };
+}
+
+function validateCreateRoomPayload(body) {
+  const address = sanitizeText(body?.address, 100);
+  const askingPrice = parsePositiveNumber(body?.asking_price, MAX_ASKING_PRICE);
+  if (!address) return { error: 'Address is required' };
+  if (askingPrice === null) return { error: 'Asking price must be between $1 and $100M' };
+  return { value: { address, asking_price: askingPrice } };
+}
+
+function validateJoinPayload(body) {
+  const sessionId = sanitizeText(body?.session_id, 100);
+  const nickname = sanitizeText(body?.nickname, 20);
+  if (!sessionId) return { error: 'Session ID is required' };
+  if (!nickname) return { error: 'Nickname is required' };
+  return { value: { session_id: sessionId, nickname } };
+}
+
+function validateBetPayload(body) {
+  const sessionId = sanitizeText(body?.session_id, 100);
+  const outcome = typeof body?.outcome === 'string' ? body.outcome.trim().toLowerCase() : body?.outcome;
+  const wager = parsePositiveNumber(body?.wager, 1000);
+  if (!sessionId) return { error: 'Session ID is required' };
+  if (!['over', 'under'].includes(outcome)) return { error: "Outcome must be 'over' or 'under'" };
+  if (wager === null) return { error: 'Wager must be between $1 and $1,000' };
+  return { value: { session_id: sessionId, outcome, wager } };
+}
+
+function validateSettlePayload(body) {
+  const actualPrice = parsePositiveNumber(body?.actual_price, MAX_ASKING_PRICE);
+  if (actualPrice === null) return { error: 'Actual price must be between $1 and $100M' };
+  return { value: { actual_price: actualPrice } };
+}
+
+function validationError(res, message) {
+  return res.status(400).json({ error: message });
+}
+
+function betFingerprint(bet) {
+  return JSON.stringify({
+    session_id: bet.session_id,
+    outcome: bet.outcome,
+    wager: bet.wager,
+  });
 }
 
 // ─── LMSR Math ──────────────────────────────────────────────────────
@@ -112,6 +230,7 @@ async function createRoom(house, roomCode) {
     house,
     market: { qOver: 0, qUnder: 0, b: 100, totalTrades: 0, totalWagered: 0 },
     players: {},
+    betReceipts: new Map(),
     connections: [],
     aiEnabled: false,
     aiInterval: null,
@@ -201,6 +320,28 @@ async function updateMarketState(marketId, market) {
   }
 }
 
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  const requestId = normalizeRequestId(req.get(REQUEST_ID_HEADER));
+  req.requestId = requestId;
+  res.set(REQUEST_ID_HEADER, requestId);
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - startedAt;
+    const entry = JSON.stringify({
+      request_id: requestId,
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      duration_ms: durationMs,
+    });
+    if (res.statusCode >= 500) console.error(entry);
+    else console.info(entry);
+  });
+
+  next();
+});
+
 // ─── Server-side Cognee AI boundary ─────────────────────────────────
 
 const COGNEE_BASE_URL = process.env.COGNEE_BASE_URL || 'https://api.cognee.ai';
@@ -260,6 +401,8 @@ function handleCogneeError(res, error) {
     message: error.message || 'Unexpected Cognee integration failure',
   });
 }
+
+app.use('/api/ai/cognee', limitRequests('ai', { max: 60 }));
 
 app.post('/api/ai/cognee/markets/:propertyId/initialize', async (req, res) => {
   const propertyId = safeDatasetSuffix(req.params.propertyId);
@@ -405,18 +548,23 @@ app.get('/api/ai/cognee/visualize', async (req, res) => {
 
 // ─── Room API routes ────────────────────────────────────────────────
 
-app.post('/api/rooms', async (req, res) => {
-  const { address, asking_price } = req.body;
-  const house = { address, asking_price };
+app.post('/api/rooms', limitRequests('rooms:create', { max: 20 }), async (req, res) => {
+  const validated = validateCreateRoomPayload(req.body);
+  if (validated.error) return validationError(res, validated.error);
+
+  const house = validated.value;
   const room = await createRoom(house);
   res.json({ room_code: room.code, host_token: room.hostToken, house });
 });
 
-app.post('/api/rooms/:code/join', (req, res) => {
+app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
 
-  const { session_id, nickname } = req.body;
+  const validated = validateJoinPayload(req.body);
+  if (validated.error) return validationError(res, validated.error);
+
+  const { session_id, nickname } = validated.value;
   let player = room.players[session_id];
   if (player) {
     player.nickname = nickname;
@@ -461,14 +609,29 @@ app.get('/api/rooms/:code/state', (req, res) => {
   });
 });
 
-app.post('/api/rooms/:code/bet', async (req, res) => {
+app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
-  if (room.settled) return res.status(400).json({ error: 'Market is settled' });
 
-  const { session_id, outcome, wager } = req.body;
-  if (!['over', 'under'].includes(outcome)) return res.status(400).json({ error: "Outcome must be 'over' or 'under'" });
-  if (wager <= 0) return res.status(400).json({ error: 'Wager must be positive' });
+  const validated = validateBetPayload(req.body);
+  if (validated.error) return validationError(res, validated.error);
+
+  const idempotencyKey = getIdempotencyKey(req);
+  if (!idempotencyKey) return validationError(res, 'Idempotency-Key header is required for bets');
+
+  const { session_id, outcome, wager } = validated.value;
+  const fingerprint = betFingerprint(validated.value);
+  const receipt = room.betReceipts.get(idempotencyKey);
+  if (receipt) {
+    if (receipt.fingerprint !== fingerprint) {
+      return res.status(409).json({ error: 'Idempotency key was already used for a different bet' });
+    }
+
+    res.set('Idempotent-Replay', 'true');
+    return res.json({ ...cloneJson(receipt.response), idempotent_replay: true });
+  }
+
+  if (room.settled) return res.status(400).json({ error: 'Market is settled' });
 
   const player = room.players[session_id];
   if (!player) return res.status(404).json({ error: 'Player not found in room' });
@@ -504,19 +667,29 @@ app.post('/api/rooms/:code/bet', async (req, res) => {
   persistTrade(room.marketId, trade, shares);
   updateMarketState(room.marketId, room.market);
 
-  res.json({ trade, market: getMarketState(room.market), player });
+  const response = { trade, market: getMarketState(room.market), player };
+  room.betReceipts.set(idempotencyKey, {
+    fingerprint,
+    response: cloneJson(response),
+    createdAt: Date.now(),
+  });
+
+  res.json(response);
 });
 
-app.post('/api/rooms/:code/settle', (req, res) => {
+app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!requireHostCapability(req, res, room)) return;
+
+  const validated = validateSettlePayload(req.body);
+  if (validated.error) return validationError(res, validated.error);
 
   if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   room.aiEnabled = false;
   room.settled = true;
 
-  const { actual_price } = req.body;
+  const { actual_price } = validated.value;
   const winningOutcome = actual_price >= room.house.asking_price ? 'over' : 'under';
 
   const results = Object.values(room.players).map(player => {
@@ -538,7 +711,7 @@ app.post('/api/rooms/:code/settle', (req, res) => {
   res.json(room.settlement);
 });
 
-app.post('/api/rooms/:code/toggle-ai', (req, res) => {
+app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 20 }), (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!requireHostCapability(req, res, room)) return;
