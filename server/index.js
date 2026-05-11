@@ -4,6 +4,12 @@ const http = require('http');
 const crypto = require('crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 const sql = require('./db');
+const {
+  EVENT_TYPES,
+  createInMemoryRoomEventStore,
+  replayRoomEvents,
+  roomEventToActivity,
+} = require('./roomEventLog');
 
 const app = express();
 app.use(express.json());
@@ -25,6 +31,7 @@ const REQUEST_ID_HEADER = 'x-request-id';
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const rateLimitBuckets = new Map();
+const roomEventStore = createInMemoryRoomEventStore();
 
 function generateRoomCode() {
   let code;
@@ -260,6 +267,10 @@ async function createRoom(house, roomCode) {
   }
 
   rooms[code] = room;
+  appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
+    house: room.house,
+    market: getMarketState(room.market),
+  });
   return room;
 }
 
@@ -274,9 +285,26 @@ function broadcast(room, event) {
   });
 }
 
+function appendRoomEvent(room, type, payload = {}, req) {
+  const event = roomEventStore.append({
+    roomCode: room.code,
+    type,
+    payload,
+    requestId: req?.requestId,
+  });
+  const activityEntry = roomEventToActivity(event);
+  if (activityEntry) room.activity.push(activityEntry);
+  return { event, activityEntry };
+}
+
+function recordRoomError(room, action, message, status, req) {
+  appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
+}
+
 function requireHostCapability(req, res, room) {
   const token = req.get(HOST_TOKEN_HEADER);
   if (!token || token !== room.hostToken) {
+    recordRoomError(room, 'host_capability', 'Host token required', 403, req);
     res.status(403).json({ error: 'Host token required' });
     return false;
   }
@@ -297,6 +325,27 @@ function getRoomFromCodeParam(req, res) {
   }
 
   return room;
+}
+
+function getRoomReplay(room) {
+  return replayRoomEvents(roomEventStore.list(room.code));
+}
+
+function getRoomStatePayload(room) {
+  const replay = getRoomReplay(room);
+  const replayPlayers = Object.values(replay.players);
+
+  return {
+    market: replay.market || getMarketState(room.market),
+    players: replayPlayers.length ? replayPlayers : Object.values(room.players),
+    house: replay.house || room.house,
+    history: [],
+    activity: replay.activity.slice(-50),
+    ai_enabled: replay.ai_enabled,
+    settled: replay.settled || room.settled,
+    settlement: replay.settlement || room.settlement,
+    event_sequence: replay.last_sequence,
+  };
 }
 
 // ─── Persist trade to Neon ──────────────────────────────────────────
@@ -562,17 +611,30 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), (req
   if (!room) return;
 
   const validated = validateJoinPayload(req.body);
-  if (validated.error) return validationError(res, validated.error);
+  if (validated.error) {
+    recordRoomError(room, 'join', validated.error, 400, req);
+    return validationError(res, validated.error);
+  }
 
   const { session_id, nickname } = validated.value;
   let player = room.players[session_id];
   if (player) {
     player.nickname = nickname;
+    appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
+      session_id,
+      nickname,
+      player: cloneJson(player),
+      source: 'join',
+    }, req);
   } else {
     player = { session_id, nickname, balance: 1000, bets: [] };
     room.players[session_id] = player;
-    const activityEntry = { type: 'join', nickname, timestamp: Date.now() / 1000 };
-    room.activity.push(activityEntry);
+    const { activityEntry } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
+      session_id,
+      nickname,
+      player: cloneJson(player),
+      player_count: Object.keys(room.players).length,
+    }, req);
     broadcast(room, {
       type: 'join',
       nickname,
@@ -582,14 +644,16 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), (req
     });
   }
 
+  const state = getRoomStatePayload(room);
   res.json({
     player,
-    market: getMarketState(room.market),
-    players: Object.values(room.players),
-    house: room.house,
-    activity: room.activity.slice(-50),
-    settled: room.settled,
-    settlement: room.settlement,
+    market: state.market,
+    players: state.players,
+    house: state.house,
+    activity: state.activity,
+    settled: state.settled,
+    settlement: state.settlement,
+    event_sequence: state.event_sequence,
   });
 });
 
@@ -597,15 +661,36 @@ app.get('/api/rooms/:code/state', (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
 
+  res.json(getRoomStatePayload(room));
+});
+
+app.get('/api/rooms/:code/events', (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+  if (!requireHostCapability(req, res, room)) return;
+
+  const afterSequence = Number(req.query.after_sequence || 0);
+  if (!Number.isInteger(afterSequence) || afterSequence < 0) {
+    return validationError(res, 'after_sequence must be a non-negative integer');
+  }
+
+  const events = roomEventStore.list(room.code, { afterSequence });
   res.json({
-    market: getMarketState(room.market),
-    players: Object.values(room.players),
-    house: room.house,
-    history: [],
-    activity: room.activity.slice(-50),
-    ai_enabled: room.aiEnabled,
-    settled: room.settled,
-    settlement: room.settlement,
+    room_code: room.code,
+    events,
+    last_sequence: events.at(-1)?.sequence || afterSequence,
+  });
+});
+
+app.get('/api/rooms/:code/replay', (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+  if (!requireHostCapability(req, res, room)) return;
+
+  const events = roomEventStore.list(room.code);
+  res.json({
+    room_code: room.code,
+    replay: replayRoomEvents(events),
   });
 });
 
@@ -614,16 +699,23 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   if (!room) return;
 
   const validated = validateBetPayload(req.body);
-  if (validated.error) return validationError(res, validated.error);
+  if (validated.error) {
+    recordRoomError(room, 'bet', validated.error, 400, req);
+    return validationError(res, validated.error);
+  }
 
   const idempotencyKey = getIdempotencyKey(req);
-  if (!idempotencyKey) return validationError(res, 'Idempotency-Key header is required for bets');
+  if (!idempotencyKey) {
+    recordRoomError(room, 'bet', 'Idempotency-Key header is required for bets', 400, req);
+    return validationError(res, 'Idempotency-Key header is required for bets');
+  }
 
   const { session_id, outcome, wager } = validated.value;
   const fingerprint = betFingerprint(validated.value);
   const receipt = room.betReceipts.get(idempotencyKey);
   if (receipt) {
     if (receipt.fingerprint !== fingerprint) {
+      recordRoomError(room, 'bet', 'Idempotency key was already used for a different bet', 409, req);
       return res.status(409).json({ error: 'Idempotency key was already used for a different bet' });
     }
 
@@ -631,11 +723,20 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     return res.json({ ...cloneJson(receipt.response), idempotent_replay: true });
   }
 
-  if (room.settled) return res.status(400).json({ error: 'Market is settled' });
+  if (room.settled) {
+    recordRoomError(room, 'bet', 'Market is settled', 400, req);
+    return res.status(400).json({ error: 'Market is settled' });
+  }
 
   const player = room.players[session_id];
-  if (!player) return res.status(404).json({ error: 'Player not found in room' });
-  if (wager > player.balance) return res.status(400).json({ error: 'Insufficient balance' });
+  if (!player) {
+    recordRoomError(room, 'bet', 'Player not found in room', 404, req);
+    return res.status(404).json({ error: 'Player not found in room' });
+  }
+  if (wager > player.balance) {
+    recordRoomError(room, 'bet', 'Insufficient balance', 400, req);
+    return res.status(400).json({ error: 'Insufficient balance' });
+  }
 
   const shares = lmsrBuyWithBudget(room.market, outcome, wager);
   const trade = lmsrBuy(room.market, outcome, shares, player.nickname);
@@ -649,8 +750,18 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     timestamp: trade.timestamp,
   });
 
-  const activityEntry = { type: 'bet', nickname: player.nickname, outcome, wager: trade.wager, timestamp: trade.timestamp };
-  room.activity.push(activityEntry);
+  const marketState = getMarketState(room.market);
+  const { event, activityEntry } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
+    session_id,
+    nickname: player.nickname,
+    outcome,
+    wager: trade.wager,
+    shares: Math.round(shares * 100) / 100,
+    trade,
+    market: marketState,
+    player: cloneJson(player),
+    idempotency_key: idempotencyKey,
+  }, req);
 
   broadcast(room, {
     type: 'bet',
@@ -658,16 +769,17 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     outcome,
     wager: trade.wager,
     trade,
-    market: getMarketState(room.market),
+    market: marketState,
     player,
     activity: activityEntry,
+    event_sequence: event.sequence,
   });
 
   // Persist to DB in background (don't block response)
   persistTrade(room.marketId, trade, shares);
   updateMarketState(room.marketId, room.market);
 
-  const response = { trade, market: getMarketState(room.market), player };
+  const response = { trade, market: marketState, player, event_sequence: event.sequence };
   room.betReceipts.set(idempotencyKey, {
     fingerprint,
     response: cloneJson(response),
@@ -683,7 +795,10 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   if (!requireHostCapability(req, res, room)) return;
 
   const validated = validateSettlePayload(req.body);
-  if (validated.error) return validationError(res, validated.error);
+  if (validated.error) {
+    recordRoomError(room, 'settle', validated.error, 400, req);
+    return validationError(res, validated.error);
+  }
 
   if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   room.aiEnabled = false;
@@ -701,23 +816,34 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
     return { nickname: player.nickname, payout: Math.round(payout * 100) / 100, final_balance: Math.round(player.balance * 100) / 100 };
   });
 
-  const activityEntry = { type: 'settle', actual_price, winning_outcome: winningOutcome, timestamp: Date.now() / 1000 };
-  room.activity.push(activityEntry);
-
   room.settlement = { winning_outcome: winningOutcome, actual_price, results };
+  const { event, activityEntry } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
+    actual_price,
+    winning_outcome: winningOutcome,
+    results,
+    settlement: room.settlement,
+    players: Object.values(room.players).map((player) => cloneJson(player)),
+  }, req);
 
-  broadcast(room, { type: 'settle', ...room.settlement, activity: activityEntry });
+  broadcast(room, { type: 'settle', ...room.settlement, activity: activityEntry, event_sequence: event.sequence });
 
-  res.json(room.settlement);
+  res.json({ ...room.settlement, event_sequence: event.sequence });
 });
 
 app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 20 }), (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!requireHostCapability(req, res, room)) return;
-  if (room.settled) return res.status(400).json({ error: 'Market is settled' });
+  if (room.settled) {
+    recordRoomError(room, 'toggle-ai', 'Market is settled', 400, req);
+    return res.status(400).json({ error: 'Market is settled' });
+  }
 
   room.aiEnabled = !room.aiEnabled;
+  const { event } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
+    phase: 'ai_toggled',
+    ai_enabled: room.aiEnabled,
+  }, req);
 
   if (room.aiEnabled) {
     room.aiInterval = setInterval(() => {
@@ -736,16 +862,23 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
 
       const trade = lmsrBuy(room.market, outcome, shares, 'AI');
 
-      const activityEntry = { type: 'ai_trade', outcome, wager: trade.wager, timestamp: trade.timestamp };
-      room.activity.push(activityEntry);
+      const marketState = getMarketState(room.market);
+      const { event: aiEvent, activityEntry } = appendRoomEvent(room, EVENT_TYPES.AI_TRADE, {
+        outcome,
+        wager: trade.wager,
+        shares: Math.round(shares * 100) / 100,
+        trade,
+        market: marketState,
+      });
 
       broadcast(room, {
         type: 'ai_trade',
         outcome,
         wager: trade.wager,
         trade,
-        market: getMarketState(room.market),
+        market: marketState,
         activity: activityEntry,
+        event_sequence: aiEvent.sequence,
       });
 
       persistTrade(room.marketId, trade, shares);
@@ -755,7 +888,7 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
     if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   }
 
-  res.json({ ai_enabled: room.aiEnabled });
+  res.json({ ai_enabled: room.aiEnabled, event_sequence: event.sequence });
 });
 
 app.get('/api/rooms/:code/leaderboard', (req, res) => {
@@ -954,8 +1087,16 @@ wss.on('connection', (ws, req) => {
   if (!room) { ws.close(4004); return; }
 
   room.connections.push(ws);
+  appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
+    source: 'websocket',
+    connection_count: room.connections.length,
+  });
   ws.on('close', () => {
     room.connections = room.connections.filter(c => c !== ws);
+    appendRoomEvent(room, EVENT_TYPES.PLAYER_LEFT, {
+      source: 'websocket',
+      connection_count: room.connections.length,
+    });
   });
 });
 
@@ -978,5 +1119,8 @@ module.exports = {
   normalizeRoomCode,
   generateHostToken,
   requireHostCapability,
+  roomEventStore,
+  replayRoomEvents,
+  EVENT_TYPES,
   startSimulations,
 };

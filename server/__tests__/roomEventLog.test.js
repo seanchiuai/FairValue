@@ -1,0 +1,239 @@
+const { after, afterEach, before, test } = require('node:test');
+const assert = require('node:assert/strict');
+const WebSocket = require('ws');
+const {
+  server,
+  rooms,
+  roomEventStore,
+  EVENT_TYPES,
+} = require('../index');
+const {
+  createInMemoryRoomEventStore,
+  replayRoomEvents,
+} = require('../roomEventLog');
+
+let baseUrl;
+let wsBaseUrl;
+
+function listen() {
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      baseUrl = `http://127.0.0.1:${address.port}`;
+      wsBaseUrl = `ws://127.0.0.1:${address.port}`;
+      resolve();
+    });
+  });
+}
+
+function close() {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+async function request(path, { method = 'GET', body, headers } = {}) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(headers || {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  return { status: res.status, data, headers: res.headers };
+}
+
+function openSocket(code) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`${wsBaseUrl}/ws/${code}`);
+    const timer = setTimeout(() => reject(new Error(`Timed out opening socket for ${code}`)), 3000);
+    ws.once('open', () => {
+      clearTimeout(timer);
+      resolve(ws);
+    });
+    ws.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+
+function closeSocket(ws) {
+  return new Promise((resolve) => {
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+      resolve();
+      return;
+    }
+    ws.once('close', resolve);
+    ws.close();
+    setTimeout(resolve, 100);
+  });
+}
+
+async function createHostedRoom() {
+  const created = await request('/api/rooms', {
+    method: 'POST',
+    body: { address: '321 Event Log Lane', asking_price: 700000 },
+  });
+  assert.equal(created.status, 200);
+  return created.data;
+}
+
+before(listen);
+
+afterEach(() => {
+  for (const room of Object.values(rooms)) {
+    if (room.aiInterval) clearInterval(room.aiInterval);
+  }
+  for (const code of Object.keys(rooms)) {
+    delete rooms[code];
+  }
+  roomEventStore.clearAll();
+});
+
+after(close);
+
+test('in-memory room event adapter appends deterministically and replays state', () => {
+  const store = createInMemoryRoomEventStore();
+
+  const created = store.append({
+    roomCode: 'a1b2',
+    type: EVENT_TYPES.ROOM_CREATED,
+    timestamp: 1,
+    payload: {
+      house: { address: 'Replay House', asking_price: 500000 },
+      market: { total_trades: 0, prob_over: 0.5, prob_under: 0.5 },
+    },
+  });
+  const joined = store.append({
+    roomCode: 'a1b2',
+    type: EVENT_TYPES.PLAYER_JOINED,
+    timestamp: 2,
+    payload: {
+      session_id: 'player-1',
+      nickname: 'Replay Player',
+      player: { session_id: 'player-1', nickname: 'Replay Player', balance: 1000, bets: [] },
+    },
+  });
+  const bet = store.append({
+    roomCode: 'a1b2',
+    type: EVENT_TYPES.BET_PLACED,
+    timestamp: 3,
+    payload: {
+      session_id: 'player-1',
+      nickname: 'Replay Player',
+      outcome: 'over',
+      wager: 25,
+      market: { total_trades: 1, prob_over: 0.55, prob_under: 0.45 },
+      player: { session_id: 'player-1', nickname: 'Replay Player', balance: 975, bets: [{ outcome: 'over' }] },
+    },
+  });
+
+  assert.equal(created.id, 'A1B2-00000001');
+  assert.equal(joined.sequence, 2);
+  assert.equal(bet.sequence, 3);
+  assert.deepEqual(
+    store.list('A1B2', { afterSequence: 1 }).map((event) => event.sequence),
+    [2, 3]
+  );
+
+  const replay = replayRoomEvents(store.list('a1b2'));
+  assert.equal(replay.room_code, 'A1B2');
+  assert.equal(replay.house.address, 'Replay House');
+  assert.equal(replay.market.total_trades, 1);
+  assert.equal(replay.players['player-1'].balance, 975);
+  assert.deepEqual(replay.activity.map((entry) => entry.type), ['join', 'bet']);
+});
+
+test('room event log supports audit access, ordered replay, and settlement reconstruction', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  const deniedEvents = await request(`/api/rooms/${code}/events`);
+  assert.equal(deniedEvents.status, 403);
+
+  const ws = await openSocket(code);
+  await closeSocket(ws);
+
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'player-1', nickname: 'Event Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'event-log-bet-001' },
+    body: { session_id: 'player-1', outcome: 'over', wager: 25 },
+  });
+  assert.equal(bet.status, 200);
+
+  const aiEnabled = await request(`/api/rooms/${code}/toggle-ai`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(aiEnabled.status, 200);
+  assert.equal(aiEnabled.data.ai_enabled, true);
+
+  const aiDisabled = await request(`/api/rooms/${code}/toggle-ai`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(aiDisabled.status, 200);
+  assert.equal(aiDisabled.data.ai_enabled, false);
+
+  const settlement = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: { actual_price: 710000 },
+  });
+  assert.equal(settlement.status, 200);
+  assert.equal(settlement.data.winning_outcome, 'over');
+
+  const eventsResponse = await request(`/api/rooms/${code}/events`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(eventsResponse.status, 200);
+  const events = eventsResponse.data.events;
+  assert.deepEqual(
+    events.map((event) => event.sequence),
+    events.map((_, index) => index + 1)
+  );
+
+  const eventTypes = events.map((event) => event.type);
+  assert.ok(eventTypes.includes(EVENT_TYPES.ROOM_CREATED));
+  assert.ok(eventTypes.includes(EVENT_TYPES.ERROR));
+  assert.ok(eventTypes.includes(EVENT_TYPES.RECONNECT));
+  assert.ok(eventTypes.includes(EVENT_TYPES.PLAYER_LEFT));
+  assert.ok(eventTypes.includes(EVENT_TYPES.PLAYER_JOINED));
+  assert.ok(eventTypes.includes(EVENT_TYPES.BET_PLACED));
+  assert.ok(eventTypes.includes(EVENT_TYPES.PHASE_CHANGED));
+  assert.ok(eventTypes.includes(EVENT_TYPES.SETTLEMENT_COMPLETED));
+  assert.equal(events.find((event) => event.type === EVENT_TYPES.ERROR).payload.action, 'host_capability');
+
+  const afterCursor = await request(`/api/rooms/${code}/events?after_sequence=${events.at(-2).sequence}`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(afterCursor.status, 200);
+  assert.deepEqual(afterCursor.data.events.map((event) => event.type), [EVENT_TYPES.SETTLEMENT_COMPLETED]);
+
+  const replayResponse = await request(`/api/rooms/${code}/replay`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(replayResponse.status, 200);
+  assert.equal(replayResponse.data.replay.settled, true);
+  assert.equal(replayResponse.data.replay.settlement.winning_outcome, 'over');
+  assert.equal(replayResponse.data.replay.market.total_trades, 1);
+  assert.equal(replayResponse.data.replay.players['player-1'].balance, settlement.data.results[0].final_balance);
+
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.event_sequence, events.at(-1).sequence);
+  assert.equal(state.data.settlement.winning_outcome, replayResponse.data.replay.settlement.winning_outcome);
+  assert.deepEqual(
+    state.data.activity.map((entry) => entry.type),
+    ['join', 'bet', 'settle']
+  );
+});

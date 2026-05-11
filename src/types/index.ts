@@ -46,6 +46,7 @@ export interface ActivityEntry {
   timestamp: number;
   actual_price?: number;
   winning_outcome?: string;
+  event_sequence?: number;
 }
 
 export interface SettleResultEntry {
