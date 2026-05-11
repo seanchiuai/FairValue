@@ -36,6 +36,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
     "verify": "npm run scan:secrets && npm run test:server && npm test -- --watchAll=false && npm run build",
@@ -66,5 +68,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
   }
 }

@@ -144,7 +144,7 @@ export default function HostView() {
       <div style={s.topBar}>
         <div style={s.topBarLeft}>
           <span style={s.roomCodeBig}>{roomCode}</span>
-          <span style={s.playerCount}>
+          <span style={s.playerCount} data-testid="host-player-count">
             <Users size={14} /> {players.length} player{players.length !== 1 ? 's' : ''}
           </span>
           <ConnectionIndicator state={connectionState} />
@@ -208,7 +208,7 @@ export default function HostView() {
 
           {/* Settle Result */}
           {settled && settleResult && (
-            <div style={s.settleResultCard}>
+            <div style={s.settleResultCard} data-testid="host-settlement-result">
               <Trophy size={28} color="var(--accent-warning)" />
               <div style={{ fontSize: 20, fontWeight: 700 }}>Market Settled</div>
               <div style={{ fontSize: 16, color: 'var(--text-secondary)' }}>
@@ -239,15 +239,15 @@ export default function HostView() {
             <div style={s.statsRow}>
               <div style={s.statBox}>
                 <span style={s.statLabel}>Total Trades</span>
-                <span style={s.statValue}>{market.total_trades}</span>
+                <span style={s.statValue} data-testid="total-trades">{market.total_trades}</span>
               </div>
               <div style={s.statBox}>
                 <span style={s.statLabel}>Volume</span>
-                <span style={s.statValue}>${market.total_wagered.toFixed(0)}</span>
+                <span style={s.statValue} data-testid="total-volume">${market.total_wagered.toFixed(0)}</span>
               </div>
               <div style={s.statBox}>
                 <span style={s.statLabel}>Avg Bet</span>
-                <span style={s.statValue}>${market.avg_bet_size.toFixed(0)}</span>
+                <span style={s.statValue} data-testid="avg-bet">${market.avg_bet_size.toFixed(0)}</span>
               </div>
             </div>
           </div>

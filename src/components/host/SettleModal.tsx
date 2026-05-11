@@ -69,6 +69,7 @@ export default function SettleModal({ house, roomCode, hostToken, onClose }: Set
             style={s.input}
             value={actualPrice}
             onChange={(e) => setActualPrice(e.target.value)}
+            aria-label="Actual price"
             placeholder="450,000"
             inputMode="numeric"
             aria-required="true"

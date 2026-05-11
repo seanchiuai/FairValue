@@ -141,6 +141,7 @@ export default function PlayerView() {
               style={s.joinInput}
               value={joinName}
               onChange={(e) => setJoinName(e.target.value)}
+              aria-label="Player nickname"
               placeholder="Enter your name"
               maxLength={20}
               aria-required="true"
@@ -189,7 +190,7 @@ export default function PlayerView() {
 
       {/* Settle Result */}
       {settled && settleResult && (
-        <div style={s.settleCard}>
+        <div style={s.settleCard} data-testid="player-settlement-result">
           <Trophy size={24} color="var(--accent-warning)" />
           <div style={s.settleTitle}>Market Settled</div>
           <div style={s.settleDetail}>
@@ -264,7 +265,7 @@ export default function PlayerView() {
 
           {/* Positions */}
           {myPlayer && myPlayer.bets.length > 0 && (
-            <div style={s.positionsCard}>
+            <div style={s.positionsCard} data-testid="player-positions">
               <div style={s.positionsTitle}>My Positions</div>
               {myPlayer.bets.map((bet, i) => (
                 <div key={i} style={s.positionRow}>
@@ -305,6 +306,7 @@ export default function PlayerView() {
                   color: wager === amount ? '#fff' : 'var(--text-secondary)',
                 }}
                 onClick={() => setWager(amount)}
+                aria-label={`Set wager to $${amount}`}
               >
                 ${amount}
               </button>
@@ -318,6 +320,7 @@ export default function PlayerView() {
                 setWager(val);
               }}
               placeholder="$"
+              aria-label="Custom wager"
               inputMode="numeric"
               min={1}
               max={myPlayer ? myPlayer.balance : 10000}

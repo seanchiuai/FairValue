@@ -9,7 +9,7 @@ export default function ActivityFeed({ activity }: { activity: ActivityEntry[] }
   );
 
   return (
-    <div style={s.card}>
+    <div style={s.card} data-testid="activity-feed">
       <div style={s.title}>Activity</div>
       <div style={s.list}>
         {recentActivity.length === 0 && (

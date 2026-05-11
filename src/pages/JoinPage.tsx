@@ -127,6 +127,7 @@ export default function JoinPage() {
                 style={styles.input}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                aria-label="Host nickname"
                 placeholder="Enter your name"
                 maxLength={20}
                 autoFocus
@@ -138,6 +139,7 @@ export default function JoinPage() {
                 style={styles.input}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
+                aria-label="Property address"
                 placeholder="742 Evergreen Terrace"
                 maxLength={100}
               />
@@ -148,6 +150,7 @@ export default function JoinPage() {
                 style={styles.input}
                 value={askingPrice}
                 onChange={(e) => setAskingPrice(e.target.value)}
+                aria-label="Asking price"
                 placeholder="450,000"
                 inputMode="numeric"
               />
@@ -175,6 +178,7 @@ export default function JoinPage() {
                 style={styles.input}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                aria-label="Player nickname"
                 placeholder="Enter your name"
                 maxLength={20}
                 autoFocus
@@ -186,6 +190,7 @@ export default function JoinPage() {
                 style={{ ...styles.input, textAlign: 'center', fontSize: 24, letterSpacing: 8, textTransform: 'uppercase' }}
                 value={roomCode}
                 onChange={(e) => setRoomCode(formatRoomCodeInput(e.target.value))}
+                aria-label="Room code"
                 placeholder="A1B2"
                 maxLength={4}
                 inputMode="text"

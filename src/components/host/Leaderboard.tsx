@@ -4,7 +4,7 @@ import type { PlayerData } from '../../types';
 
 export default function Leaderboard({ players }: { players: PlayerData[] }) {
   return (
-    <div style={s.card}>
+    <div style={s.card} data-testid="leaderboard">
       <div style={s.title}>
         <Trophy size={14} color="var(--accent-warning)" /> Leaderboard
       </div>
