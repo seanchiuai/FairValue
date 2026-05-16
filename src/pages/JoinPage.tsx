@@ -22,7 +22,9 @@ import {
 } from '../lib/marketStudioDrafts';
 import { useToast } from '../contexts/ToastContext';
 import MarketStudioDraftCard from '../components/join/MarketStudioDraftCard';
-import { Database, FileText, Home, LogIn, Plus, Save, Trash2, Users, WandSparkles } from 'lucide-react';
+import MarketStudioMatches from '../components/join/MarketStudioMatches';
+import MarketStudioSavedDrafts from '../components/join/MarketStudioSavedDrafts';
+import { FileText, Home, LogIn, Plus, Save, Users, WandSparkles } from 'lucide-react';
 
 type RoomCreateResponse = {
   room_code?: string;
@@ -411,33 +413,11 @@ export default function JoinPage() {
               <FileText size={19} color="var(--accent-primary)" aria-hidden="true" />
               <h2 style={styles.formTitle}>Market Studio</h2>
             </div>
-            {savedDrafts.length > 0 && (
-              <section style={styles.savedDraftPanel} aria-label="Saved market drafts" data-testid="market-studio-saved-drafts">
-                <div style={styles.savedDraftHeader}>Saved drafts</div>
-                <div style={styles.savedDraftList}>
-                  {savedDrafts.map((saved) => (
-                    <div key={saved.id} style={styles.savedDraftItem}>
-                      <button
-                        type="button"
-                        style={styles.savedDraftLoad}
-                        onClick={() => handleLoadSavedDraft(saved)}
-                      >
-                        <span style={styles.savedDraftTitle}>{saved.title}</span>
-                        <span style={styles.savedDraftMeta}>{saved.price_label || 'Price needed'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        style={styles.iconButton}
-                        aria-label={`Delete ${saved.title}`}
-                        onClick={() => handleDeleteSavedDraft(saved.id)}
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            <MarketStudioSavedDrafts
+              drafts={savedDrafts}
+              onLoad={handleLoadSavedDraft}
+              onDelete={handleDeleteSavedDraft}
+            />
             <div style={styles.field}>
               <label style={styles.label} htmlFor="studio-host-nickname">Host Nickname</label>
               <input
@@ -479,33 +459,10 @@ export default function JoinPage() {
               <p style={styles.matchingText}>Checking local property dataset...</p>
             )}
 
-            {propertyMatches.length > 0 && (
-              <section style={styles.matchPanel} aria-label="Existing property matches" data-testid="market-studio-matches">
-                <div style={styles.matchHeader}>
-                  <Database size={15} aria-hidden="true" />
-                  <span>Existing property match</span>
-                </div>
-                {propertyMatches.map((match) => (
-                  <div key={match.property_id} style={styles.matchItem}>
-                    <div style={styles.matchCopy}>
-                      <span style={styles.matchTitle}>{match.address}</span>
-                      <span style={styles.matchMeta}>
-                        {match.city}, {match.state} {match.zip} · {formatDraftPrice(match.asking_price)} · {match.score}% {match.confidence}
-                      </span>
-                      <span style={styles.matchReasons}>{match.reasons.slice(0, 3).join(', ')}</span>
-                    </div>
-                    <button
-                      type="button"
-                      style={styles.matchButton}
-                      aria-label={`Use local property ${match.address}`}
-                      onClick={() => handleUsePropertyMatch(match)}
-                    >
-                      Use Local Property
-                    </button>
-                  </div>
-                ))}
-              </section>
-            )}
+            <MarketStudioMatches
+              matches={propertyMatches}
+              onUseMatch={handleUsePropertyMatch}
+            />
 
             {studioDraft && (
               <MarketStudioDraftCard
@@ -687,64 +644,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 8,
   },
-  savedDraftPanel: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    padding: 12,
-    borderRadius: 18,
-    background: 'rgba(255,255,255,0.44)',
-    border: '1px solid rgba(0,0,0,0.07)',
-  },
-  savedDraftHeader: {
-    color: 'var(--text-primary)',
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  savedDraftList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  savedDraftItem: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 34px',
-    gap: 8,
-    alignItems: 'center',
-  },
-  savedDraftLoad: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 2,
-    padding: '10px 12px',
-    background: 'rgba(255,255,255,0.58)',
-    border: '1px solid rgba(0,0,0,0.06)',
-    borderRadius: 14,
-    cursor: 'pointer',
-    textAlign: 'left',
-  },
-  savedDraftTitle: {
-    color: 'var(--text-primary)',
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  savedDraftMeta: {
-    color: 'var(--text-muted)',
-    fontSize: 12,
-  },
-  iconButton: {
-    width: 34,
-    height: 34,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'rgba(255,255,255,0.5)',
-    border: '1px solid rgba(0,0,0,0.07)',
-    borderRadius: 12,
-    color: 'var(--text-muted)',
-    cursor: 'pointer',
-  },
   field: {
     display: 'flex',
     flexDirection: 'column',
@@ -802,60 +701,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-muted)',
     fontSize: 12,
     textAlign: 'center',
-  },
-  matchPanel: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 10,
-    padding: 14,
-    borderRadius: 18,
-    background: 'rgba(239,250,243,0.7)',
-    border: '1px solid rgba(11,111,50,0.16)',
-  },
-  matchHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 7,
-    color: 'var(--accent-success)',
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  matchItem: {
-    display: 'grid',
-    gridTemplateColumns: '1fr auto',
-    gap: 12,
-    alignItems: 'center',
-  },
-  matchCopy: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 3,
-    minWidth: 0,
-  },
-  matchTitle: {
-    color: 'var(--text-primary)',
-    fontSize: 14,
-    fontWeight: 800,
-  },
-  matchMeta: {
-    color: 'var(--text-secondary)',
-    fontSize: 12,
-    fontWeight: 600,
-  },
-  matchReasons: {
-    color: 'var(--text-muted)',
-    fontSize: 12,
-  },
-  matchButton: {
-    padding: '9px 12px',
-    borderRadius: 980,
-    border: '1px solid rgba(11,111,50,0.18)',
-    background: 'rgba(255,255,255,0.72)',
-    color: 'var(--accent-success)',
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap' as const,
   },
   error: {
     color: 'var(--accent-danger)',
