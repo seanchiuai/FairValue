@@ -496,6 +496,192 @@
   line-height: 1.45;
 }
 
+/* Market Intelligence */
+.intelligence-section {
+  border-color: #E0DED6;
+  background: #FFFDF8;
+}
+
+.intelligence-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.intelligence-summary {
+  margin: -6px 0 0;
+  color: #3D3A34;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.intelligence-confidence {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: capitalize;
+  border: 1px solid #D3C6A3;
+  background: #FFF7D6;
+  color: #7A4B00;
+}
+
+.intelligence-confidence.high {
+  border-color: #A6D6B8;
+  background: #EFFAF3;
+  color: #0B6F32;
+}
+
+.intelligence-confidence.low {
+  border-color: #E2B3AD;
+  background: #FFF4F2;
+  color: #9F1F15;
+}
+
+.intelligence-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #E9E2D2;
+  border-radius: 10px;
+  background: #E9E2D2;
+  margin-bottom: 18px;
+}
+
+.intelligence-metric {
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px;
+  background: #FFFFFF;
+  border-top: 3px solid #9C8A5B;
+}
+
+.intelligence-metric.positive { border-top-color: #0B6F32; }
+.intelligence-metric.negative { border-top-color: #B42318; }
+.intelligence-metric.caution { border-top-color: #A65F00; }
+
+.intelligence-metric-label {
+  color: #5B5548;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.intelligence-metric-value {
+  color: #1D1D1F;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.intelligence-metric-detail {
+  color: #625C50;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.intelligence-cases {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.intelligence-case {
+  border-left: 4px solid #9C8A5B;
+  padding: 2px 0 2px 12px;
+}
+
+.intelligence-case.positive { border-left-color: #0B6F32; }
+.intelligence-case.negative { border-left-color: #B42318; }
+.intelligence-case.caution { border-left-color: #A65F00; }
+
+.intelligence-case h3,
+.intelligence-prompts h3,
+.intelligence-settlement h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
+  color: #2B2924;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.intelligence-case ul,
+.intelligence-settlement ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.intelligence-case li,
+.intelligence-settlement li {
+  color: #4D473C;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.intelligence-prompts {
+  padding: 16px 0;
+  border-top: 1px solid #ECE3D0;
+  border-bottom: 1px solid #ECE3D0;
+  margin-bottom: 16px;
+}
+
+.prompt-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.prompt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.prompt-label {
+  color: #75500E;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.prompt-question {
+  margin: 0;
+  color: #1D1D1F;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.prompt-rationale {
+  margin: 0;
+  color: #5E594E;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.intelligence-settlement li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 7px;
+  align-items: flex-start;
+}
+
+.intelligence-settlement svg {
+  margin-top: 2px;
+  color: #756133;
+}
+
 /* Stats Row */
 .stats-row {
   display: grid;
@@ -953,6 +1139,12 @@
   .detail-grid { grid-template-columns: repeat(2, 1fr); }
   .market-trust-head { flex-direction: column; gap: 4px; }
   .market-trust-pill { align-self: flex-start; }
+  .intelligence-head { flex-direction: column; gap: 10px; }
+  .intelligence-confidence { align-self: flex-start; }
+  .intelligence-cases,
+  .prompt-list {
+    grid-template-columns: 1fr;
+  }
   
   .market-layout {
     grid-template-columns: 1fr;

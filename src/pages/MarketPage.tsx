@@ -17,7 +17,12 @@ import {
   ShieldCheck,
   TrendingUp,
   TrendingDown,
-  Gavel
+  Gavel,
+  AlertTriangle,
+  ListChecks,
+  Scale,
+  Sparkles,
+  Target
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
@@ -25,6 +30,7 @@ import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
+import { generateMarketIntelligence } from '../lib/marketIntelligence';
 import { useToast } from '../contexts/ToastContext';
 import './MarketPage.css';
 
@@ -166,6 +172,7 @@ const MarketPage: React.FC = () => {
       || null
   );
   const freshnessLabel = freshnessDate ? ` Checked ${freshnessDate}.` : '';
+  const intelligence = generateMarketIntelligence(property);
 
   return (
     <div className="market-page">
@@ -285,6 +292,78 @@ const MarketPage: React.FC = () => {
                 <p>In multiplayer rooms, the host settles with an actual appraisal or sale price; room events preserve joins, bets, and settlement for replay.</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Market Intelligence */}
+        <section className="detail-section intelligence-section" aria-labelledby="market-intelligence-title" data-testid="market-intelligence-section">
+          <div className="intelligence-head">
+            <div>
+              <h2 id="market-intelligence-title" className="section-title"><Sparkles size={18} /> Market Intelligence</h2>
+              <p className="intelligence-summary">{intelligence.summary}</p>
+            </div>
+            <span className={`intelligence-confidence ${intelligence.confidence}`}>
+              {intelligence.confidence} confidence
+            </span>
+          </div>
+
+          <div className="intelligence-metrics" aria-label="Market intelligence metrics">
+            {intelligence.metrics.map((metric) => (
+              <div key={metric.label} className={`intelligence-metric ${metric.tone}`}>
+                <span className="intelligence-metric-label">{metric.label}</span>
+                <span className="intelligence-metric-value">{metric.value}</span>
+                <span className="intelligence-metric-detail">{metric.detail}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="intelligence-cases">
+            <div className="intelligence-case positive">
+              <h3><TrendingUp size={16} /> Bull case</h3>
+              <ul>
+                {intelligence.bullish_cases.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="intelligence-case negative">
+              <h3><TrendingDown size={16} /> Bear case</h3>
+              <ul>
+                {intelligence.bearish_cases.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="intelligence-case caution">
+              <h3><AlertTriangle size={16} /> Uncertainty map</h3>
+              <ul>
+                {intelligence.uncertainty_cases.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="intelligence-prompts" aria-label="Scenario prompts">
+            <h3><Target size={16} /> Scenario prompts</h3>
+            <div className="prompt-list">
+              {intelligence.scenario_prompts.map((prompt) => (
+                <div key={prompt.label} className="prompt-item">
+                  <span className="prompt-label">{prompt.label}</span>
+                  <p className="prompt-question">{prompt.question}</p>
+                  <p className="prompt-rationale">{prompt.rationale}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="intelligence-settlement">
+            <h3><ListChecks size={16} /> Settlement checklist</h3>
+            <ul>
+              {intelligence.settlement_checklist.map((item) => (
+                <li key={item}><Scale size={14} aria-hidden="true" /> {item}</li>
+              ))}
+            </ul>
           </div>
         </section>
 

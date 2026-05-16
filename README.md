@@ -10,7 +10,7 @@ A host creates a room and selects a property. Players join via QR code or room c
 
 - **Multiplayer** — Host creates a room at `/join`, gets a 4-character code using letters and numbers. Players scan QR or go to `/play/:roomCode` to bet from their phones. Host views live dashboard at `/host/:roomCode` with chart, leaderboard, and activity feed.
 - **Market Studio** — Hosts can use `/join` to paste listing text and generate a local market draft with normalized address, asking price, market question, evidence checklist, provenance, warnings, and editable fields before creating a real room.
-- **Solo browsing** — Browse market cards at `/` and view individual markets at `/market/:propertyId` with chart and trading panel.
+- **Solo browsing** — Browse market cards at `/` and view individual markets at `/market/:propertyId` with chart, deterministic market intelligence, scenario prompts, settlement checklist, and trading panel.
 - **Market trust** — Property detail, host, player, and settlement surfaces explain simulated credits, LMSR probability, implied fair value, listing provenance, and settlement evidence so FairValue does not imply unsupported real-money or appraisal authority.
 
 ## Tech Stack

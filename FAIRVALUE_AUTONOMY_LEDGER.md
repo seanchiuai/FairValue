@@ -76,9 +76,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Express now disables `X-Powered-By` and emits baseline browser security headers on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
 - Local boot readiness now has `npm run smoke:boot`, which launches `node server/index.js` on a free local port with an isolated temporary room snapshot, checks health/readiness/security headers, proves ops-token gating, drives create/join/bet/settle plus a WebSocket join broadcast, confirms host-token non-leakage, and verifies snapshot persistence wrote.
 - Market Studio now exists as a real `/join` creation mode: hosts can paste listing text, generate a deterministic local market draft, review normalized address/asking price/facts/provenance/warnings/settlement evidence, edit generated fields, and create a real host room through the existing authenticated room creation and host auto-join path.
+- Market detail pages now include deterministic Market Intelligence: a local property brief, confidence reason, valuation metrics, bull/bear/uncertainty cases, scenario prompts, and settlement checklist generated from existing property snapshot fields without external AI credentials.
 
 ## Current Test Status
 
+- 2026-05-16 Market Detail Intelligence pass: focused `npm test -- marketIntelligence` passed 4 tests; `npm run typecheck` passed; focused Playwright market-detail route passed desktop/mobile content and serious axe checks; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 8 Vitest suites / 53 tests, production build, bundle budget, and `smoke:boot` room `FWGP`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live browser render on backend `8045` / frontend `3045` returned `/market/440298192` 200 and `/healthz` ok with desktop/mobile snapshots and only the expected React DevTools info console entry.
 - 2026-05-16 Market Studio pass: baseline `npm run typecheck`, `npm test`, and `npm run test:server` passed before edits; focused `npm test -- marketDrafts` passed 5 tests; focused Market Studio Playwright passed; live local dev smoke on backend `8042` / frontend `3042` returned `/join` 200 and `/healthz` ok, with desktop/mobile browser snapshots showing the new Market Studio option and only the expected React DevTools info console entry; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 7 Vitest suites / 49 tests, production build, bundle budget, and `smoke:boot` room `1NFU`; final full `npm run test:e2e:isolated` passed 32 Chromium tests after a strict-locator assertion was tightened.
 - 2026-05-10 baseline before patch: `npm test -- --watchAll=false` passed, 3 suites / 30 tests.
 - 2026-05-10 baseline before patch: `npm run build` passed with one warning for an unused `priceOver` import in `src/hooks/useRoom.ts`.
@@ -172,7 +174,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 ## Current Backlog Ranked By Impact
 
 1. Extend Market Studio with existing-property matching, a saved draft model, and optional server-side draft validation so generated markets can reuse real property records without loading unnecessary data into every `/join` visit.
-2. Add the Market Detail Intelligence slice from `Enormousplans.md`: deterministic property brief, bullish/bearish/uncertainty cases, evidence/provenance panels, and scenario prompts on `/market/:propertyId`, with degraded/no-AI tests.
+2. Evolve Market Intelligence into room-aware analysis by combining property snapshot signals with live LMSR room flow, recent bets, and optional provider-backed comps while keeping the deterministic no-key fallback.
 3. Extract the touched `/join` UI into reusable primitives or a co-located CSS module so the Market Studio design does not add more long-lived inline-style sprawl.
 4. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 5. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
@@ -183,6 +185,14 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 10. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Market Detail Intelligence
+
+- Added `src/lib/marketIntelligence.ts` as a deterministic local analyst layer for property snapshots, producing confidence, valuation metrics, bull/bear/uncertainty cases, scenario prompts, and settlement checklist without external AI credentials.
+- Added focused Vitest coverage for high-confidence briefs, over/under valuation pressure, scenario/checklist output, and downgraded confidence when valuation references are missing.
+- Added a Market Intelligence section to `/market/:propertyId` beneath the trust/provenance panel so solo property pages now provide actionable debate structure before a host starts a room.
+- Expanded the market-detail Playwright test so desktop and mobile route coverage assert Market Intelligence content inside the existing serious/critical axe accessibility gate.
+- Updated `README.md` and the backlog so this slice is documented as shipped and the next step is room-aware/live evidence intelligence.
 
 ### 2026-05-16 - Market Studio Vertical Slice
 
