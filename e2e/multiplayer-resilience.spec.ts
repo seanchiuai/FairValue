@@ -279,6 +279,19 @@ test('market studio generates a draft and creates a host room from pasted listin
   await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('No provider-backed comps were queried');
   await expectNoSeriousAxeViolations(page, 'market studio host draft audit');
   await expectConnected(page);
+
+  const roomCode = new URL(page.url()).pathname.split('/').pop();
+  if (!roomCode) throw new Error('Room code was not present in host URL');
+  await page.getByTestId('host-review-link').click();
+  await expect(page).toHaveURL(new RegExp(`/review/${roomCode}$`));
+  await expect(page.getByTestId('room-review-summary')).toContainText('compare the accepted market draft');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Required settlement evidence');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Final sale price, appraisal report');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Event history');
+  await expect(page.getByTestId('room-review-integrity')).toContainText('raw pasted listing text is not stored');
+  await expect(page.getByTestId('room-review-timeline')).toContainText('Room created');
+  await expect(page.getByTestId('room-review-recap')).toContainText('Settlement recap is pending');
+  await expectNoSeriousAxeViolations(page, 'market studio operator review');
 });
 
 test('expanded routes, forms, and modal states pass serious accessibility checks', async ({
@@ -466,6 +479,14 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
     await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('simulation credits only');
     await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('not a FairValue appraisal');
     await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('Room events preserve joins');
+
+    await host.getByTestId('host-review-link').click();
+    await expect(host).toHaveURL(new RegExp(`/review/${roomCode}$`));
+    await expect(host.getByTestId('room-review-evidence')).toContainText('Settlement evidence');
+    await expect(host.getByTestId('room-review-evidence')).toContainText('$735,000');
+    await expect(host.getByTestId('room-review-integrity')).toContainText('Settlement outcome OVER matches');
+    await expect(host.getByTestId('room-review-timeline')).toContainText('Settlement completed');
+    await expectNoSeriousAxeViolations(host, 'settled operator review');
 
     await expect(player.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
     await expect(player.getByTestId('player-settlement-trust-notice')).toContainText('simulation credits only');

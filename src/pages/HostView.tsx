@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
 import { useMarketChart } from '../hooks/useMarketChart';
@@ -18,7 +18,7 @@ import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
-import { Users, Bot, Gavel, Trophy, ShieldAlert, Sparkles, Target, ListChecks, TrendingUp } from 'lucide-react';
+import { Users, Bot, Gavel, Trophy, ShieldAlert, Sparkles, Target, ListChecks, TrendingUp, FileSearch } from 'lucide-react';
 
 const hostAuthorityNoticeId = 'host-authority-warning';
 
@@ -189,6 +189,15 @@ export default function HostView() {
           <ConnectionIndicator state={connectionState} />
         </div>
         <div style={s.topBarRight}>
+          {roomCode && (
+            <Link
+              to={`/review/${roomCode}`}
+              style={s.controlLink}
+              data-testid="host-review-link"
+            >
+              <FileSearch size={14} aria-hidden="true" /> Review
+            </Link>
+          )}
           {!settled && (
             <>
               <button
@@ -326,8 +335,8 @@ export default function HostView() {
                   <TrendingUp size={15} aria-hidden="true" /> Movement read
                 </h3>
                 <ul style={s.roomIntelligenceList}>
-                  {roomIntelligence.movement_explanations.map((item) => (
-                    <li key={item}>{item}</li>
+                  {roomIntelligence.movement_explanations.map((item, index) => (
+                    <li key={`movement-${index}-${item}`}>{item}</li>
                   ))}
                 </ul>
               </div>
@@ -338,8 +347,8 @@ export default function HostView() {
                     <Target size={15} aria-hidden="true" /> Pressure points
                   </h3>
                   <ul style={s.roomIntelligenceList}>
-                    {roomIntelligence.pressure_points.slice(0, 3).map((item) => (
-                      <li key={item}>{item}</li>
+                    {roomIntelligence.pressure_points.slice(0, 3).map((item, index) => (
+                      <li key={`pressure-${index}-${item}`}>{item}</li>
                     ))}
                   </ul>
                 </div>
@@ -348,16 +357,16 @@ export default function HostView() {
                     <ListChecks size={15} aria-hidden="true" /> Host script
                   </h3>
                   <ul style={s.roomIntelligenceList}>
-                    {roomIntelligence.host_script.map((item) => (
-                      <li key={item}>{item}</li>
+                    {roomIntelligence.host_script.map((item, index) => (
+                      <li key={`script-${index}-${item}`}>{item}</li>
                     ))}
                   </ul>
                 </div>
               </div>
 
               <div style={s.roomIntelligenceFooter}>
-                {roomIntelligence.provenance_notes.map((note) => (
-                  <span key={note}>{note}</span>
+                {roomIntelligence.provenance_notes.map((note, index) => (
+                  <span key={`provenance-${index}-${note}`}>{note}</span>
                 ))}
               </div>
             </section>
@@ -535,6 +544,20 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  controlLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '8px 14px',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    color: 'var(--text-secondary)',
+    background: 'var(--bg-input)',
+    textDecoration: 'none',
   },
   layout: {
     display: 'grid',

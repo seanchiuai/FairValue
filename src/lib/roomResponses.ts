@@ -12,6 +12,7 @@ export type RoomMutationResponse = {
   host_user_id?: string | null;
   settled?: boolean;
   settlement?: SettleResult;
+  event_sequence?: number;
 };
 
 export async function readRoomMutationResponse(response: Response): Promise<RoomMutationResponse> {

@@ -1,0 +1,266 @@
+import type {
+  ActivityEntry,
+  House,
+  Market,
+  MarketDraftAudit,
+  PlayerData,
+  RoomEvent,
+  SettleResult,
+} from '../types';
+import { calculateImpliedPrice } from './lmsr';
+
+export interface RoomReviewMetric {
+  label: string;
+  value: string;
+  detail: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'caution';
+}
+
+export interface RoomReviewTimelineItem {
+  sequence: number;
+  label: string;
+  detail: string;
+}
+
+export interface RoomReviewEvidenceItem {
+  label: string;
+  value: string;
+  detail: string;
+}
+
+export interface RoomReviewReport {
+  status: 'live' | 'ready_to_settle' | 'settled';
+  headline: string;
+  summary: string;
+  metrics: RoomReviewMetric[];
+  evidence: RoomReviewEvidenceItem[];
+  integrity_checks: string[];
+  timeline: RoomReviewTimelineItem[];
+  recap: string[];
+}
+
+export interface RoomReviewInput {
+  roomCode: string;
+  house: House;
+  market: Market;
+  players: PlayerData[];
+  activity: ActivityEntry[];
+  draftAudit?: MarketDraftAudit | null;
+  settled: boolean;
+  settlement?: SettleResult | null;
+  events: RoomEvent[];
+  eventSequence?: number;
+}
+
+function formatMoney(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return 'Unavailable';
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+function formatProbability(value: number) {
+  if (!Number.isFinite(value)) return '50%';
+  return `${Math.round(value * 100)}%`;
+}
+
+function winnerFor(actualPrice: number, askingPrice: number) {
+  return actualPrice >= askingPrice ? 'over' : 'under';
+}
+
+function recentBets(activity: ActivityEntry[]) {
+  return activity
+    .filter((entry) => entry.type === 'bet' && entry.outcome && typeof entry.wager === 'number')
+    .slice(-3);
+}
+
+function eventLabel(event: RoomEvent) {
+  switch (event.type) {
+    case 'room_created':
+      return 'Room created';
+    case 'player_joined':
+      return 'Player joined';
+    case 'bet_placed':
+      return 'Bet placed';
+    case 'ai_trade':
+      return 'AI trade';
+    case 'phase_changed':
+      return 'Phase changed';
+    case 'settlement_completed':
+      return 'Settlement completed';
+    case 'error':
+      return 'Room error';
+    default:
+      return event.type.replace(/_/g, ' ');
+  }
+}
+
+function eventDetail(event: RoomEvent) {
+  const payload = event.payload || {};
+  if (event.type === 'room_created') {
+    const address = typeof payload.house?.address === 'string' ? payload.house.address : 'room property';
+    return `${address} opened for ${formatMoney(payload.house?.asking_price)}.`;
+  }
+  if (event.type === 'player_joined') {
+    return `${payload.nickname || payload.player?.nickname || 'A player'} entered the room.`;
+  }
+  if (event.type === 'bet_placed') {
+    return `${payload.nickname || payload.player?.nickname || 'A player'} bet ${formatMoney(payload.wager)} on ${String(payload.outcome || 'unknown').toUpperCase()}.`;
+  }
+  if (event.type === 'settlement_completed') {
+    const settlement = payload.settlement || payload;
+    return `${String(settlement.winning_outcome || payload.winning_outcome || 'unknown').toUpperCase()} won at ${formatMoney(settlement.actual_price || payload.actual_price)}.`;
+  }
+  if (event.type === 'error') {
+    return `${payload.action || 'room action'}: ${payload.message || 'error recorded'}.`;
+  }
+  return 'Recorded in the room event log.';
+}
+
+function buildTimeline(events: RoomEvent[], activity: ActivityEntry[]) {
+  if (events.length > 0) {
+    return events.slice(-8).map((event) => ({
+      sequence: event.sequence,
+      label: eventLabel(event),
+      detail: eventDetail(event),
+    }));
+  }
+
+  return activity.slice(-8).map((entry, index) => ({
+    sequence: entry.event_sequence || index + 1,
+    label: entry.type === 'bet' ? 'Bet activity' : entry.type === 'settle' ? 'Settlement activity' : 'Room activity',
+    detail: entry.type === 'bet'
+      ? `${entry.nickname || 'A player'} bet ${formatMoney(entry.wager)} on ${String(entry.outcome || 'unknown').toUpperCase()}.`
+      : entry.type === 'settle'
+        ? `${String(entry.winning_outcome || 'unknown').toUpperCase()} won at ${formatMoney(entry.actual_price)}.`
+        : `${entry.nickname || 'Room'} recorded ${entry.type}.`,
+  }));
+}
+
+export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
+  const {
+    roomCode,
+    house,
+    market,
+    players,
+    activity,
+    draftAudit,
+    settled,
+    settlement,
+    events,
+    eventSequence,
+  } = input;
+  const overProbability = Number.isFinite(market.prob_over) ? market.prob_over : 0.5;
+  const impliedPrice = calculateImpliedPrice(overProbability, house.asking_price);
+  const tradeDepth = market.total_trades;
+  const hasEventLog = events.length > 0;
+  const status: RoomReviewReport['status'] = settled
+    ? 'settled'
+    : tradeDepth > 0
+      ? 'ready_to_settle'
+      : 'live';
+
+  const evidence: RoomReviewEvidenceItem[] = [
+    {
+      label: 'Market question',
+      value: draftAudit?.market_question || `Will ${house.address} settle above ${formatMoney(house.asking_price)}?`,
+      detail: draftAudit
+        ? `Server accepted this ${draftAudit.market_format.replace(/_/g, ' ')} draft from ${draftAudit.provenance.source}.`
+        : 'No Market Studio draft audit is attached; the room uses host-entered address and asking price.',
+    },
+    {
+      label: 'Required settlement evidence',
+      value: draftAudit?.evidence_required.length ? `${draftAudit.evidence_required.length} item checklist` : 'Default checklist',
+      detail: (draftAudit?.evidence_required.length
+        ? draftAudit.evidence_required
+        : [
+            'Final sale price, appraisal report, or signed valuation evidence.',
+            'Original asking price and property facts.',
+          ]).join(' '),
+    },
+    {
+      label: 'Event history',
+      value: hasEventLog ? `${events.length} event${events.length === 1 ? '' : 's'}` : 'Locked',
+      detail: hasEventLog
+        ? `Host-authorized event log loaded through sequence ${events.at(-1)?.sequence || eventSequence || 0}.`
+        : 'Open this route from the original host browser to load the host-only event log.',
+    },
+  ];
+
+  if (settlement) {
+    evidence.push({
+      label: 'Settlement evidence',
+      value: `${settlement.winning_outcome.toUpperCase()} at ${formatMoney(settlement.actual_price)}`,
+      detail: `Actual value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`,
+    });
+  }
+
+  const integrityChecks = [
+    hasEventLog
+      ? `Event log loaded for ${roomCode}; public state sequence is ${eventSequence || events.at(-1)?.sequence || 0}.`
+      : 'Event log is not loaded, so this review is a public-state preview rather than an operator audit.',
+    draftAudit
+      ? `Draft audit accepted from ${draftAudit.provenance.source}; raw pasted listing text is not stored.`
+      : 'No draft audit envelope is attached to this room.',
+    settlement
+      ? `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${winnerFor(settlement.actual_price, house.asking_price) === settlement.winning_outcome ? 'matches' : 'does not match'} the asking-price comparison.`
+      : 'Settlement has not been recorded yet.',
+    'All balances and payouts are simulation credits only.',
+  ];
+
+  const latestBets = recentBets(activity);
+  const recap = [
+    `${house.address} is trading ${formatProbability(overProbability)} OVER with an implied room value of ${formatMoney(impliedPrice)}.`,
+    `${players.length} player${players.length === 1 ? '' : 's'} generated ${tradeDepth} trade${tradeDepth === 1 ? '' : 's'} and ${formatMoney(market.total_wagered)} in simulation-credit volume.`,
+    latestBets.length
+      ? `Latest movement: ${latestBets.map((bet) => `${bet.nickname || 'player'} ${String(bet.outcome).toUpperCase()} ${formatMoney(bet.wager)}`).join('; ')}.`
+      : 'No player bets have landed yet, so the room still needs evidence-backed opening movement.',
+    settlement
+      ? `Settlement recap: ${settlement.winning_outcome.toUpperCase()} won at ${formatMoney(settlement.actual_price)}.`
+      : 'Settlement recap is pending until the host records an actual sale, appraisal, or signed valuation.',
+  ];
+
+  return {
+    status,
+    headline: status === 'settled'
+      ? `${roomCode} settled ${settlement?.winning_outcome.toUpperCase()}`
+      : status === 'ready_to_settle'
+        ? `${roomCode} is ready for operator review`
+        : `${roomCode} is collecting opening evidence`,
+    summary: `Operator review for ${house.address}: compare the accepted market draft, live LMSR movement, host-only event log, and settlement evidence before sharing a recap.`,
+    metrics: [
+      {
+        label: 'Consensus',
+        value: `${formatProbability(overProbability)} over`,
+        detail: `Implied room value ${formatMoney(impliedPrice)} around the ${formatMoney(house.asking_price)} ask.`,
+        tone: overProbability >= 0.62 ? 'positive' : overProbability <= 0.38 ? 'negative' : 'neutral',
+      },
+      {
+        label: 'Trade depth',
+        value: `${tradeDepth} trade${tradeDepth === 1 ? '' : 's'}`,
+        detail: `${formatMoney(market.total_wagered)} simulation credits in room volume.`,
+        tone: tradeDepth >= 3 ? 'positive' : 'caution',
+      },
+      {
+        label: 'Players',
+        value: String(players.length),
+        detail: players.length <= 1 ? 'Single participant so far.' : 'Multiple participants are represented.',
+        tone: players.length >= 3 ? 'positive' : players.length >= 2 ? 'neutral' : 'caution',
+      },
+      {
+        label: 'Audit status',
+        value: draftAudit ? 'Draft accepted' : 'Draft missing',
+        detail: draftAudit?.property_id ? `Linked property ${draftAudit.property_id}.` : 'No linked local property audit.',
+        tone: draftAudit ? 'positive' : 'caution',
+      },
+      {
+        label: 'Settlement',
+        value: settlement ? settlement.winning_outcome.toUpperCase() : 'Pending',
+        detail: settlement ? `Actual value ${formatMoney(settlement.actual_price)}.` : 'Host has not settled this room.',
+        tone: settlement ? 'positive' : 'neutral',
+      },
+    ],
+    evidence,
+    integrity_checks: integrityChecks,
+    timeline: buildTimeline(events, activity),
+    recap,
+  };
+}

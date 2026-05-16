@@ -85,6 +85,16 @@ export interface ActivityEntry {
   event_sequence?: number;
 }
 
+export interface RoomEvent {
+  id: string;
+  room_code: string;
+  sequence: number;
+  type: string;
+  payload: Record<string, any>;
+  timestamp: number;
+  request_id?: string;
+}
+
 export interface SettleResultEntry {
   nickname: string;
   payout: number;

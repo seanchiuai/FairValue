@@ -80,9 +80,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Market Studio room creation now sends draft metadata to the server, which validates that the draft address/asking price match the room, stores an audit envelope with a source-text hash instead of raw pasted text, persists it through snapshots/events/replay/state, and shows the host a draft-audit note.
 - Market detail pages now include deterministic Market Intelligence: a local property brief, confidence reason, valuation metrics, bull/bear/uncertainty cases, scenario prompts, and settlement checklist generated from existing property snapshot fields without external AI credentials.
 - Host rooms now include deterministic Live Room Intelligence: LMSR consensus, implied room value, room liquidity, participant depth, movement summaries from recent bets, pressure points, host script prompts, and draft-audit provenance notes, all explicitly marked as local fallback with no provider-backed comps queried.
+- Host rooms now link to `/review/:roomCode`, an operator-facing deterministic review surface that combines public room state with host-authorized event logs to compare draft audits, settlement evidence, live movement, integrity checks, timeline entries, and generated recap bullets.
 
 ## Current Test Status
 
+- 2026-05-16 Operator Review Route pass: focused `npm test -- roomReview marketIntelligence` passed 2 files / 8 tests; focused Market Studio/settlement Playwright passed paste listing -> create host room -> open operator review plus settled-room review assertions; targeted negative-path tail rerun passed 10 Chromium tests after investigating an earlier backend `ECONNREFUSED` run interruption; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 10 Vitest suites / 61 tests, production build, bundle budget with total JS 729.93 kB / 760.00 kB, and `smoke:boot` room `191L`.
 - 2026-05-16 Room-Aware Market Intelligence pass: focused `npm test -- marketIntelligence` passed 1 file / 6 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local match -> create host room -> render draft audit and live intelligence; targeted host/browser regressions passed 5 Chromium tests; targeted negative-path regressions passed 3 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 9 Vitest suites / 59 tests, production build, bundle budget, and `smoke:boot` room `ZC39`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local Playwright render on backend `8052` / frontend `3052` created room `L5B1`, rendered host draft audit plus Live Room Intelligence with linked property `440298192`, no-bet movement read, `$0` liquidity copy, accepted draft audit, and no-provider-comps provenance, returned backend `/healthz` ok, and reported zero page errors with one benign dev WebSocket close warning during navigation.
 - 2026-05-16 Market Studio server draft-audit pass: focused `node --test server/__tests__/validationAndIdempotency.test.js server/__tests__/roomEventLog.test.js` passed 11 server tests; focused `npm test -- marketDrafts marketStudioDrafts` passed 2 files / 9 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local match -> use matched property -> create host room -> render host draft audit; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 9 Vitest suites / 57 tests, production build, bundle budget, and `smoke:boot` room `MFJD`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local render on backend `8049` / frontend `3049` created room `298G`, rendered the server-validated draft audit card with linked property `440298192`, returned `/healthz` ok, and reported zero console/page errors.
 - 2026-05-16 Market Studio matching/saved-drafts pass: focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local property match -> use matched property -> save draft -> create host room; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 9 Vitest suites / 57 tests, production build, bundle budget, and `smoke:boot` room `LYSK`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local render on backend `8047` / frontend `3047` returned `/join` 200 and `/healthz` ok, with desktop/mobile Studio snapshots showing match/save/create controls and only the expected React DevTools info console entry.
@@ -179,9 +181,9 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Add an operator-facing draft audit/review route that can compare room draft audits, final settlement evidence, room intelligence movement reads, and event history before public recaps or exports exist.
-2. Add player-facing pre-bet intelligence prompts so mobile players see one compact generated reason-to-believe and one reason-to-doubt before wagering.
-3. Extract the touched `/join` and host intelligence UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence design does not add more long-lived inline-style sprawl.
+1. Add player-facing pre-bet intelligence prompts so mobile players see one compact generated reason-to-believe and one reason-to-doubt before wagering.
+2. Extract the touched `/join`, host intelligence, and operator review UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence/Review design does not add more long-lived inline-style sprawl.
+3. Add a share-safe public recap route or export view derived from the operator review after privacy and host-token leakage checks.
 4. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 5. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
 6. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
@@ -191,6 +193,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 10. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Operator Review Route
+
+- Added a deterministic room review generator that compares draft audit metadata, room movement, player/trade metrics, host-only event history, settlement evidence, integrity checks, timeline entries, and generated recap bullets.
+- Added `/review/:roomCode` as a host-facing route that loads public room state and, when host authority is present, fetches the host-only room event log without exposing host tokens.
+- Linked the host dashboard to the operator review route so active and settled rooms can be audited without typing a URL.
+- Added focused Vitest coverage for pending-review and settled-review generation.
+- Expanded Playwright coverage so Market Studio rooms render a pre-settlement review and settled rooms render settlement evidence, event timeline, and accessibility-clean operator review states.
+- Verified the slice with focused unit/browser checks, a targeted negative-path rerun after investigating an E2E backend interruption, full isolated Playwright, and the full `npm run verify` gate.
 
 ### 2026-05-16 - Room-Aware Market Intelligence
 
