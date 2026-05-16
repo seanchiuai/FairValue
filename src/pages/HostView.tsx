@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
 import { useMarketChart } from '../hooks/useMarketChart';
@@ -14,13 +14,15 @@ import SettleModal from '../components/host/SettleModal';
 import QRCard from '../components/host/QRCard';
 import HostRoomIntelligencePanel from '../components/host/HostRoomIntelligencePanel';
 import HostDraftAuditCard from '../components/host/HostDraftAuditCard';
+import HostTopBar from '../components/host/HostTopBar';
+import HostAuthorityNotice from '../components/host/HostAuthorityNotice';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
-import { Users, Bot, Gavel, Trophy, ShieldAlert, FileSearch, Share2 } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
 const hostAuthorityNoticeId = 'host-authority-warning';
 
@@ -155,9 +157,20 @@ export default function HostView() {
   if (loading) {
     return (
       <div style={s.page}>
-        <div style={s.topBar}>
-          <span style={s.roomCodeBig}>{roomCode}</span>
-        </div>
+        <HostTopBar
+          roomCode={roomCode}
+          playerCount={0}
+          connectionState={connectionState}
+          aiEnabled={aiEnabled}
+          settled={settled}
+          hasHostAuthority={hasHostAuthority}
+          hostAuthorityNoticeId={hostAuthorityNoticeId}
+          settleButtonRef={settleButtonRef}
+          onToggleAI={handleToggleAI}
+          onOpenSettle={() => setShowSettleModal(true)}
+          showStatus={false}
+          showActions={false}
+        />
         <div style={s.layout}>
           <div style={s.leftCol}>
             <SkeletonChart />
@@ -181,88 +194,21 @@ export default function HostView() {
 
   return (
     <div style={s.page}>
-      {/* Top Bar */}
-      <div style={s.topBar}>
-        <div style={s.topBarLeft}>
-          <span style={s.roomCodeBig}>{roomCode}</span>
-          <span style={s.playerCount} data-testid="host-player-count">
-            <Users size={14} /> {players.length} player{players.length !== 1 ? 's' : ''}
-          </span>
-          <ConnectionIndicator state={connectionState} />
-        </div>
-        <div style={s.topBarRight}>
-          {roomCode && (
-            <>
-              <Link
-                to={`/review/${roomCode}`}
-                style={s.controlLink}
-                data-testid="host-review-link"
-              >
-                <FileSearch size={14} aria-hidden="true" /> Review
-              </Link>
-              <Link
-                to={`/recap/${roomCode}`}
-                style={s.controlLink}
-                data-testid="host-recap-link"
-              >
-                <Share2 size={14} aria-hidden="true" /> Recap
-              </Link>
-            </>
-          )}
-          {!settled && (
-            <>
-              <button
-                style={{
-                  ...s.controlBtn,
-                  background: aiEnabled ? 'var(--accent-primary)' : 'var(--bg-input)',
-                  color: aiEnabled ? '#fff' : 'var(--text-secondary)',
-                  opacity: hasHostAuthority ? 1 : 0.45,
-                }}
-                onClick={handleToggleAI}
-                aria-label={`AI bot ${aiEnabled ? 'enabled' : 'disabled'}`}
-                aria-pressed={aiEnabled}
-                aria-describedby={!hasHostAuthority ? hostAuthorityNoticeId : undefined}
-                disabled={!hasHostAuthority}
-                title={hasHostAuthority ? undefined : 'Host authority missing for this room'}
-              >
-                <Bot size={14} /> AI {aiEnabled ? 'ON' : 'OFF'}
-              </button>
-              <button
-                ref={settleButtonRef}
-                style={{
-                  ...s.controlBtn,
-                  background: 'var(--accent-warning)',
-                  color: '#fff',
-                  opacity: hasHostAuthority ? 1 : 0.45,
-                }}
-                onClick={() => setShowSettleModal(true)}
-                aria-describedby={!hasHostAuthority ? hostAuthorityNoticeId : undefined}
-                disabled={!hasHostAuthority}
-                title={hasHostAuthority ? undefined : 'Host authority missing for this room'}
-              >
-                <Gavel size={14} /> Settle
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <HostTopBar
+        roomCode={roomCode}
+        playerCount={players.length}
+        connectionState={connectionState}
+        aiEnabled={aiEnabled}
+        settled={settled}
+        hasHostAuthority={hasHostAuthority}
+        hostAuthorityNoticeId={hostAuthorityNoticeId}
+        settleButtonRef={settleButtonRef}
+        onToggleAI={handleToggleAI}
+        onOpenSettle={() => setShowSettleModal(true)}
+      />
 
       {!settled && !hasHostAuthority && (
-        <div
-          id={hostAuthorityNoticeId}
-          style={s.hostAuthorityNotice}
-          role="status"
-          aria-live="polite"
-          data-testid="host-authority-warning"
-        >
-          <ShieldAlert size={16} color="#8A4E00" aria-hidden="true" />
-          <div>
-            <div style={s.hostAuthorityTitle}>Host controls unavailable</div>
-            <div style={s.hostAuthorityText}>
-              Open the original host browser session for this room. AI and settlement controls require host authority.
-            </div>
-          </div>
-        </div>
+        <HostAuthorityNotice id={hostAuthorityNoticeId} />
       )}
 
       {/* Main Layout */}
@@ -391,93 +337,6 @@ const s: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     background: 'var(--bg-primary)',
     color: 'var(--text-primary)',
-  },
-  loadingText: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100vh',
-    color: 'var(--text-muted)',
-    fontSize: 18,
-  },
-  topBar: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '10px 24px',
-    background: 'var(--bg-nav)',
-    borderBottom: '1px solid var(--border-subtle)',
-  },
-  topBarLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
-  roomCodeBig: {
-    fontSize: 20,
-    fontWeight: 800,
-    color: 'var(--accent-primary)',
-    letterSpacing: 4,
-  },
-  playerCount: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-    fontSize: 13,
-    color: 'var(--text-secondary)',
-  },
-  topBarRight: {
-    display: 'flex',
-    gap: 8,
-  },
-  hostAuthorityNotice: {
-    width: 'calc(100% - 48px)',
-    maxWidth: 1392,
-    boxSizing: 'border-box',
-    margin: '12px auto 0',
-    padding: '12px 14px',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 10,
-    background: '#FFF7E8',
-    border: '1px solid #C37B13',
-    borderRadius: 8,
-    color: 'var(--text-primary)',
-  },
-  hostAuthorityTitle: {
-    fontSize: 13,
-    fontWeight: 800,
-    marginBottom: 2,
-  },
-  hostAuthorityText: {
-    fontSize: 12,
-    lineHeight: 1.45,
-    color: 'var(--text-secondary)',
-  },
-  controlBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '8px 14px',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 8,
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  controlLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '8px 14px',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 8,
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: 'pointer',
-    color: 'var(--text-secondary)',
-    background: 'var(--bg-input)',
-    textDecoration: 'none',
   },
   layout: {
     display: 'grid',
