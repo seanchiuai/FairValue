@@ -21,7 +21,8 @@ import {
   saveMarketStudioDraft,
 } from '../lib/marketStudioDrafts';
 import { useToast } from '../contexts/ToastContext';
-import { AlertTriangle, CheckCircle2, Database, FileText, Home, LogIn, Plus, Save, Trash2, Users, WandSparkles } from 'lucide-react';
+import MarketStudioDraftCard from '../components/join/MarketStudioDraftCard';
+import { Database, FileText, Home, LogIn, Plus, Save, Trash2, Users, WandSparkles } from 'lucide-react';
 
 type RoomCreateResponse = {
   room_code?: string;
@@ -507,72 +508,15 @@ export default function JoinPage() {
             )}
 
             {studioDraft && (
-              <section style={styles.draftCard} aria-label="Generated market draft" data-testid="market-studio-draft">
-                <div style={styles.draftTopline}>
-                  <span style={styles.generatedPill}>
-                    <CheckCircle2 size={13} aria-hidden="true" />
-                    {studioDraft.provenance.confidence} confidence
-                  </span>
-                  <span style={styles.generatedSource}>{studioDraft.provenance.source}</span>
-                </div>
-                {studioDraft.property_id && (
-                  <div style={styles.linkedPropertyNote}>Linked to local property {studioDraft.property_id}</div>
-                )}
-                <h3 style={styles.draftQuestion}>{studioDraft.market_question}</h3>
-                <p style={styles.draftSummary}>{studioDraft.generated_summary}</p>
-
-                <div style={styles.field}>
-                  <label style={styles.label} htmlFor="studio-property-address">Generated Address</label>
-                  <input
-                    id="studio-property-address"
-                    style={styles.input}
-                    value={studioAddress}
-                    onChange={(e) => setStudioAddress(e.target.value)}
-                    aria-label="Generated property address"
-                    aria-describedby={studioErrorMessage ? studioErrorId : undefined}
-                    placeholder="Property address"
-                    maxLength={100}
-                  />
-                </div>
-                <div style={styles.field}>
-                  <label style={styles.label} htmlFor="studio-asking-price">Generated Asking Price ($)</label>
-                  <input
-                    id="studio-asking-price"
-                    style={styles.input}
-                    value={studioPrice}
-                    onChange={(e) => setStudioPrice(e.target.value)}
-                    aria-label="Generated asking price"
-                    aria-describedby={studioErrorMessage ? studioErrorId : undefined}
-                    placeholder="1,250,000"
-                    inputMode="numeric"
-                  />
-                </div>
-
-                <div style={styles.draftMetaGrid}>
-                  <span>{studioDraft.beds ? `${studioDraft.beds} beds` : 'Beds unknown'}</span>
-                  <span>{studioDraft.baths ? `${studioDraft.baths} baths` : 'Baths unknown'}</span>
-                  <span>{studioDraft.sqft ? `${studioDraft.sqft.toLocaleString()} sqft` : 'Sqft unknown'}</span>
-                  <span>{studioDraft.home_type || 'Type unknown'}</span>
-                </div>
-
-                <div style={styles.draftChecklist}>
-                  <div style={styles.draftSubhead}>Settlement evidence</div>
-                  <ul style={styles.draftList}>
-                    {studioDraft.evidence_required.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div style={styles.warningBox}>
-                  <AlertTriangle size={15} aria-hidden="true" />
-                  <div>
-                    {studioDraft.warnings.map((warning) => (
-                      <p key={warning} style={styles.warningText}>{warning}</p>
-                    ))}
-                  </div>
-                </div>
-              </section>
+              <MarketStudioDraftCard
+                draft={studioDraft}
+                address={studioAddress}
+                askingPrice={studioPrice}
+                errorId={studioErrorId}
+                errorMessage={studioErrorMessage}
+                onAddressChange={setStudioAddress}
+                onAskingPriceChange={setStudioPrice}
+              />
             )}
 
             {studioErrorMessage && <p id={studioErrorId} style={styles.error} role="alert">{studioErrorMessage}</p>}
@@ -912,95 +856,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: 'pointer',
     whiteSpace: 'nowrap' as const,
-  },
-  draftCard: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
-    padding: 16,
-    borderRadius: 20,
-    background: 'rgba(255,255,255,0.52)',
-    border: '1px solid rgba(0,0,0,0.08)',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.72), 0 8px 22px rgba(0,0,0,0.05)',
-  },
-  draftTopline: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    flexWrap: 'wrap' as const,
-  },
-  generatedPill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    padding: '5px 9px',
-    borderRadius: 980,
-    background: 'var(--accent-success-subtle)',
-    color: 'var(--accent-success)',
-    fontSize: 12,
-    fontWeight: 700,
-    textTransform: 'capitalize' as const,
-  },
-  generatedSource: {
-    color: 'var(--text-muted)',
-    fontSize: 12,
-  },
-  linkedPropertyNote: {
-    color: 'var(--accent-success)',
-    fontSize: 12,
-    fontWeight: 700,
-  },
-  draftQuestion: {
-    margin: 0,
-    color: 'var(--text-primary)',
-    fontSize: 19,
-    lineHeight: 1.25,
-  },
-  draftSummary: {
-    margin: 0,
-    color: 'var(--text-secondary)',
-    fontSize: 14,
-    lineHeight: 1.45,
-  },
-  draftMetaGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-    gap: 8,
-    color: 'var(--text-secondary)',
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  draftChecklist: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  },
-  draftSubhead: {
-    color: 'var(--text-primary)',
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  draftList: {
-    margin: 0,
-    paddingLeft: 18,
-    color: 'var(--text-secondary)',
-    fontSize: 13,
-    lineHeight: 1.45,
-  },
-  warningBox: {
-    display: 'flex',
-    gap: 10,
-    padding: 12,
-    borderRadius: 14,
-    background: 'var(--accent-warning-subtle)',
-    color: 'var(--accent-warning)',
-    border: '1px solid rgba(161,92,0,0.16)',
-  },
-  warningText: {
-    margin: '0 0 4px',
-    fontSize: 12,
-    lineHeight: 1.35,
   },
   error: {
     color: 'var(--accent-danger)',

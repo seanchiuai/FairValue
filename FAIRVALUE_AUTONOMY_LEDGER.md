@@ -86,9 +86,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Operator review and public recap now share `RoomArtifact` UI primitives plus co-located CSS for artifact page chrome, headers, status pills, metrics, panels, evidence rows, timelines, notices, lists, and mobile responsive behavior.
 - Player pre-bet intelligence now uses a dedicated `PreBetIntelligenceCard` component with co-located CSS, preserving LMSR preview copy, balance warnings, provenance, accessibility labels, and existing browser test IDs while shrinking the route-local inline style surface.
 - Host Live Room Intelligence now uses a dedicated `HostRoomIntelligencePanel` component with co-located CSS, preserving deterministic room-intelligence copy, provenance notes, accessible heading structure, icons, confidence state, and the existing `host-room-intelligence-panel` test hook.
+- Market Studio generated drafts now render through a dedicated `MarketStudioDraftCard` component with co-located CSS, preserving editable generated address/price fields, settlement-evidence lists, local-generation warnings, provenance, and the existing `market-studio-draft` browser test hook.
 
 ## Current Test Status
 
+- 2026-05-16 Market Studio Draft UI Component pass: `npm run typecheck` passed; focused `npm test -- marketDrafts marketStudioDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path including generated draft editing and host room creation; rendered mobile probe on backend `8081` / frontend `3081` opened `/join` at `390x844`, generated a draft from pasted listing text, verified the extracted draft-card text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-draft-component-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 737.85 kB / 760.00 kB, and `smoke:boot` room `DFRN`.
 - 2026-05-16 Host Room Intelligence UI Component pass: `npm run typecheck` passed; focused `npm test -- marketIntelligence` passed 1 file / 6 tests; focused Playwright passed the Market Studio draft-to-host-room path including Live Room Intelligence assertions and serious/critical axe coverage; rendered desktop probe on backend `8079` / frontend `3079` created room `ZS9X`, opened `/host/ZS9X` at `1440x900`, verified the extracted host-intelligence panel text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-host-intelligence-component-desktop.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 738.67 kB / 760.00 kB, and `smoke:boot` room `Y0YV`.
 - 2026-05-16 Player Pre-Bet UI Component pass: `npm run typecheck` passed; focused `npm test -- playerBetPreview` passed 1 file / 2 tests; focused Playwright passed the multiplayer room entry/settlement trust-language path including pre-bet assertions; rendered mobile probe on backend `8077` / frontend `3077` created room `9KGP`, joined `/play/9KGP` at `390x844`, verified the extracted pre-bet card text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-prebet-component-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 740.32 kB / 760.00 kB, and `smoke:boot` room `RUJZ`.
 - 2026-05-16 Room Artifact UI Foundation pass: `npm run typecheck` passed after extracting the shared component/CSS layer; focused Playwright passed 3 Chromium tests covering public recap privacy, Market Studio operator review, and settled operator review from the room flow; rendered visual probe on backend `8075` / frontend `3075` created settled room `S9IS`, verified `/review/S9IS` at `1440x900` and `/recap/S9IS` at `390x844` with no horizontal overflow and zero console/page issues, saving `/tmp/fairvalue-artifact-review-desktop.png` and `/tmp/fairvalue-artifact-recap-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 741.12 kB / 760.00 kB, and `smoke:boot` room `XQX0`.
@@ -191,7 +193,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Continue extracting the remaining `/join` UI into reusable primitives or co-located CSS modules so the Market Studio design does not add more long-lived inline-style sprawl.
+1. Continue extracting the remaining `/join` saved-draft, property-match, and pick/create/join UI into reusable primitives or co-located CSS modules so the Market Studio design does not add more long-lived inline-style sprawl.
 2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
 3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
@@ -201,6 +203,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 8. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Market Studio Draft UI Component
+
+- Extracted the generated Market Studio draft card into `MarketStudioDraftCard` with co-located CSS while preserving the deterministic `MarketDraft` contract.
+- Moved the card's editable generated address/price fields, confidence/provenance header, settlement evidence list, metadata grid, and warning copy out of `JoinPage`.
+- Preserved the `Generated market draft` accessibility label and `market-studio-draft` test hook so existing Market Studio browser coverage still exercises the generated draft surface.
+- Verified the slice with TypeScript, focused draft unit tests, focused Market Studio Playwright coverage, and a mobile rendered probe of `/join`.
 
 ### 2026-05-16 - Host Room Intelligence UI Component
 
