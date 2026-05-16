@@ -83,9 +83,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host rooms now link to `/review/:roomCode`, an operator-facing deterministic review surface that combines public room state with host-authorized event logs to compare draft audits, settlement evidence, live movement, integrity checks, timeline entries, and generated recap bullets.
 - Player rooms now include deterministic Pre-Bet Intelligence: a compact local LMSR read with one reason to believe, one reason to doubt, OVER/UNDER wager-impact previews, balance-capped warnings, and no-provider-comps provenance before the player taps a bet.
 - Host and settled player rooms now link to `/recap/:roomCode`, a share-safe public recap route that reads only public room state, summarizes live or settled LMSR movement, public activity, settlement result, and guardrails, and avoids host-only event logs plus host/user tokens.
+- Operator review and public recap now share `RoomArtifact` UI primitives plus co-located CSS for artifact page chrome, headers, status pills, metrics, panels, evidence rows, timelines, notices, lists, and mobile responsive behavior.
 
 ## Current Test Status
 
+- 2026-05-16 Room Artifact UI Foundation pass: `npm run typecheck` passed after extracting the shared component/CSS layer; focused Playwright passed 3 Chromium tests covering public recap privacy, Market Studio operator review, and settled operator review from the room flow; rendered visual probe on backend `8075` / frontend `3075` created settled room `S9IS`, verified `/review/S9IS` at `1440x900` and `/recap/S9IS` at `390x844` with no horizontal overflow and zero console/page issues, saving `/tmp/fairvalue-artifact-review-desktop.png` and `/tmp/fairvalue-artifact-recap-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 741.12 kB / 760.00 kB, and `smoke:boot` room `XQX0`.
 - 2026-05-16 Share-Safe Public Recap pass: focused `npm test -- publicRoomRecap` passed 1 file / 2 tests; `npm run typecheck` passed; focused Playwright passed the public recap route privacy/accessibility test; mobile visual probe on backend `8072` / frontend `3072` rendered settled room `Z7IM`, verified `/recap/Z7IM` at `390x844` with no horizontal overflow, no console/page issues, settlement evidence, no private-token text, and screenshot `/tmp/fairvalue-public-recap.png`; final full `npm run test:e2e:isolated` passed 33 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 747.00 kB / 760.00 kB, and `smoke:boot` room `JNS6`.
 - 2026-05-16 Player Pre-Bet Intelligence pass: focused `npm test -- playerBetPreview` passed 1 file / 2 tests after a retry from a Vitest worker-start timeout; `npm run typecheck` passed; focused Playwright passed 3 Chromium tests for player trust/pre-bet render, wager validation, and keyboard/mobile control paths; mobile visual probe on backend `8068` / frontend `3068` created room `FZNS`, rendered the pre-bet read, verified the `$25` OVER button stayed visible, and saved `/tmp/fairvalue-player-prebet-mobile.png`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 11 Vitest suites / 63 tests, production build, bundle budget with total JS 735.24 kB / 760.00 kB, and `smoke:boot` room `100V`.
 - 2026-05-16 Operator Review Route pass: focused `npm test -- roomReview marketIntelligence` passed 2 files / 8 tests; focused Market Studio/settlement Playwright passed paste listing -> create host room -> open operator review plus settled-room review assertions; targeted negative-path tail rerun passed 10 Chromium tests after investigating an earlier backend `ECONNREFUSED` run interruption; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 10 Vitest suites / 61 tests, production build, bundle budget with total JS 729.93 kB / 760.00 kB, and `smoke:boot` room `191L`.
@@ -185,7 +187,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Extract the touched `/join`, host intelligence, operator review, public recap, and pre-bet player UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence/Review/Recap/Player design does not add more long-lived inline-style sprawl.
+1. Continue extracting the remaining `/join`, host intelligence, and pre-bet player UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence/Player design does not add more long-lived inline-style sprawl.
 2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
 3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
@@ -195,6 +197,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 8. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Room Artifact UI Foundation
+
+- Added `RoomArtifact` primitives and co-located CSS for shared artifact page layout, header/status rails, notices, metric cards, panels, evidence rows, timeline rows, bullet lists, footer notes, and mobile responsiveness.
+- Refactored `/review/:roomCode` and `/recap/:roomCode` off large route-local style objects while preserving existing route data loading, host-authorized event loading, public-state-only recap behavior, test IDs, and accessibility labels.
+- Reduced duplicated inline page styling between operator review and public recap, and moved responsive artifact behavior into one CSS surface.
+- Verified the refactor with TypeScript, focused Playwright route coverage, desktop/mobile visual probes, and full `npm run verify`.
 
 ### 2026-05-16 - Share-Safe Public Recap
 
@@ -1223,6 +1232,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Cited local AI evidence verified `/host/RL7D` without `COGNEE_API_KEY` returns 200 from initialize/state/search, renders `Local AI analyst`, `Evidence used`, `Room market snapshot`, and `Limits`, keeps the AI conversation log keyboard-focusable, and has zero unexpected console/page issues in the rendered probe.
 - Player pre-bet evidence verified `/play/FZNS` renders the local LMSR pre-bet read before wagering with one reason to believe, one reason to doubt, OVER/UNDER share/probability previews, no-provider-comps provenance, compact fixed betting controls, zero page errors, and a mobile screenshot at `/tmp/fairvalue-player-prebet-mobile.png`.
 - Public recap evidence verified `/recap/Z7IM` renders a share-safe settled recap from public room state only with settlement result, public evidence, public timeline, simulation-credit/non-appraisal guardrails, no host/user token text, zero console/page issues, and a mobile screenshot at `/tmp/fairvalue-public-recap.png`.
+- Room artifact UI evidence verified the extracted shared artifact component renders `/review/S9IS` on desktop and `/recap/S9IS` on mobile with settlement evidence, public recap token non-leakage, no horizontal overflow, zero console/page issues, and screenshots at `/tmp/fairvalue-artifact-review-desktop.png` and `/tmp/fairvalue-artifact-recap-mobile.png`.
 
 ## Screenshots Or Traces
 
@@ -1251,6 +1261,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-ai-local-analyst-evidence.png`
 - `/tmp/fairvalue-player-prebet-mobile.png`
 - `/tmp/fairvalue-public-recap.png`
+- `/tmp/fairvalue-artifact-review-desktop.png`
+- `/tmp/fairvalue-artifact-recap-mobile.png`
 - `test-results/e2e-artifacts/negative-paths-join-route--02189-en-server-rate-limit-is-hit-chromium/trace.zip`
 - `test-results/e2e-artifacts/negative-paths-AI-analyst--293b5-instead-of-failing-silently-chromium/trace.zip`
 - `test-results/e2e-artifacts/negative-paths-AI-analyst--6e256-en-Cognee-is-not-configured-chromium/trace.zip`
@@ -1261,6 +1273,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Commits Made
 
+- `7882cd2` - Add public room recap.
+- `c01e84c` - Add player pre-bet intelligence.
+- `1b8940e` - Add operator room review.
+- `9c98d92` - Add room-aware market intelligence.
+- `a60d3f4` - Add market studio draft audit.
 - `7df90d6` - Harden AI boundary and realtime recovery.
 - `b1936cb` - Protect host-only room controls.
 - `baa8e98` - Align room code contract.
@@ -1369,7 +1386,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Next Action Queue
 
-1. Extract the touched `/join`, host intelligence, operator review, public recap, and pre-bet player UI into reusable primitives or co-located CSS modules to reduce inline-style sprawl.
+1. Continue extracting the remaining `/join`, host intelligence, and pre-bet player UI into reusable primitives or co-located CSS modules to reduce inline-style sprawl.
 2. Add deeper branch-level coverage for remaining validation and notification states, including pre-bet balance-capped previews.
 3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.

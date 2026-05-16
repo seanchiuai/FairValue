@@ -1,0 +1,310 @@
+.room-artifact-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 22px 24px 32px;
+}
+
+.room-artifact-loading {
+  min-height: 70vh;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+}
+
+.room-artifact-header {
+  max-width: 1180px;
+  margin: 0 auto 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 20px;
+}
+
+.room-artifact-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 14px;
+}
+
+.room-artifact-kicker {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  margin-bottom: 4px;
+}
+
+.room-artifact-title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.room-artifact-summary {
+  max-width: 820px;
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.room-artifact-status-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.room-artifact-status {
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.room-artifact-status--settled {
+  background: rgba(11, 111, 50, 0.12);
+  color: var(--accent-success);
+}
+
+.room-artifact-status--ready {
+  background: rgba(161, 92, 0, 0.13);
+  color: #704100;
+}
+
+.room-artifact-status--live {
+  background: rgba(0, 95, 204, 0.11);
+  color: var(--accent-primary);
+}
+
+.room-artifact-room-code {
+  color: var(--accent-primary);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 4px;
+}
+
+.room-artifact-notice {
+  max-width: 1180px;
+  margin: 0 auto 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.room-artifact-notice--locked {
+  padding: 12px;
+  gap: 9px;
+  border: 1px solid #C37B13;
+  border-radius: 8px;
+  background: #FFF7E8;
+  color: var(--text-primary);
+}
+
+.room-artifact-metric-grid {
+  max-width: 1180px;
+  margin: 0 auto 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.room-artifact-metric-card {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.room-artifact-metric-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.room-artifact-metric-value {
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.room-artifact-metric-detail {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.room-artifact-grid {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.room-artifact-panel {
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  min-width: 0;
+}
+
+.room-artifact-panel--hero {
+  max-width: 1180px;
+  margin: 0 auto 16px;
+}
+
+.room-artifact-panel-title {
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.room-artifact-evidence-list {
+  display: grid;
+  gap: 10px;
+}
+
+.room-artifact-evidence-item {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.room-artifact-evidence-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.room-artifact-evidence-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.room-artifact-evidence-value {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.room-artifact-evidence-detail {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.room-artifact-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.room-artifact-list--highlight {
+  font-size: 14px;
+}
+
+.room-artifact-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.room-artifact-timeline-item {
+  display: grid;
+  grid-template-columns: var(--room-artifact-sequence-width, 52px) 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.room-artifact-timeline--compact {
+  --room-artifact-sequence-width: 42px;
+}
+
+.room-artifact-sequence {
+  color: var(--accent-primary);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.room-artifact-timeline-label {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.room-artifact-timeline-detail {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.room-artifact-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.room-artifact-footer {
+  max-width: 1180px;
+  margin: 16px auto 0;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .room-artifact-page {
+    padding: 18px 16px 28px;
+  }
+
+  .room-artifact-header {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .room-artifact-title {
+    font-size: 25px;
+  }
+
+  .room-artifact-status-rail {
+    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .room-artifact-room-code {
+    font-size: 17px;
+  }
+}
