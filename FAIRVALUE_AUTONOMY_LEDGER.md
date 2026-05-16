@@ -84,9 +84,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Player rooms now include deterministic Pre-Bet Intelligence: a compact local LMSR read with one reason to believe, one reason to doubt, OVER/UNDER wager-impact previews, balance-capped warnings, and no-provider-comps provenance before the player taps a bet.
 - Host and settled player rooms now link to `/recap/:roomCode`, a share-safe public recap route that reads only public room state, summarizes live or settled LMSR movement, public activity, settlement result, and guardrails, and avoids host-only event logs plus host/user tokens.
 - Operator review and public recap now share `RoomArtifact` UI primitives plus co-located CSS for artifact page chrome, headers, status pills, metrics, panels, evidence rows, timelines, notices, lists, and mobile responsive behavior.
+- Player pre-bet intelligence now uses a dedicated `PreBetIntelligenceCard` component with co-located CSS, preserving LMSR preview copy, balance warnings, provenance, accessibility labels, and existing browser test IDs while shrinking the route-local inline style surface.
 
 ## Current Test Status
 
+- 2026-05-16 Player Pre-Bet UI Component pass: `npm run typecheck` passed; focused `npm test -- playerBetPreview` passed 1 file / 2 tests; focused Playwright passed the multiplayer room entry/settlement trust-language path including pre-bet assertions; rendered mobile probe on backend `8077` / frontend `3077` created room `9KGP`, joined `/play/9KGP` at `390x844`, verified the extracted pre-bet card text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-prebet-component-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 740.32 kB / 760.00 kB, and `smoke:boot` room `RUJZ`.
 - 2026-05-16 Room Artifact UI Foundation pass: `npm run typecheck` passed after extracting the shared component/CSS layer; focused Playwright passed 3 Chromium tests covering public recap privacy, Market Studio operator review, and settled operator review from the room flow; rendered visual probe on backend `8075` / frontend `3075` created settled room `S9IS`, verified `/review/S9IS` at `1440x900` and `/recap/S9IS` at `390x844` with no horizontal overflow and zero console/page issues, saving `/tmp/fairvalue-artifact-review-desktop.png` and `/tmp/fairvalue-artifact-recap-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 741.12 kB / 760.00 kB, and `smoke:boot` room `XQX0`.
 - 2026-05-16 Share-Safe Public Recap pass: focused `npm test -- publicRoomRecap` passed 1 file / 2 tests; `npm run typecheck` passed; focused Playwright passed the public recap route privacy/accessibility test; mobile visual probe on backend `8072` / frontend `3072` rendered settled room `Z7IM`, verified `/recap/Z7IM` at `390x844` with no horizontal overflow, no console/page issues, settlement evidence, no private-token text, and screenshot `/tmp/fairvalue-public-recap.png`; final full `npm run test:e2e:isolated` passed 33 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 747.00 kB / 760.00 kB, and `smoke:boot` room `JNS6`.
 - 2026-05-16 Player Pre-Bet Intelligence pass: focused `npm test -- playerBetPreview` passed 1 file / 2 tests after a retry from a Vitest worker-start timeout; `npm run typecheck` passed; focused Playwright passed 3 Chromium tests for player trust/pre-bet render, wager validation, and keyboard/mobile control paths; mobile visual probe on backend `8068` / frontend `3068` created room `FZNS`, rendered the pre-bet read, verified the `$25` OVER button stayed visible, and saved `/tmp/fairvalue-player-prebet-mobile.png`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 11 Vitest suites / 63 tests, production build, bundle budget with total JS 735.24 kB / 760.00 kB, and `smoke:boot` room `100V`.
@@ -187,7 +189,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Continue extracting the remaining `/join`, host intelligence, and pre-bet player UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence/Player design does not add more long-lived inline-style sprawl.
+1. Continue extracting the remaining `/join` and host intelligence UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence design does not add more long-lived inline-style sprawl.
 2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
 3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
@@ -197,6 +199,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 8. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Player Pre-Bet UI Component
+
+- Extracted the player room's pre-bet intelligence markup into `PreBetIntelligenceCard` with co-located CSS while preserving the deterministic `PlayerBetPreview` contract.
+- Removed the pre-bet card's route-local inline style objects from `PlayerView`, keeping `PlayerView` focused on identity, room state, and betting behavior.
+- Preserved the existing accessibility label and `player-prebet-*` test IDs so the multiplayer browser tests continue to exercise the same product surface.
+- Verified the slice with TypeScript, focused player-preview unit tests, focused Playwright multiplayer coverage, and a mobile rendered probe of `/play/:roomCode`.
 
 ### 2026-05-16 - Room Artifact UI Foundation
 

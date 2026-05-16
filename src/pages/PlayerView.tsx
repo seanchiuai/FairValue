@@ -10,6 +10,7 @@ import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
+import PreBetIntelligenceCard from '../components/player/PreBetIntelligenceCard';
 import { RateLimiter } from '../lib/rateLimiter';
 import { useToast } from '../contexts/ToastContext';
 
@@ -262,38 +263,7 @@ export default function PlayerView() {
         />
       </div>
 
-      {!settled && betPreview && (
-        <section
-          style={s.preBetCard}
-          aria-label="Pre-bet intelligence"
-          data-testid="player-prebet-intelligence"
-        >
-          <div style={s.preBetHeader}>
-            <span style={s.preBetKicker}>Pre-bet read</span>
-            <span style={s.preBetHeadline}>{betPreview.headline}</span>
-          </div>
-          <div style={s.preBetReasons}>
-            <p style={s.preBetReason} data-testid="player-prebet-believe">
-              <strong>Reason to believe:</strong> {betPreview.reason_to_believe}
-            </p>
-            <p style={s.preBetReason} data-testid="player-prebet-doubt">
-              <strong>Reason to doubt:</strong> {betPreview.reason_to_doubt}
-            </p>
-          </div>
-          <div style={s.previewGrid}>
-            <span style={s.previewChip} data-testid="player-prebet-over">
-              {betPreview.outcomes.over.summary}
-            </span>
-            <span style={s.previewChip} data-testid="player-prebet-under">
-              {betPreview.outcomes.under.summary}
-            </span>
-          </div>
-          {betPreview.balance_warning && (
-            <div style={s.previewWarning}>{betPreview.balance_warning}</div>
-          )}
-          <div style={s.previewProvenance}>{betPreview.provenance}</div>
-        </section>
-      )}
+      {!settled && betPreview && <PreBetIntelligenceCard preview={betPreview} />}
 
       {/* Settle Result */}
       {settled && settleResult && (
@@ -652,73 +622,6 @@ const s: Record<string, React.CSSProperties> = {
     padding: '12px 16px',
     paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
     zIndex: 200,
-  },
-  preBetCard: {
-    margin: '0 16px 12px',
-    padding: '12px',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 8,
-    background: 'var(--bg-surface)',
-    color: 'var(--text-primary)',
-  },
-  preBetHeader: {
-    display: 'grid',
-    gap: 3,
-    marginBottom: 7,
-  },
-  preBetKicker: {
-    color: 'var(--text-muted)',
-    fontSize: 10,
-    lineHeight: 1.2,
-    fontWeight: 900,
-    textTransform: 'uppercase',
-    letterSpacing: 0,
-  },
-  preBetHeadline: {
-    color: 'var(--text-primary)',
-    fontSize: 12,
-    lineHeight: 1.25,
-    fontWeight: 800,
-  },
-  preBetReasons: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-    gap: 7,
-    marginBottom: 8,
-  },
-  preBetReason: {
-    margin: 0,
-    color: 'var(--text-secondary)',
-    fontSize: 11,
-    lineHeight: 1.35,
-    minWidth: 0,
-  },
-  previewGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
-    gap: 6,
-  },
-  previewChip: {
-    display: 'block',
-    padding: '7px 8px',
-    borderRadius: 7,
-    background: 'var(--bg-input)',
-    color: 'var(--text-secondary)',
-    fontSize: 11,
-    lineHeight: 1.3,
-    minWidth: 0,
-  },
-  previewWarning: {
-    marginTop: 6,
-    color: 'var(--accent-warning)',
-    fontSize: 11,
-    lineHeight: 1.3,
-  },
-  previewProvenance: {
-    marginTop: 6,
-    color: 'var(--text-muted)',
-    fontSize: 10,
-    lineHeight: 1.3,
   },
   betError: {
     color: 'var(--accent-danger)',
