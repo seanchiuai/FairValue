@@ -1,5 +1,5 @@
 import type { Property } from '../../data/properties';
-import { generateMarketIntelligence } from '../marketIntelligence';
+import { generateMarketIntelligence, generateRoomMarketIntelligence } from '../marketIntelligence';
 
 const baseProperty: Property = {
   id: 'sf-brief',
@@ -111,5 +111,117 @@ describe('market intelligence generation', () => {
         'The listing description is sparse; inspect disclosures and photos before treating the market as informed.',
       ])
     );
+  });
+});
+
+describe('room-aware market intelligence generation', () => {
+  const baseRoom = {
+    house: {
+      address: '3004 26th St',
+      asking_price: 800_000,
+    },
+    market: {
+      prob_over: 0.62,
+      prob_under: 0.38,
+      q_over: 24,
+      q_under: 6,
+      total_trades: 4,
+      total_wagered: 180,
+      avg_bet_size: 45,
+      b: 100,
+    },
+    players: [
+      { session_id: 'host', nickname: 'Host', balance: 1000, bets: [] },
+      { session_id: 'ada', nickname: 'Ada', balance: 950, bets: [] },
+      { session_id: 'lin', nickname: 'Lin', balance: 975, bets: [] },
+    ],
+    activity: [
+      { type: 'join', nickname: 'Ada', timestamp: 1 },
+      { type: 'bet', nickname: 'Ada', outcome: 'over', wager: 50, timestamp: 2 },
+      { type: 'bet', nickname: 'Lin', outcome: 'under', wager: 25, timestamp: 3 },
+    ],
+    draftAudit: {
+      schema_version: 'market-draft-audit/v1',
+      source_type: 'existing_property',
+      property_id: '440298192',
+      normalized_fields: {
+        address: '3004 26th St',
+        city: 'San Francisco',
+        state: 'CA',
+        zip: '94110',
+        asking_price: 800_000,
+        beds: 3,
+        baths: 2,
+        sqft: 1200,
+        home_type: 'Single Family',
+      },
+      provenance: {
+        source: 'Local property dataset match',
+        confidence: 'high' as const,
+        matchedSignals: ['existing property', 'street address', 'asking price'],
+      },
+      market_question: 'Will 3004 26th St appraise above $800,000?',
+      market_format: 'binary_over_under',
+      liquidity_b: 100,
+      settlement_rule: 'Settle using final sale price, appraisal, or host-provided valuation evidence.',
+      evidence_required: [
+        'Final sale price, appraisal report, or signed valuation evidence.',
+        'Original listing snapshot with asking price and property facts.',
+      ],
+      generated_summary: 'Matched local property draft.',
+      warnings: ['Settlement still requires final evidence.'],
+      source_text_hash: 'a'.repeat(64),
+      source_text_length: 120,
+      validation: {
+        status: 'accepted',
+        checked_at: 1778900000,
+        issues: [],
+      },
+    },
+  };
+
+  it('combines live LMSR flow, players, bets, and draft audit provenance', () => {
+    const brief = generateRoomMarketIntelligence(baseRoom);
+
+    expect(brief.confidence).toBe('high');
+    expect(brief.provider_status).toBe('local_fallback');
+    expect(brief.summary).toContain('62% over');
+    expect(brief.summary).toContain('linked local property 440298192');
+    expect(brief.summary).toContain('No provider-backed comps were queried');
+    expect(brief.live_metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Live consensus', value: '62% over', tone: 'positive' }),
+        expect.objectContaining({ label: 'Room liquidity', value: '4 trades' }),
+        expect.objectContaining({ label: 'Draft audit', value: 'Accepted', tone: 'positive' }),
+      ])
+    );
+    expect(brief.movement_explanations.join(' ')).toContain('Ada pushed OVER with $50');
+    expect(brief.movement_explanations.join(' ')).toContain('Lin pushed UNDER with $25');
+    expect(brief.provenance_notes).toContain('No provider-backed comps were queried for this panel.');
+  });
+
+  it('falls back honestly when no draft audit or bet flow exists yet', () => {
+    const brief = generateRoomMarketIntelligence({
+      ...baseRoom,
+      market: { ...baseRoom.market, prob_over: 0.5, prob_under: 0.5, total_trades: 0, total_wagered: 0 },
+      players: [baseRoom.players[0]],
+      activity: [],
+      draftAudit: null,
+    });
+
+    expect(brief.confidence).toBe('low');
+    expect(brief.summary).toContain('this room is trading at 50% over');
+    expect(brief.summary).toContain('room address and asking price only');
+    expect(brief.live_metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Draft audit', value: 'Not attached', tone: 'caution' }),
+        expect.objectContaining({ label: 'Room liquidity', value: '0 trades', tone: 'caution' }),
+      ])
+    );
+    expect(brief.live_metrics.find((metric) => metric.label === 'Room liquidity')?.detail).toContain('$0');
+    expect(brief.movement_explanations).toContain(
+      'No player bets have landed yet; current probability is still close to the LMSR starting point.'
+    );
+    expect(brief.settlement_checklist).toContain('Confirmation that all balances are simulation credits only.');
   });
 });

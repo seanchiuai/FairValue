@@ -270,6 +270,13 @@ test('market studio generates a draft and creates a host room from pasted listin
   await expect(page.getByTestId('host-draft-audit-note')).toContainText('Local property dataset match');
   await expect(page.getByTestId('host-draft-audit-note')).toContainText('Linked property: 440298192');
   await expect(page.getByTestId('host-draft-audit-note')).toContainText('Server-validated draft metadata');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Live Room Intelligence');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('linked local property 440298192');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Draft audit');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Accepted');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Movement read');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('No player bets have landed yet');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('No provider-backed comps were queried');
   await expectNoSeriousAxeViolations(page, 'market studio host draft audit');
   await expectConnected(page);
 });
