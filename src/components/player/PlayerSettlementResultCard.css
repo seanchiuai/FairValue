@@ -1,0 +1,76 @@
+.player-settlement-result {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 16px;
+  padding: 20px;
+  text-align: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.player-settlement-result__title {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.player-settlement-result__detail {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.player-settlement-result__outcome {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.player-settlement-result__outcome--over,
+.player-settlement-result__payout--positive {
+  color: var(--accent-success);
+}
+
+.player-settlement-result__outcome--under {
+  color: var(--accent-danger);
+}
+
+.player-settlement-result__recap-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 12px;
+  color: var(--accent-primary);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.player-settlement-result__rows {
+  width: 100%;
+}
+
+.player-settlement-result__row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.player-settlement-result__payout {
+  font-weight: 700;
+}
+
+.player-settlement-result__payout--empty {
+  color: var(--text-muted);
+}

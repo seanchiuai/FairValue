@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
 import { generatePlayerBetPreview } from '../lib/playerBetPreview';
-import { TrendingUp, TrendingDown, DollarSign, Trophy, Share2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import PreBetIntelligenceCard from '../components/player/PreBetIntelligenceCard';
+import PlayerSettlementResultCard from '../components/player/PlayerSettlementResultCard';
 import { RateLimiter } from '../lib/rateLimiter';
 import { useToast } from '../contexts/ToastContext';
 
@@ -265,50 +266,8 @@ export default function PlayerView() {
 
       {!settled && betPreview && <PreBetIntelligenceCard preview={betPreview} />}
 
-      {/* Settle Result */}
       {settled && settleResult && (
-        <div style={s.settleCard} data-testid="player-settlement-result">
-          <Trophy size={24} color="var(--accent-warning)" />
-          <div style={s.settleTitle}>Market Settled</div>
-          <div style={s.settleDetail}>
-            Actual price: ${settleResult.actual_price.toLocaleString()}
-          </div>
-          <div
-            style={{
-              ...s.settleOutcome,
-              color:
-                settleResult.winning_outcome === 'over'
-                  ? 'var(--accent-success)'
-                  : 'var(--accent-danger)',
-            }}
-          >
-            {settleResult.winning_outcome.toUpperCase()} wins!
-          </div>
-          <TrustNotice
-            testId="player-settlement-trust-notice"
-            title="Settlement recap"
-            compact
-            tone="dark"
-            points={[
-              'Payouts are simulation credits only.',
-              'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
-              'The room event history preserves this outcome for replay.',
-            ]}
-          />
-          {roomCode && (
-            <Link to={`/recap/${roomCode}`} style={s.settleRecapLink} data-testid="player-recap-link">
-              <Share2 size={15} aria-hidden="true" /> View public recap
-            </Link>
-          )}
-          {settleResult.results.map((r) => (
-            <div key={r.nickname} style={s.resultRow}>
-              <span>{r.nickname}</span>
-              <span style={{ color: r.payout > 0 ? 'var(--accent-success)' : 'var(--text-muted)' }}>
-                {r.payout > 0 ? `+$${r.payout.toFixed(0)}` : '$0'}
-              </span>
-            </div>
-          ))}
-        </div>
+        <PlayerSettlementResultCard roomCode={roomCode} settleResult={settleResult} />
       )}
 
       {/* Market State */}
@@ -683,55 +642,6 @@ const s: Record<string, React.CSSProperties> = {
   },
   underBtn: {
     background: 'var(--accent-danger)',
-  },
-  settleCard: {
-    margin: '12px 16px',
-    padding: 20,
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 12,
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-  },
-  settleTitle: {
-    fontSize: 18,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-  },
-  settleDetail: {
-    fontSize: 14,
-    color: 'var(--text-secondary)',
-  },
-  settleOutcome: {
-    fontSize: 22,
-    fontWeight: 800,
-  },
-  settleRecapLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    width: '100%',
-    padding: '10px 12px',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 8,
-    background: 'var(--bg-input)',
-    color: 'var(--accent-primary)',
-    fontSize: 13,
-    fontWeight: 800,
-    textDecoration: 'none',
-  },
-  resultRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    width: '100%',
-    padding: '6px 0',
-    borderTop: '1px solid var(--border-subtle)',
-    fontSize: 14,
-    color: 'var(--text-primary)',
   },
   joinContainer: {
     display: 'flex',
