@@ -460,6 +460,12 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
     await expect(player.getByTestId('player-room-trust-notice')).toContainText('simulation credits only');
     await expect(player.getByTestId('player-room-trust-notice')).toContainText('LMSR probability');
     await expect(player.getByTestId('player-room-trust-notice')).toContainText('host settles');
+    await expect(player.getByTestId('player-prebet-intelligence')).toContainText('Pre-bet read');
+    await expect(player.getByTestId('player-prebet-believe')).toContainText('Reason to believe');
+    await expect(player.getByTestId('player-prebet-doubt')).toContainText('Reason to doubt');
+    await expect(player.getByTestId('player-prebet-over')).toContainText('OVER');
+    await expect(player.getByTestId('player-prebet-under')).toContainText('UNDER');
+    await expect(player.getByTestId('player-prebet-intelligence')).toContainText('No external comps were queried');
 
     await host.getByRole('button', { name: /Settle/ }).click();
     await expect(host.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
