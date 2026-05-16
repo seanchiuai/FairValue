@@ -12,13 +12,14 @@ import Leaderboard from '../components/host/Leaderboard';
 import ActivityFeed from '../components/host/ActivityFeed';
 import SettleModal from '../components/host/SettleModal';
 import QRCard from '../components/host/QRCard';
+import HostRoomIntelligencePanel from '../components/host/HostRoomIntelligencePanel';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
-import { Users, Bot, Gavel, Trophy, ShieldAlert, Sparkles, Target, ListChecks, TrendingUp, FileSearch, Share2 } from 'lucide-react';
+import { Users, Bot, Gavel, Trophy, ShieldAlert, FileSearch, Share2 } from 'lucide-react';
 
 const hostAuthorityNoticeId = 'host-authority-warning';
 
@@ -305,80 +306,7 @@ export default function HostView() {
           )}
 
           {!showSettleModal && roomIntelligence && (
-            <section
-              style={s.roomIntelligenceCard}
-              aria-label="Live Room Intelligence"
-              data-testid="host-room-intelligence-panel"
-            >
-              <div style={s.roomIntelligenceHead}>
-                <div>
-                  <div style={s.roomIntelligenceTitle}>
-                    <Sparkles size={16} aria-hidden="true" /> Live Room Intelligence
-                  </div>
-                  <p style={s.roomIntelligenceSummary}>{roomIntelligence.summary}</p>
-                </div>
-                <span style={{
-                  ...s.roomIntelligenceBadge,
-                  ...(roomIntelligence.confidence === 'high'
-                    ? s.roomIntelligenceBadgeHigh
-                    : roomIntelligence.confidence === 'medium'
-                      ? s.roomIntelligenceBadgeMedium
-                      : s.roomIntelligenceBadgeLow),
-                }}>
-                  {roomIntelligence.confidence} confidence
-                </span>
-              </div>
-
-              <div style={s.roomIntelligenceMetrics}>
-                {roomIntelligence.live_metrics.map((metric) => (
-                  <div key={metric.label} style={s.roomIntelligenceMetric}>
-                    <span style={s.roomMetricLabel}>{metric.label}</span>
-                    <span style={s.roomMetricValue}>{metric.value}</span>
-                    <span style={s.roomMetricDetail}>{metric.detail}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={s.roomIntelligenceMovement}>
-                <h3 style={s.roomIntelligenceSubtitle}>
-                  <TrendingUp size={15} aria-hidden="true" /> Movement read
-                </h3>
-                <ul style={s.roomIntelligenceList}>
-                  {roomIntelligence.movement_explanations.map((item, index) => (
-                    <li key={`movement-${index}-${item}`}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div style={s.roomIntelligenceColumns}>
-                <div style={s.roomIntelligenceColumn}>
-                  <h3 style={s.roomIntelligenceSubtitle}>
-                    <Target size={15} aria-hidden="true" /> Pressure points
-                  </h3>
-                  <ul style={s.roomIntelligenceList}>
-                    {roomIntelligence.pressure_points.slice(0, 3).map((item, index) => (
-                      <li key={`pressure-${index}-${item}`}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div style={s.roomIntelligenceColumn}>
-                  <h3 style={s.roomIntelligenceSubtitle}>
-                    <ListChecks size={15} aria-hidden="true" /> Host script
-                  </h3>
-                  <ul style={s.roomIntelligenceList}>
-                    {roomIntelligence.host_script.map((item, index) => (
-                      <li key={`script-${index}-${item}`}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <div style={s.roomIntelligenceFooter}>
-                {roomIntelligence.provenance_notes.map((note, index) => (
-                  <span key={`provenance-${index}-${note}`}>{note}</span>
-                ))}
-              </div>
-            </section>
+            <HostRoomIntelligencePanel intelligence={roomIntelligence} />
           )}
 
           <TrustNotice
@@ -637,124 +565,6 @@ const s: Record<string, React.CSSProperties> = {
     color: 'var(--text-secondary)',
     fontSize: 12,
     lineHeight: 1.45,
-  },
-  roomIntelligenceCard: {
-    padding: 16,
-    background: 'var(--bg-surface)',
-    border: '1px solid rgba(75,163,255,0.28)',
-    borderRadius: 10,
-  },
-  roomIntelligenceHead: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 14,
-    marginBottom: 14,
-  },
-  roomIntelligenceTitle: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    fontSize: 15,
-    fontWeight: 800,
-    marginBottom: 6,
-  },
-  roomIntelligenceSummary: {
-    margin: 0,
-    color: 'var(--text-secondary)',
-    fontSize: 12,
-    lineHeight: 1.5,
-  },
-  roomIntelligenceBadge: {
-    flex: '0 0 auto',
-    padding: '5px 9px',
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 800,
-    textTransform: 'uppercase',
-  },
-  roomIntelligenceBadgeHigh: {
-    background: 'rgba(59,167,118,0.16)',
-    color: 'var(--accent-success)',
-  },
-  roomIntelligenceBadgeMedium: {
-    background: 'rgba(255,184,77,0.16)',
-    color: '#704100',
-  },
-  roomIntelligenceBadgeLow: {
-    background: 'rgba(255,94,94,0.14)',
-    color: '#9A0010',
-  },
-  roomIntelligenceMetrics: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: 10,
-    marginBottom: 14,
-  },
-  roomIntelligenceMetric: {
-    padding: 10,
-    background: 'var(--bg-input)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 8,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-    minWidth: 0,
-  },
-  roomMetricLabel: {
-    color: 'var(--text-muted)',
-    fontSize: 10,
-    fontWeight: 800,
-    textTransform: 'uppercase',
-  },
-  roomMetricValue: {
-    color: 'var(--text-primary)',
-    fontSize: 15,
-    fontWeight: 800,
-  },
-  roomMetricDetail: {
-    color: 'var(--text-secondary)',
-    fontSize: 11,
-    lineHeight: 1.35,
-  },
-  roomIntelligenceMovement: {
-    padding: 12,
-    marginBottom: 14,
-    background: 'rgba(75,163,255,0.07)',
-    border: '1px solid rgba(75,163,255,0.16)',
-    borderRadius: 8,
-  },
-  roomIntelligenceColumns: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: 12,
-  },
-  roomIntelligenceColumn: {
-    minWidth: 0,
-  },
-  roomIntelligenceSubtitle: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    margin: '0 0 8px',
-    fontSize: 12,
-    fontWeight: 800,
-    color: 'var(--text-primary)',
-  },
-  roomIntelligenceList: {
-    margin: 0,
-    paddingLeft: 18,
-    color: 'var(--text-secondary)',
-    fontSize: 12,
-    lineHeight: 1.45,
-  },
-  roomIntelligenceFooter: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
-    color: 'var(--text-muted)',
-    fontSize: 11,
   },
   probBig: {
     display: 'flex',
