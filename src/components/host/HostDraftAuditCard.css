@@ -1,0 +1,40 @@
+.host-draft-audit {
+  padding: 16px;
+  background: rgba(0, 95, 204, 0.08);
+  border: 1px solid rgba(0, 95, 204, 0.18);
+  border-radius: 8px;
+}
+
+.host-draft-audit__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.host-draft-audit__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.host-draft-audit__question {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.host-draft-audit__text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
