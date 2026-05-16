@@ -90,9 +90,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Market Studio saved drafts and existing-property matches now render through dedicated `MarketStudioSavedDrafts` and `MarketStudioMatches` components with co-located CSS, preserving load/delete/use-match controls and the existing `market-studio-saved-drafts` / `market-studio-matches` browser test hooks.
 - `/join` pick, create-room, and join-room chrome now render through `JoinModePicker`, `CreateRoomForm`, and `JoinRoomForm` components with co-located CSS, preserving labels, validation IDs, autofocus, room-code normalization, disabled/loading states, and the existing create/join navigation flows.
 - Market Studio's host/source/generate/match/save/create form shell now renders through `MarketStudioForm` with co-located CSS, preserving local draft generation, saved draft handling, existing-property matching, draft editing, validation/error wiring, and host room creation while shrinking `JoinPage` to route orchestration.
+- `/join` page chrome now renders through `JoinPageShell` with co-located CSS, preserving the FairValue logo/header, Studio-width container expansion, Browse Markets footer action, and mobile responsive frame while removing the last route-local style object from `JoinPage`.
 
 ## Current Test Status
 
+- 2026-05-16 Join Page Shell pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio, expanded accessibility, and keyboard/screen-reader-adjacent specs with rooms `S4KR`, `3UVC`, and `VN0I`; rendered mobile probe on backend `8090` / frontend `3090` opened `/join` at `390x844`, verified pick/create/join/studio shell states, Studio container expansion, Browse Markets footer text, `ab12` to `AB12` room-code normalization, no active alerts, no console errors beyond the expected React DevTools info line, and no horizontal overflow with screenshot `/tmp/fairvalue-join-page-shell-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.11 kB / 760.00 kB, and `smoke:boot` room `2USE`.
 - 2026-05-16 Market Studio Form Shell pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path with room `406B`; rendered mobile probe on backend `8088` / frontend `3088` opened `/join` at `390x844`, generated a matching draft for `3004 26th St`, used the local property, saved the draft, verified draft/match/saved panel text, no active alerts, no console errors beyond the expected React DevTools info line, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-form-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.70 kB / 760.00 kB, and `smoke:boot` room `YIXT`.
 - 2026-05-16 Join Entry UI Component pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright batch passed Market Studio and keyboard/screen-reader-adjacent specs while the expanded accessibility spec timed out during context close, then a single-spec rerun of expanded routes/forms/modal accessibility passed in 8.3s; rendered mobile probe on backend `8086` / frontend `3086` opened `/join` at `390x844`, verified the extracted picker, create form values, join form values, `ab12` to `AB12` room-code normalization, no active alerts, no failed resources, and no horizontal overflow with screenshot `/tmp/fairvalue-join-entry-components-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 737.39 kB / 760.00 kB, and `smoke:boot` room `JJ9P`.
 - 2026-05-16 Market Studio Saved/Match UI Component pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path covering existing-property match use and saved draft creation; rendered mobile probe on backend `8083` / frontend `3083` opened `/join` at `390x844`, generated a matching draft for `3004 26th St`, used the local property, saved the draft, verified match/saved panel text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-panels-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.54 kB / 760.00 kB, and `smoke:boot` room `SS91`.
@@ -199,16 +201,22 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Continue extracting the remaining shared `/join` page chrome into reusable primitives or co-located CSS modules so the room-entry route does not keep long-lived inline-style sprawl.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
-3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-5. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
-6. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-8. Run `npm run check:production` against the actual deployment environment once production env values are available.
+1. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
+2. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
+3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+4. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
+5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+6. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Join Page Shell
+
+- Extracted the `/join` route chrome into `JoinPageShell` with co-located CSS, preserving the logo/header, responsive glass frame, Studio-width expansion, and Browse Markets footer action.
+- Removed the last route-local style object and lucide icon ownership from `JoinPage`, leaving it focused on room creation, Market Studio state, identity, validation, and navigation orchestration.
+- Verified all pick/create/join/studio shell states at mobile width, including the footer, Studio expanded class, room-code normalization, no active alerts, and no horizontal overflow.
+- Verified the slice with TypeScript, focused draft/storage unit tests, focused route accessibility/keyboard/Market Studio Playwright specs, a mobile rendered probe of `/join`, and the full `npm run verify` gate.
 
 ### 2026-05-16 - Market Studio Form Shell
 

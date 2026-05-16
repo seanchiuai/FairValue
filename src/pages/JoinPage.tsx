@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
@@ -23,9 +23,9 @@ import {
 import { useToast } from '../contexts/ToastContext';
 import CreateRoomForm from '../components/join/CreateRoomForm';
 import JoinModePicker, { type JoinModePickerMode } from '../components/join/JoinModePicker';
+import JoinPageShell from '../components/join/JoinPageShell';
 import JoinRoomForm from '../components/join/JoinRoomForm';
 import MarketStudioForm from '../components/join/MarketStudioForm';
-import { Home, Users } from 'lucide-react';
 
 type RoomCreateResponse = {
   room_code?: string;
@@ -324,139 +324,71 @@ export default function JoinPage() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={{ ...styles.container, ...(mode === 'studio' ? styles.studioContainer : null) }}>
-        <div style={styles.logo}>
-          <Home size={32} color="var(--accent-primary)" />
-          <h1 style={styles.title}>FairValue</h1>
-          <p style={styles.subtitle}>Real Estate Prediction Market</p>
-        </div>
+    <JoinPageShell expanded={mode === 'studio'} onBrowseMarkets={() => navigate('/')}>
+      {mode === 'pick' && <JoinModePicker onSelect={setMode} />}
 
-        {mode === 'pick' && <JoinModePicker onSelect={setMode} />}
+      {mode === 'create' && (
+        <CreateRoomForm
+          name={name}
+          address={address}
+          askingPrice={askingPrice}
+          errorId={createErrorId}
+          errorMessage={createErrorMessage}
+          submitting={submitting}
+          identityLoading={identityLoading}
+          isFieldInvalid={createFieldInvalid}
+          onNameChange={setName}
+          onAddressChange={setAddress}
+          onAskingPriceChange={setAskingPrice}
+          onSubmit={handleCreate}
+          onBack={returnToPicker}
+        />
+      )}
 
-        {mode === 'create' && (
-          <CreateRoomForm
-            name={name}
-            address={address}
-            askingPrice={askingPrice}
-            errorId={createErrorId}
-            errorMessage={createErrorMessage}
-            submitting={submitting}
-            identityLoading={identityLoading}
-            isFieldInvalid={createFieldInvalid}
-            onNameChange={setName}
-            onAddressChange={setAddress}
-            onAskingPriceChange={setAskingPrice}
-            onSubmit={handleCreate}
-            onBack={returnToPicker}
-          />
-        )}
+      {mode === 'studio' && (
+        <MarketStudioForm
+          savedDrafts={savedDrafts}
+          name={name}
+          studioText={studioText}
+          studioDraft={studioDraft}
+          studioAddress={studioAddress}
+          studioPrice={studioPrice}
+          propertyMatches={propertyMatches}
+          matchingProperties={matchingProperties}
+          errorId={studioErrorId}
+          errorMessage={studioErrorMessage}
+          submitting={submitting}
+          identityLoading={identityLoading}
+          onSavedDraftLoad={handleLoadSavedDraft}
+          onSavedDraftDelete={handleDeleteSavedDraft}
+          onNameChange={setName}
+          onStudioTextChange={setStudioText}
+          onGenerateDraft={handleGenerateDraft}
+          onUsePropertyMatch={handleUsePropertyMatch}
+          onDraftAddressChange={setStudioAddress}
+          onDraftAskingPriceChange={setStudioPrice}
+          onSaveDraft={handleSaveDraft}
+          onCreateRoom={handleStudioCreate}
+          onBack={returnToPicker}
+        />
+      )}
 
-        {mode === 'studio' && (
-          <MarketStudioForm
-            savedDrafts={savedDrafts}
-            name={name}
-            studioText={studioText}
-            studioDraft={studioDraft}
-            studioAddress={studioAddress}
-            studioPrice={studioPrice}
-            propertyMatches={propertyMatches}
-            matchingProperties={matchingProperties}
-            errorId={studioErrorId}
-            errorMessage={studioErrorMessage}
-            submitting={submitting}
-            identityLoading={identityLoading}
-            onSavedDraftLoad={handleLoadSavedDraft}
-            onSavedDraftDelete={handleDeleteSavedDraft}
-            onNameChange={setName}
-            onStudioTextChange={setStudioText}
-            onGenerateDraft={handleGenerateDraft}
-            onUsePropertyMatch={handleUsePropertyMatch}
-            onDraftAddressChange={setStudioAddress}
-            onDraftAskingPriceChange={setStudioPrice}
-            onSaveDraft={handleSaveDraft}
-            onCreateRoom={handleStudioCreate}
-            onBack={returnToPicker}
-          />
-        )}
-
-        {mode === 'join' && (
-          <JoinRoomForm
-            name={name}
-            roomCode={roomCode}
-            errorId={joinErrorId}
-            errorMessage={joinErrorMessage}
-            submitting={submitting}
-            identityLoading={identityLoading}
-            isFieldInvalid={joinFieldInvalid}
-            formatRoomCodeInput={formatRoomCodeInput}
-            onNameChange={setName}
-            onRoomCodeChange={setRoomCode}
-            onSubmit={handleJoin}
-            onBack={returnToPicker}
-          />
-        )}
-      </div>
-
-      <div style={styles.footer}>
-        <button style={styles.footerLink} onClick={() => navigate('/')}>
-          <Users size={14} /> Browse Markets
-        </button>
-      </div>
-    </div>
+      {mode === 'join' && (
+        <JoinRoomForm
+          name={name}
+          roomCode={roomCode}
+          errorId={joinErrorId}
+          errorMessage={joinErrorMessage}
+          submitting={submitting}
+          identityLoading={identityLoading}
+          isFieldInvalid={joinFieldInvalid}
+          formatRoomCodeInput={formatRoomCodeInput}
+          onNameChange={setName}
+          onRoomCodeChange={setRoomCode}
+          onSubmit={handleJoin}
+          onBack={returnToPicker}
+        />
+      )}
+    </JoinPageShell>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    background: 'var(--bg-mesh)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  container: {
-    width: '100%',
-    maxWidth: 400,
-    background: 'rgba(255,255,255,0.45)',
-    backdropFilter: 'blur(40px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-    border: '1px solid rgba(255,255,255,0.6)',
-    borderRadius: 28,
-    padding: '36px 28px',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 8px 40px rgba(0,0,0,0.08)',
-  },
-  studioContainer: {
-    maxWidth: 680,
-  },
-  logo: {
-    textAlign: 'center',
-    marginBottom: 28,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-    margin: '8px 0 4px',
-    letterSpacing: 0,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'var(--text-muted)',
-  },
-  footer: {
-    marginTop: 32,
-  },
-  footerLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    background: 'transparent',
-    border: 'none',
-    color: 'var(--text-muted)',
-    fontSize: 13,
-    cursor: 'pointer',
-  },
-};
