@@ -82,9 +82,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host rooms now include deterministic Live Room Intelligence: LMSR consensus, implied room value, room liquidity, participant depth, movement summaries from recent bets, pressure points, host script prompts, and draft-audit provenance notes, all explicitly marked as local fallback with no provider-backed comps queried.
 - Host rooms now link to `/review/:roomCode`, an operator-facing deterministic review surface that combines public room state with host-authorized event logs to compare draft audits, settlement evidence, live movement, integrity checks, timeline entries, and generated recap bullets.
 - Player rooms now include deterministic Pre-Bet Intelligence: a compact local LMSR read with one reason to believe, one reason to doubt, OVER/UNDER wager-impact previews, balance-capped warnings, and no-provider-comps provenance before the player taps a bet.
+- Host and settled player rooms now link to `/recap/:roomCode`, a share-safe public recap route that reads only public room state, summarizes live or settled LMSR movement, public activity, settlement result, and guardrails, and avoids host-only event logs plus host/user tokens.
 
 ## Current Test Status
 
+- 2026-05-16 Share-Safe Public Recap pass: focused `npm test -- publicRoomRecap` passed 1 file / 2 tests; `npm run typecheck` passed; focused Playwright passed the public recap route privacy/accessibility test; mobile visual probe on backend `8072` / frontend `3072` rendered settled room `Z7IM`, verified `/recap/Z7IM` at `390x844` with no horizontal overflow, no console/page issues, settlement evidence, no private-token text, and screenshot `/tmp/fairvalue-public-recap.png`; final full `npm run test:e2e:isolated` passed 33 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 747.00 kB / 760.00 kB, and `smoke:boot` room `JNS6`.
 - 2026-05-16 Player Pre-Bet Intelligence pass: focused `npm test -- playerBetPreview` passed 1 file / 2 tests after a retry from a Vitest worker-start timeout; `npm run typecheck` passed; focused Playwright passed 3 Chromium tests for player trust/pre-bet render, wager validation, and keyboard/mobile control paths; mobile visual probe on backend `8068` / frontend `3068` created room `FZNS`, rendered the pre-bet read, verified the `$25` OVER button stayed visible, and saved `/tmp/fairvalue-player-prebet-mobile.png`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 11 Vitest suites / 63 tests, production build, bundle budget with total JS 735.24 kB / 760.00 kB, and `smoke:boot` room `100V`.
 - 2026-05-16 Operator Review Route pass: focused `npm test -- roomReview marketIntelligence` passed 2 files / 8 tests; focused Market Studio/settlement Playwright passed paste listing -> create host room -> open operator review plus settled-room review assertions; targeted negative-path tail rerun passed 10 Chromium tests after investigating an earlier backend `ECONNREFUSED` run interruption; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 10 Vitest suites / 61 tests, production build, bundle budget with total JS 729.93 kB / 760.00 kB, and `smoke:boot` room `191L`.
 - 2026-05-16 Room-Aware Market Intelligence pass: focused `npm test -- marketIntelligence` passed 1 file / 6 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local match -> create host room -> render draft audit and live intelligence; targeted host/browser regressions passed 5 Chromium tests; targeted negative-path regressions passed 3 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 9 Vitest suites / 59 tests, production build, bundle budget, and `smoke:boot` room `ZC39`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local Playwright render on backend `8052` / frontend `3052` created room `L5B1`, rendered host draft audit plus Live Room Intelligence with linked property `440298192`, no-bet movement read, `$0` liquidity copy, accepted draft audit, and no-provider-comps provenance, returned backend `/healthz` ok, and reported zero page errors with one benign dev WebSocket close warning during navigation.
@@ -175,7 +177,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
 - Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, cited local AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, identity-minting failure, room-state load failure, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, identity-minting failure, room-state load failure, cited local AI fallback, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
-- Market detail and multiplayer entry/settlement surfaces now make simulated-credit and non-appraisal authority explicit; future share, invite, public recap, or exported-result surfaces still need the same trust language when they exist.
+- Market detail, multiplayer entry/settlement, and public recap surfaces now make simulated-credit and non-appraisal authority explicit; future invite or exported-result surfaces still need the same trust language when they exist.
 - The cited local AI fallback is deterministic and covered without credentials; real Cognee-backed citation quality still needs live-key verification once a usable `COGNEE_API_KEY` is available.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
@@ -183,17 +185,24 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Extract the touched `/join`, host intelligence, operator review, and pre-bet player UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence/Review/Player design does not add more long-lived inline-style sprawl.
-2. Add a share-safe public recap route or export view derived from the operator review after privacy and host-token leakage checks.
-3. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
-4. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-5. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-6. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
-7. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-8. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-9. Run `npm run check:production` against the actual deployment environment once production env values are available.
+1. Extract the touched `/join`, host intelligence, operator review, public recap, and pre-bet player UI into reusable primitives or co-located CSS modules so the Market Studio/Room Intelligence/Review/Recap/Player design does not add more long-lived inline-style sprawl.
+2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
+3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
+4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+5. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
+6. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+8. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Share-Safe Public Recap
+
+- Added a deterministic public recap generator that summarizes live or settled room state from public state only, including LMSR movement, public activity, settlement result, evidence, and guardrails.
+- Added `/recap/:roomCode` as a share-safe route that does not fetch host-only events, does not send host authority, and explicitly excludes capability tokens and provider-backed comps.
+- Linked the host dashboard and settled player view to the public recap route so a room outcome can be shared without exposing the operator review surface.
+- Added focused Vitest coverage for live and settled public recap generation, plus Playwright coverage for settled recap privacy, settlement evidence, token non-leakage, and serious/critical axe checks.
+- Captured a mobile visual probe at `/tmp/fairvalue-public-recap.png` proving the public recap renders at `390x844` without horizontal overflow or console/page issues.
 
 ### 2026-05-16 - Player Pre-Bet Intelligence
 
@@ -1213,6 +1222,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Room-state load failure evidence verified `/host/I39X` forced state-store `503` renders a retryable `Room temporarily unavailable` alert with `Room state unavailable`, while `/play/XON8` malformed state JSON renders `Room state response was invalid`, hides the player join form, leaves the real room with zero players, and passes serious/critical axe checks.
 - Cited local AI evidence verified `/host/RL7D` without `COGNEE_API_KEY` returns 200 from initialize/state/search, renders `Local AI analyst`, `Evidence used`, `Room market snapshot`, and `Limits`, keeps the AI conversation log keyboard-focusable, and has zero unexpected console/page issues in the rendered probe.
 - Player pre-bet evidence verified `/play/FZNS` renders the local LMSR pre-bet read before wagering with one reason to believe, one reason to doubt, OVER/UNDER share/probability previews, no-provider-comps provenance, compact fixed betting controls, zero page errors, and a mobile screenshot at `/tmp/fairvalue-player-prebet-mobile.png`.
+- Public recap evidence verified `/recap/Z7IM` renders a share-safe settled recap from public room state only with settlement result, public evidence, public timeline, simulation-credit/non-appraisal guardrails, no host/user token text, zero console/page issues, and a mobile screenshot at `/tmp/fairvalue-public-recap.png`.
 
 ## Screenshots Or Traces
 
@@ -1240,6 +1250,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-player-malformed-room-state.png`
 - `/tmp/fairvalue-ai-local-analyst-evidence.png`
 - `/tmp/fairvalue-player-prebet-mobile.png`
+- `/tmp/fairvalue-public-recap.png`
 - `test-results/e2e-artifacts/negative-paths-join-route--02189-en-server-rate-limit-is-hit-chromium/trace.zip`
 - `test-results/e2e-artifacts/negative-paths-AI-analyst--293b5-instead-of-failing-silently-chromium/trace.zip`
 - `test-results/e2e-artifacts/negative-paths-AI-analyst--6e256-en-Cognee-is-not-configured-chromium/trace.zip`
@@ -1358,13 +1369,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Next Action Queue
 
-1. Extract the touched `/join`, host intelligence, operator review, and pre-bet player UI into reusable primitives or co-located CSS modules to reduce inline-style sprawl.
-2. Add a share-safe public recap route or export view derived from the operator review after privacy and host-token leakage checks.
-3. Add deeper branch-level coverage for remaining validation and notification states, including pre-bet balance-capped previews.
-4. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-5. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-6. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
-7. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-8. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-9. Run `npm run check:production` against the actual deployment environment once production env values are available.
-10. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
+1. Extract the touched `/join`, host intelligence, operator review, public recap, and pre-bet player UI into reusable primitives or co-located CSS modules to reduce inline-style sprawl.
+2. Add deeper branch-level coverage for remaining validation and notification states, including pre-bet balance-capped previews.
+3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
+4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+5. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
+6. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+8. Run `npm run check:production` against the actual deployment environment once production env values are available.
+9. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.

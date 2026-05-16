@@ -81,6 +81,20 @@ async function betByApi(
   return response.json();
 }
 
+async function settleByApi(
+  request: APIRequestContext,
+  roomCode: string,
+  hostToken: string,
+  actualPrice: number
+) {
+  const response = await request.post(`${apiBaseUrl}/api/rooms/${roomCode}/settle`, {
+    headers: { 'X-FairValue-Host-Token': hostToken },
+    data: { actual_price: actualPrice },
+  });
+  expect(response.status()).toBe(200);
+  return response.json();
+}
+
 function countMessages(messages: Array<Record<string, unknown>>, type: string) {
   return messages.filter((message) => message.type === type).length;
 }
@@ -188,6 +202,25 @@ test('room API and WebSocket loop handles a burst of joins and bets', async ({ r
   } finally {
     socket.close();
   }
+});
+
+test('public recap route summarizes settled rooms without host-only audit data', async ({ request, page }) => {
+  const { room_code: roomCode, host_token: hostToken } = await createRoom(request);
+  const recapPlayer = `recap-player-${Date.now()}`;
+  await joinByApi(request, roomCode, recapPlayer, 'Recap Player');
+  await betByApi(request, roomCode, recapPlayer, `recap-bet-${roomCode}`, 'over', 50);
+  await settleByApi(request, roomCode, hostToken, property.actualPrice);
+
+  await page.goto(`/recap/${roomCode}`);
+  await expect(page.getByTestId('room-public-recap-summary')).toContainText('Share-safe recap', {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId('room-public-recap-evidence')).toContainText('Settlement result');
+  await expect(page.getByTestId('room-public-recap-evidence')).toContainText('$735,000');
+  await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('Host-only event log is not included');
+  await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('host tokens/user tokens are never shown');
+  await expect(page.getByTestId('room-public-recap-page')).not.toContainText(hostToken);
+  await expectNoSeriousAxeViolations(page, 'public room recap');
 });
 
 test('core room surfaces pass serious accessibility checks without console errors', async ({

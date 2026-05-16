@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
 import { generatePlayerBetPreview } from '../lib/playerBetPreview';
-import { TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Trophy, Share2 } from 'lucide-react';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
@@ -325,6 +325,11 @@ export default function PlayerView() {
               'The room event history preserves this outcome for replay.',
             ]}
           />
+          {roomCode && (
+            <Link to={`/recap/${roomCode}`} style={s.settleRecapLink} data-testid="player-recap-link">
+              <Share2 size={15} aria-hidden="true" /> View public recap
+            </Link>
+          )}
           {settleResult.results.map((r) => (
             <div key={r.nickname} style={s.resultRow}>
               <span>{r.nickname}</span>
@@ -800,6 +805,21 @@ const s: Record<string, React.CSSProperties> = {
   settleOutcome: {
     fontSize: 22,
     fontWeight: 800,
+  },
+  settleRecapLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    width: '100%',
+    padding: '10px 12px',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+    background: 'var(--bg-input)',
+    color: 'var(--accent-primary)',
+    fontSize: 13,
+    fontWeight: 800,
+    textDecoration: 'none',
   },
   resultRow: {
     display: 'flex',

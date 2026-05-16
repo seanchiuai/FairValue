@@ -10,6 +10,7 @@ const MarketPage = React.lazy(() => import('./pages/MarketPage'));
 const HostView = React.lazy(() => import('./pages/HostView'));
 const PlayerView = React.lazy(() => import('./pages/PlayerView'));
 const RoomReviewPage = React.lazy(() => import('./pages/RoomReviewPage'));
+const RoomRecapPage = React.lazy(() => import('./pages/RoomRecapPage'));
 
 function RouteFallback() {
   return (
@@ -42,6 +43,7 @@ function App() {
               <Route path="/host/:roomCode" element={<HostView />} />
               <Route path="/play/:roomCode" element={<PlayerView />} />
               <Route path="/review/:roomCode" element={<RoomReviewPage />} />
+              <Route path="/recap/:roomCode" element={<RoomRecapPage />} />
               <Route path="/market/:propertyId" element={<MarketPage />} />
             </Routes>
           </Suspense>

@@ -11,6 +11,7 @@ A host creates a room and selects a property. Players join via QR code or room c
 - **Multiplayer** — Host creates a room at `/join`, gets a 4-character code using letters and numbers. Players scan QR or go to `/play/:roomCode` to bet from their phones with a local LMSR pre-bet read, reason to believe, reason to doubt, and wager-impact preview. Host views live dashboard at `/host/:roomCode` with chart, leaderboard, activity feed, and Live Room Intelligence generated from LMSR flow, players, recent bets, and optional Market Studio draft audit metadata.
 - **Market Studio** — Hosts can use `/join` to paste listing text and generate a local market draft with normalized address, asking price, market question, evidence checklist, provenance, warnings, existing-property matches, local saved drafts, server-validated draft audit metadata, and editable fields before creating a real room.
 - **Operator review** — Hosts can open `/review/:roomCode` from the host dashboard to compare draft audits, event history, live market movement, settlement evidence, integrity checks, and a deterministic generated recap.
+- **Public recap** — Hosts and players can open `/recap/:roomCode` to share a deterministic recap generated only from public room state. It summarizes live or settled LMSR movement, public activity, settlement result, and trust guardrails without fetching host-only events or showing host/user tokens.
 - **Solo browsing** — Browse market cards at `/` and view individual markets at `/market/:propertyId` with chart, deterministic market intelligence, scenario prompts, settlement checklist, and trading panel.
 - **Market trust** — Property detail, host, player, and settlement surfaces explain simulated credits, LMSR probability, implied fair value, listing provenance, and settlement evidence so FairValue does not imply unsupported real-money or appraisal authority.
 
@@ -67,7 +68,7 @@ Browser (React)
 
 ### Frontend
 
-- **Routing** (React Router v7): `/` browse, `/join` create/join room, `/host/:roomCode` host dashboard, `/play/:roomCode` player UI, `/review/:roomCode` operator review, `/market/:propertyId` solo market
+- **Routing** (React Router v7): `/` browse, `/join` create/join room, `/host/:roomCode` host dashboard, `/play/:roomCode` player UI, `/review/:roomCode` operator review, `/recap/:roomCode` public recap, `/market/:propertyId` solo market
 - **State management:** React hooks only, no global store
 - **Styling:** CSS custom properties (`--bg-primary: #1F2A36`, `--accent-primary: #4BA3FF`), dark theme
 
@@ -78,6 +79,7 @@ Browser (React)
 - **Player Pre-Bet Intelligence** is deterministic local fallback output on `/play/:roomCode`; it uses LMSR math, the player's wager/balance, current room probability, and recent room activity to explain one reason to believe, one reason to doubt, and both OVER/UNDER wager previews before a bet is placed.
 - **Live Room Intelligence** is deterministic local fallback output on the host dashboard; it combines room LMSR state, recent room activity, players, and optional server-accepted draft audits without claiming provider-backed comps
 - **Operator Review** is a host-facing deterministic recap surface over room state plus host-authorized event logs, including draft audit, settlement evidence, timeline, and integrity checks
+- **Public Recap** is a share-safe deterministic route over `GET /api/rooms/:code/state` only; it includes public LMSR movement, activity, settlement, and guardrails while deliberately omitting host-only event logs and capability tokens
 - **Trades** are persisted to Neon on every bet
 - **Solo market simulation** runs on startup — contrarian AI bot trades every 15s per market to generate 24/7 activity
 - **WebSocket** broadcasts `bet`, `join`, `ai_trade`, `settle` events to all room connections
@@ -113,6 +115,8 @@ Browser (React)
 | GET | `/api/rooms/:code/leaderboard` | Leaderboard |
 
 `POST /api/rooms` returns a `host_token` only to the creator. Host-only routes (`settle`, `toggle-ai`, `events`, and `replay`) require that value in the `X-FairValue-Host-Token` header or the durable signed host identity for newly created rooms. Join, state, player, and WebSocket payloads do not expose the token. Market Studio room creation may include a `market_draft`; the server accepts only draft metadata that matches the room address and asking price, preserves a `draft_audit` envelope in state/events/replay/snapshots, and stores a source-text hash and length instead of the raw pasted text.
+
+The `/recap/:roomCode` route is frontend-only and reads the public state endpoint. It does not request `/api/rooms/:code/events`, does not require or send host authority, and is covered by token-leakage checks.
 
 ### Solo Markets (from Neon)
 
@@ -221,7 +225,7 @@ npm run test:a11y:assistive
 
 `smoke:boot` starts `node server/index.js` on a free local port with an isolated temporary room snapshot file, checks health/readiness, verifies ops metrics token gating, creates/joins/bets/settles one room through HTTP plus a WebSocket join broadcast, verifies host token non-leakage, and confirms local room snapshot persistence wrote.
 
-`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, market trust explainer, host/player room trust notes, player pre-bet intelligence, join forms, Market Studio draft generation/matching/saved-draft/host-audit/live-intelligence/operator-review flow, identity-minting failure notifications, join-page create/join/host-auto-join API failure notifications, malformed join success responses, host/player room surfaces, settled operator review, room-state load failure notifications, missing-host-authority controls, settle modal, settlement recap trust notes, market-start room creation/host-auto-join failure notifications, settlement failure notifications, malformed settlement success handling, host-action failure notifications, malformed AI-toggle success handling, missing-key AI fallback, direct player join validation/API notifications, player bet failure rollback, player validation notifications, and mobile wager controls.
+`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, public recap privacy route, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, market trust explainer, host/player room trust notes, player pre-bet intelligence, join forms, Market Studio draft generation/matching/saved-draft/host-audit/live-intelligence/operator-review flow, identity-minting failure notifications, join-page create/join/host-auto-join API failure notifications, malformed join success responses, host/player room surfaces, settled operator review, room-state load failure notifications, missing-host-authority controls, settle modal, settlement recap trust notes, market-start room creation/host-auto-join failure notifications, settlement failure notifications, malformed settlement success handling, host-action failure notifications, malformed AI-toggle success handling, missing-key AI fallback, direct player join validation/API notifications, player bet failure rollback, player validation notifications, and mobile wager controls.
 
 `test:e2e:matrix` starts fresh backend/frontend ports (`8030`/`3030`) and runs the rendered host/player room flow across Chromium, Firefox, and WebKit projects.
 

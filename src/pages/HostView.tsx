@@ -18,7 +18,7 @@ import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
-import { Users, Bot, Gavel, Trophy, ShieldAlert, Sparkles, Target, ListChecks, TrendingUp, FileSearch } from 'lucide-react';
+import { Users, Bot, Gavel, Trophy, ShieldAlert, Sparkles, Target, ListChecks, TrendingUp, FileSearch, Share2 } from 'lucide-react';
 
 const hostAuthorityNoticeId = 'host-authority-warning';
 
@@ -190,13 +190,22 @@ export default function HostView() {
         </div>
         <div style={s.topBarRight}>
           {roomCode && (
-            <Link
-              to={`/review/${roomCode}`}
-              style={s.controlLink}
-              data-testid="host-review-link"
-            >
-              <FileSearch size={14} aria-hidden="true" /> Review
-            </Link>
+            <>
+              <Link
+                to={`/review/${roomCode}`}
+                style={s.controlLink}
+                data-testid="host-review-link"
+              >
+                <FileSearch size={14} aria-hidden="true" /> Review
+              </Link>
+              <Link
+                to={`/recap/${roomCode}`}
+                style={s.controlLink}
+                data-testid="host-recap-link"
+              >
+                <Share2 size={14} aria-hidden="true" /> Recap
+              </Link>
+            </>
           )}
           {!settled && (
             <>
