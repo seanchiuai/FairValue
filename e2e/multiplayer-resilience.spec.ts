@@ -538,6 +538,57 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
   }
 });
 
+test('player pre-bet preview caps wagers against remaining balance', async ({
+  request,
+  browser,
+}: {
+  request: APIRequestContext;
+  browser: Browser;
+}) => {
+  const { room_code: roomCode } = await createRoom(request);
+  const context = await browser.newContext({
+    viewport: playerViewport,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`/play/${roomCode}`);
+    await expect(page.getByTestId('player-entry-trust-notice')).toContainText('Before you join', {
+      timeout: 15_000,
+    });
+    await page.getByLabel('Player nickname').fill('Cap Player');
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/join`) && response.status() === 200
+      ),
+      page.getByRole('button', { name: /^Join Room$/ }).click(),
+    ]);
+    await expectConnected(page);
+    await expect(page.getByTestId('player-prebet-intelligence')).toContainText('Pre-bet read');
+    await expect(page.getByTestId('player-prebet-intelligence')).not.toContainText('Preview capped');
+
+    await page.getByLabel('Custom wager').fill('950');
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/bet`) && response.status() === 200
+      ),
+      page.getByRole('button', { name: 'Bet $950 on OVER' }).click(),
+    ]);
+
+    await expect(page.getByTestId('player-balance')).toHaveText('50');
+    await expect(page.getByTestId('player-prebet-balance-warning')).toContainText(
+      'Preview capped at your current $50 balance.'
+    );
+    await expect(page.getByTestId('player-prebet-over')).toContainText('OVER');
+    await expect(page.getByTestId('player-prebet-under')).toContainText('UNDER');
+    await expectNoSeriousAxeViolations(page, 'player balance-capped pre-bet preview');
+  } finally {
+    await context.close();
+  }
+});
+
 test('validation, settlement error, and map popup states expose accessible semantics', async ({
   browser,
 }: {

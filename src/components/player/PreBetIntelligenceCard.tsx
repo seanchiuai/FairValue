@@ -33,7 +33,9 @@ export default function PreBetIntelligenceCard({ preview }: PreBetIntelligenceCa
         </span>
       </div>
       {preview.balance_warning && (
-        <div className="prebet-card__warning">{preview.balance_warning}</div>
+        <div className="prebet-card__warning" data-testid="player-prebet-balance-warning" aria-live="polite">
+          {preview.balance_warning}
+        </div>
       )}
       <div className="prebet-card__provenance">{preview.provenance}</div>
     </section>
