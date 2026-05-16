@@ -24,10 +24,8 @@ import { useToast } from '../contexts/ToastContext';
 import CreateRoomForm from '../components/join/CreateRoomForm';
 import JoinModePicker, { type JoinModePickerMode } from '../components/join/JoinModePicker';
 import JoinRoomForm from '../components/join/JoinRoomForm';
-import MarketStudioDraftCard from '../components/join/MarketStudioDraftCard';
-import MarketStudioMatches from '../components/join/MarketStudioMatches';
-import MarketStudioSavedDrafts from '../components/join/MarketStudioSavedDrafts';
-import { FileText, Home, Save, Users, WandSparkles } from 'lucide-react';
+import MarketStudioForm from '../components/join/MarketStudioForm';
+import { Home, Users } from 'lucide-react';
 
 type RoomCreateResponse = {
   room_code?: string;
@@ -355,96 +353,31 @@ export default function JoinPage() {
         )}
 
         {mode === 'studio' && (
-          <div style={styles.form}>
-            <div style={styles.studioHeading}>
-              <FileText size={19} color="var(--accent-primary)" aria-hidden="true" />
-              <h2 style={styles.formTitle}>Market Studio</h2>
-            </div>
-            <MarketStudioSavedDrafts
-              drafts={savedDrafts}
-              onLoad={handleLoadSavedDraft}
-              onDelete={handleDeleteSavedDraft}
-            />
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="studio-host-nickname">Host Nickname</label>
-              <input
-                id="studio-host-nickname"
-                style={styles.input}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-label="Host nickname"
-                aria-describedby={studioErrorMessage ? studioErrorId : undefined}
-                aria-invalid={studioErrorMessage === 'Host nickname is required' || undefined}
-                placeholder="Enter your name"
-                maxLength={20}
-                autoFocus
-              />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="market-studio-source">Listing Text</label>
-              <textarea
-                id="market-studio-source"
-                style={styles.textarea}
-                value={studioText}
-                onChange={(e) => setStudioText(e.target.value)}
-                aria-label="Listing text"
-                aria-describedby={studioErrorMessage ? studioErrorId : undefined}
-                placeholder="Paste listing text, address, asking price, beds, baths, and sqft..."
-                rows={7}
-              />
-            </div>
-            <button
-              type="button"
-              style={styles.secondaryActionBtn}
-              onClick={handleGenerateDraft}
-            >
-              <WandSparkles size={16} aria-hidden="true" />
-              Generate Market Draft
-            </button>
-
-            {matchingProperties && (
-              <p style={styles.matchingText}>Checking local property dataset...</p>
-            )}
-
-            <MarketStudioMatches
-              matches={propertyMatches}
-              onUseMatch={handleUsePropertyMatch}
-            />
-
-            {studioDraft && (
-              <MarketStudioDraftCard
-                draft={studioDraft}
-                address={studioAddress}
-                askingPrice={studioPrice}
-                errorId={studioErrorId}
-                errorMessage={studioErrorMessage}
-                onAddressChange={setStudioAddress}
-                onAskingPriceChange={setStudioPrice}
-              />
-            )}
-
-            {studioErrorMessage && <p id={studioErrorId} style={styles.error} role="alert">{studioErrorMessage}</p>}
-            {studioDraft && (
-              <button
-                type="button"
-                style={styles.secondaryActionBtn}
-                onClick={handleSaveDraft}
-              >
-                <Save size={16} aria-hidden="true" />
-                Save Draft
-              </button>
-            )}
-            <button
-              style={{ ...styles.submitBtn, opacity: submitting || identityLoading || !studioDraft ? 0.6 : 1 }}
-              onClick={handleStudioCreate}
-              disabled={submitting || identityLoading || !studioDraft}
-            >
-              {submitting ? 'Creating...' : 'Create Room From Draft'}
-            </button>
-            <button style={styles.backBtn} onClick={returnToPicker}>
-              Back
-            </button>
-          </div>
+          <MarketStudioForm
+            savedDrafts={savedDrafts}
+            name={name}
+            studioText={studioText}
+            studioDraft={studioDraft}
+            studioAddress={studioAddress}
+            studioPrice={studioPrice}
+            propertyMatches={propertyMatches}
+            matchingProperties={matchingProperties}
+            errorId={studioErrorId}
+            errorMessage={studioErrorMessage}
+            submitting={submitting}
+            identityLoading={identityLoading}
+            onSavedDraftLoad={handleLoadSavedDraft}
+            onSavedDraftDelete={handleDeleteSavedDraft}
+            onNameChange={setName}
+            onStudioTextChange={setStudioText}
+            onGenerateDraft={handleGenerateDraft}
+            onUsePropertyMatch={handleUsePropertyMatch}
+            onDraftAddressChange={setStudioAddress}
+            onDraftAskingPriceChange={setStudioPrice}
+            onSaveDraft={handleSaveDraft}
+            onCreateRoom={handleStudioCreate}
+            onBack={returnToPicker}
+          />
         )}
 
         {mode === 'join' && (
@@ -507,116 +440,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     color: 'var(--text-primary)',
     margin: '8px 0 4px',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   },
   subtitle: {
     fontSize: 14,
     color: 'var(--text-muted)',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-    textAlign: 'center',
-    margin: 0,
-  },
-  studioHeading: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    padding: '12px 14px',
-    background: 'rgba(120,120,128,0.08)',
-    border: '1px solid rgba(0,0,0,0.04)',
-    borderRadius: 14,
-    color: 'var(--text-primary)',
-    fontSize: 15,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box' as const,
-  },
-  textarea: {
-    padding: '13px 14px',
-    background: 'rgba(120,120,128,0.08)',
-    border: '1px solid rgba(0,0,0,0.04)',
-    borderRadius: 14,
-    color: 'var(--text-primary)',
-    fontSize: 14,
-    lineHeight: 1.5,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box' as const,
-    resize: 'vertical' as const,
-    minHeight: 150,
-  },
-  secondaryActionBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: '12px 16px',
-    background: 'rgba(255,255,255,0.55)',
-    border: '1px solid rgba(0,0,0,0.08)',
-    borderRadius: 980,
-    color: 'var(--text-primary)',
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75), 0 2px 10px rgba(0,0,0,0.04)',
-  },
-  matchingText: {
-    margin: '-4px 0 0',
-    color: 'var(--text-muted)',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  error: {
-    color: 'var(--accent-danger)',
-    fontSize: 13,
-    textAlign: 'center',
-    margin: 0,
-  },
-  submitBtn: {
-    padding: '14px 20px',
-    background: 'rgba(0,122,255,0.9)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255,255,255,0.2)',
-    borderRadius: 980,
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 700,
-    cursor: 'pointer',
-    marginTop: 4,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 16px rgba(0,122,255,0.25)',
-  },
-  backBtn: {
-    padding: '10px',
-    background: 'transparent',
-    border: 'none',
-    color: 'var(--text-muted)',
-    fontSize: 14,
-    cursor: 'pointer',
-    textAlign: 'center',
   },
   footer: {
     marginTop: 32,
