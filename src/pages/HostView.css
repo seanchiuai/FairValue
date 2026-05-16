@@ -1,0 +1,29 @@
+.host-view {
+  min-height: 100vh;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+.host-view__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px 24px;
+}
+
+.host-view__left,
+.host-view__right {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .host-view__layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+}

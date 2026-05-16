@@ -16,6 +16,7 @@ import HostRoomIntelligencePanel from '../components/host/HostRoomIntelligencePa
 import HostDraftAuditCard from '../components/host/HostDraftAuditCard';
 import HostTopBar from '../components/host/HostTopBar';
 import HostAuthorityNotice from '../components/host/HostAuthorityNotice';
+import HostPropertySummary from '../components/host/HostPropertySummary';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
@@ -23,6 +24,7 @@ import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
 import { Trophy } from 'lucide-react';
+import './HostView.css';
 
 const hostAuthorityNoticeId = 'host-authority-warning';
 
@@ -156,7 +158,7 @@ export default function HostView() {
 
   if (loading) {
     return (
-      <div style={s.page}>
+      <div className="host-view">
         <HostTopBar
           roomCode={roomCode}
           playerCount={0}
@@ -171,11 +173,11 @@ export default function HostView() {
           showStatus={false}
           showActions={false}
         />
-        <div style={s.layout}>
-          <div style={s.leftCol}>
+        <div className="host-view__layout">
+          <div className="host-view__left">
             <SkeletonChart />
           </div>
-          <div style={s.rightCol}>
+          <div className="host-view__right">
             <SkeletonLeaderboard />
           </div>
         </div>
@@ -187,13 +189,12 @@ export default function HostView() {
     return <RoomLoadError roomCode={roomCode} message={loadError || 'Room not found'} />;
   }
 
-  const probPercent = Math.round(market.prob_over * 100);
   const trimmedNgrok = ngrokUrl.trim().replace(/\/$/, '');
   const baseUrl = trimmedNgrok && trimmedNgrok.startsWith('https://') ? trimmedNgrok : window.location.origin;
   const joinUrl = `${baseUrl}/play/${roomCode}`;
 
   return (
-    <div style={s.page}>
+    <div className="host-view">
       <HostTopBar
         roomCode={roomCode}
         playerCount={players.length}
@@ -212,25 +213,9 @@ export default function HostView() {
       )}
 
       {/* Main Layout */}
-      <div style={s.layout}>
-        <div style={s.leftCol}>
-          {/* Property */}
-          <div style={s.propertyCard}>
-            <div style={s.propertyTop}>
-              <div>
-                <div style={s.propAddress}>{house.address}</div>
-                <div style={s.propPrice}>
-                  Asking: <strong>${house.asking_price.toLocaleString()}</strong>
-                </div>
-              </div>
-              <div style={s.probBig}>
-                <span style={{ color: probPercent >= 50 ? 'var(--accent-success)' : 'var(--accent-danger)', fontSize: 32, fontWeight: 800 }}>
-                  {probPercent}%
-                </span>
-                <span style={s.probLabel}>think OVER</span>
-              </div>
-            </div>
-          </div>
+      <div className="host-view__layout">
+        <div className="host-view__left">
+          <HostPropertySummary house={house} probOver={market.prob_over} />
 
           {draftAudit && <HostDraftAuditCard draftAudit={draftAudit} />}
 
@@ -310,7 +295,7 @@ export default function HostView() {
           />
         </div>
 
-        <div style={s.rightCol}>
+        <div className="host-view__right">
           <QRCard joinUrl={joinUrl} ngrokUrl={ngrokUrl} onNgrokChange={handleNgrokChange} />
           <Leaderboard players={sortedPlayers} />
           <ActivityFeed activity={activity} />
@@ -333,59 +318,6 @@ export default function HostView() {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-  },
-  layout: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 360px',
-    gap: 16,
-    padding: '16px 24px',
-    maxWidth: 1440,
-    margin: '0 auto',
-  },
-  leftCol: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-  },
-  rightCol: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-  },
-  propertyCard: {
-    padding: 20,
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 10,
-  },
-  propertyTop: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  propAddress: {
-    fontSize: 20,
-    fontWeight: 700,
-  },
-  propPrice: {
-    fontSize: 14,
-    color: 'var(--text-secondary)',
-    marginTop: 4,
-  },
-  probBig: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-  },
-  probLabel: {
-    fontSize: 11,
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase',
-  },
   settleResultCard: {
     padding: 24,
     background: 'var(--bg-surface)',
