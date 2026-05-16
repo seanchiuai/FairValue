@@ -75,9 +75,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Production environment readiness now has `npm run check:production`, which fails until deploy-critical env values are set for Postgres persistence, retention, identity signing, ops metrics protection, and database availability.
 - Express now disables `X-Powered-By` and emits baseline browser security headers on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
 - Local boot readiness now has `npm run smoke:boot`, which launches `node server/index.js` on a free local port with an isolated temporary room snapshot, checks health/readiness/security headers, proves ops-token gating, drives create/join/bet/settle plus a WebSocket join broadcast, confirms host-token non-leakage, and verifies snapshot persistence wrote.
+- Market Studio now exists as a real `/join` creation mode: hosts can paste listing text, generate a deterministic local market draft, review normalized address/asking price/facts/provenance/warnings/settlement evidence, edit generated fields, and create a real host room through the existing authenticated room creation and host auto-join path.
 
 ## Current Test Status
 
+- 2026-05-16 Market Studio pass: baseline `npm run typecheck`, `npm test`, and `npm run test:server` passed before edits; focused `npm test -- marketDrafts` passed 5 tests; focused Market Studio Playwright passed; live local dev smoke on backend `8042` / frontend `3042` returned `/join` 200 and `/healthz` ok, with desktop/mobile browser snapshots showing the new Market Studio option and only the expected React DevTools info console entry; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 7 Vitest suites / 49 tests, production build, bundle budget, and `smoke:boot` room `1NFU`; final full `npm run test:e2e:isolated` passed 32 Chromium tests after a strict-locator assertion was tightened.
 - 2026-05-10 baseline before patch: `npm test -- --watchAll=false` passed, 3 suites / 30 tests.
 - 2026-05-10 baseline before patch: `npm run build` passed with one warning for an unused `priceOver` import in `src/hooks/useRoom.ts`.
 - 2026-05-10 post-patch: `npm run verify` passed: client secret scan, 4 test suites / 33 tests, and production build.
@@ -169,16 +171,27 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
-3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-4. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
-5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-6. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-8. Run `npm run check:production` against the actual deployment environment once production env values are available.
+1. Extend Market Studio with existing-property matching, a saved draft model, and optional server-side draft validation so generated markets can reuse real property records without loading unnecessary data into every `/join` visit.
+2. Add the Market Detail Intelligence slice from `Enormousplans.md`: deterministic property brief, bullish/bearish/uncertainty cases, evidence/provenance panels, and scenario prompts on `/market/:propertyId`, with degraded/no-AI tests.
+3. Extract the touched `/join` UI into reusable primitives or a co-located CSS module so the Market Studio design does not add more long-lived inline-style sprawl.
+4. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
+5. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+6. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+7. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
+8. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+9. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+10. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Market Studio Vertical Slice
+
+- Added `src/lib/marketDrafts.ts` as a deterministic local market-draft generator for pasted listing text, including address, city/state/zip, asking price, beds, baths, square footage, home type, market question, settlement rule, evidence checklist, provenance confidence, generated summary, and warnings.
+- Added focused Vitest coverage for listing parsing, shorthand million prices, independent address/fact parsing, incomplete-draft validation, deterministic provenance, warnings, and settlement evidence.
+- Added Market Studio as a real `/join` mode that lets hosts paste listing text, generate a draft, review/edit generated address and asking price, see settlement evidence and parser warnings, and create a real room through the existing host identity, host token, room creation, and host auto-join path.
+- Added Playwright coverage proving paste listing -> generate draft -> accessibility check -> create room -> host page with one player works against fresh local backend/frontend servers.
+- Updated `README.md` so Market Studio is documented as a supported mode instead of an aspirational future feature.
+- Verified with focused unit/type checks, focused Playwright, live local desktop/mobile browser snapshots of `/join`, full `npm run verify`, and full `npm run test:e2e:isolated`.
 
 ### 2026-05-11 - Cited Local AI Analyst
 
