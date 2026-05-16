@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
@@ -7,7 +7,6 @@ import { calculateImpliedPrice } from '../lib/lmsr';
 import { generateRoomMarketIntelligence } from '../lib/marketIntelligence';
 import { buildHostAuthHeaders, readHostToken } from '../lib/fairValueAuth';
 import CogneeChat from '../components/CogneeChat';
-import ConnectionIndicator from '../components/ConnectionIndicator';
 import Leaderboard from '../components/host/Leaderboard';
 import ActivityFeed from '../components/host/ActivityFeed';
 import SettleModal from '../components/host/SettleModal';
@@ -18,13 +17,13 @@ import HostTopBar from '../components/host/HostTopBar';
 import HostAuthorityNotice from '../components/host/HostAuthorityNotice';
 import HostPropertySummary from '../components/host/HostPropertySummary';
 import HostMarketChartPanel from '../components/host/HostMarketChartPanel';
+import HostSettlementResultCard from '../components/host/HostSettlementResultCard';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
-import { Trophy } from 'lucide-react';
 import './HostView.css';
 
 const hostAuthorityNoticeId = 'host-authority-warning';
@@ -230,35 +229,8 @@ export default function HostView() {
             tone="dark"
           />
 
-          {/* Settle Result */}
           {settled && settleResult && (
-            <div style={s.settleResultCard} data-testid="host-settlement-result">
-              <Trophy size={28} color="var(--accent-warning)" />
-              <div style={{ fontSize: 20, fontWeight: 700 }}>Market Settled</div>
-              <div style={{ fontSize: 16, color: 'var(--text-secondary)' }}>
-                Actual: ${settleResult.actual_price.toLocaleString()}
-              </div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 800,
-                  color: settleResult.winning_outcome === 'over' ? 'var(--accent-success)' : 'var(--accent-danger)',
-                }}
-              >
-                {settleResult.winning_outcome.toUpperCase()} WINS
-              </div>
-              <TrustNotice
-                testId="host-settlement-trust-notice"
-                title="Settlement evidence"
-                compact
-                tone="dark"
-                points={[
-                  'This recap uses simulation credits only.',
-                  'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
-                  'Room events preserve joins, bets, and settlement for replay.',
-                ]}
-              />
-            </div>
+            <HostSettlementResultCard settleResult={settleResult} />
           )}
 
           <HostMarketChartPanel market={market} chartRef={chartRef} />
@@ -293,17 +265,3 @@ export default function HostView() {
     </div>
   );
 }
-
-const s: Record<string, React.CSSProperties> = {
-  settleResultCard: {
-    padding: 24,
-    background: 'var(--bg-surface)',
-    border: '2px solid var(--accent-warning)',
-    borderRadius: 12,
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-  },
-};
