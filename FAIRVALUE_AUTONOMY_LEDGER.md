@@ -88,9 +88,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Host Live Room Intelligence now uses a dedicated `HostRoomIntelligencePanel` component with co-located CSS, preserving deterministic room-intelligence copy, provenance notes, accessible heading structure, icons, confidence state, and the existing `host-room-intelligence-panel` test hook.
 - Market Studio generated drafts now render through a dedicated `MarketStudioDraftCard` component with co-located CSS, preserving editable generated address/price fields, settlement-evidence lists, local-generation warnings, provenance, and the existing `market-studio-draft` browser test hook.
 - Market Studio saved drafts and existing-property matches now render through dedicated `MarketStudioSavedDrafts` and `MarketStudioMatches` components with co-located CSS, preserving load/delete/use-match controls and the existing `market-studio-saved-drafts` / `market-studio-matches` browser test hooks.
+- `/join` pick, create-room, and join-room chrome now render through `JoinModePicker`, `CreateRoomForm`, and `JoinRoomForm` components with co-located CSS, preserving labels, validation IDs, autofocus, room-code normalization, disabled/loading states, and the existing create/join navigation flows.
 
 ## Current Test Status
 
+- 2026-05-16 Join Entry UI Component pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright batch passed Market Studio and keyboard/screen-reader-adjacent specs while the expanded accessibility spec timed out during context close, then a single-spec rerun of expanded routes/forms/modal accessibility passed in 8.3s; rendered mobile probe on backend `8086` / frontend `3086` opened `/join` at `390x844`, verified the extracted picker, create form values, join form values, `ab12` to `AB12` room-code normalization, no active alerts, no failed resources, and no horizontal overflow with screenshot `/tmp/fairvalue-join-entry-components-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 737.39 kB / 760.00 kB, and `smoke:boot` room `JJ9P`.
 - 2026-05-16 Market Studio Saved/Match UI Component pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path covering existing-property match use and saved draft creation; rendered mobile probe on backend `8083` / frontend `3083` opened `/join` at `390x844`, generated a matching draft for `3004 26th St`, used the local property, saved the draft, verified match/saved panel text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-panels-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.54 kB / 760.00 kB, and `smoke:boot` room `SS91`.
 - 2026-05-16 Market Studio Draft UI Component pass: `npm run typecheck` passed; focused `npm test -- marketDrafts marketStudioDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path including generated draft editing and host room creation; rendered mobile probe on backend `8081` / frontend `3081` opened `/join` at `390x844`, generated a draft from pasted listing text, verified the extracted draft-card text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-draft-component-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 737.85 kB / 760.00 kB, and `smoke:boot` room `DFRN`.
 - 2026-05-16 Host Room Intelligence UI Component pass: `npm run typecheck` passed; focused `npm test -- marketIntelligence` passed 1 file / 6 tests; focused Playwright passed the Market Studio draft-to-host-room path including Live Room Intelligence assertions and serious/critical axe coverage; rendered desktop probe on backend `8079` / frontend `3079` created room `ZS9X`, opened `/host/ZS9X` at `1440x900`, verified the extracted host-intelligence panel text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-host-intelligence-component-desktop.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 738.67 kB / 760.00 kB, and `smoke:boot` room `Y0YV`.
@@ -195,7 +197,7 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Continue extracting the remaining `/join` pick/create/join form chrome into reusable primitives or co-located CSS modules so the Market Studio and room-entry design does not add more long-lived inline-style sprawl.
+1. Continue extracting the remaining `/join` Market Studio form shell and shared page chrome into reusable primitives or co-located CSS modules so the room-entry route does not keep long-lived inline-style sprawl.
 2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, missing-host-authority paths, and pre-bet balance-capped previews.
 3. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
@@ -205,6 +207,13 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 8. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Join Entry UI Components
+
+- Extracted the `/join` picker into `JoinModePicker` with co-located CSS while preserving Create Room, Market Studio, and Join Room entry actions.
+- Extracted simple create-room and join-room forms into `CreateRoomForm` and `JoinRoomForm`, preserving field labels, validation wiring, loading/disabled button states, autofocus, and room-code normalization.
+- Reused one `RoomEntryForm.css` surface for the simple form chrome so the route stops carrying those repeated inline structures.
+- Verified the slice with TypeScript, focused draft unit tests, focused Playwright route/form coverage, an expanded accessibility rerun, and a mobile rendered probe of `/join`.
 
 ### 2026-05-16 - Market Studio Saved And Match UI Components
 

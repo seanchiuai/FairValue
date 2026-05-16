@@ -21,10 +21,13 @@ import {
   saveMarketStudioDraft,
 } from '../lib/marketStudioDrafts';
 import { useToast } from '../contexts/ToastContext';
+import CreateRoomForm from '../components/join/CreateRoomForm';
+import JoinModePicker, { type JoinModePickerMode } from '../components/join/JoinModePicker';
+import JoinRoomForm from '../components/join/JoinRoomForm';
 import MarketStudioDraftCard from '../components/join/MarketStudioDraftCard';
 import MarketStudioMatches from '../components/join/MarketStudioMatches';
 import MarketStudioSavedDrafts from '../components/join/MarketStudioSavedDrafts';
-import { FileText, Home, LogIn, Plus, Save, Users, WandSparkles } from 'lucide-react';
+import { FileText, Home, Save, Users, WandSparkles } from 'lucide-react';
 
 type RoomCreateResponse = {
   room_code?: string;
@@ -46,7 +49,7 @@ export default function JoinPage() {
     ensureIdentity,
   } = useSession();
   const { showToast } = useToast();
-  const [mode, setMode] = useState<'pick' | 'create' | 'join' | 'studio'>('pick');
+  const [mode, setMode] = useState<'pick' | JoinModePickerMode>('pick');
   const [name, setName] = useState(nickname);
   const [address, setAddress] = useState('');
   const [askingPrice, setAskingPrice] = useState('');
@@ -82,6 +85,10 @@ export default function JoinPage() {
       error.startsWith('Room code') ||
       error === 'Room not found'
     );
+  };
+  const returnToPicker = () => {
+    setMode('pick');
+    setError('');
   };
 
   useEffect(() => {
@@ -327,84 +334,24 @@ export default function JoinPage() {
           <p style={styles.subtitle}>Real Estate Prediction Market</p>
         </div>
 
-        {mode === 'pick' && (
-          <div style={styles.pickContainer}>
-            <button style={styles.pickBtn} onClick={() => setMode('create')}>
-              <Plus size={24} />
-              <span style={styles.pickLabel}>Create Room</span>
-              <span style={styles.pickDesc}>Host a game on TV/projector</span>
-            </button>
-            <button style={styles.pickBtn} onClick={() => setMode('studio')}>
-              <WandSparkles size={24} />
-              <span style={styles.pickLabel}>Market Studio</span>
-              <span style={styles.pickDesc}>Generate a room from pasted listing text</span>
-            </button>
-            <button style={styles.pickBtn} onClick={() => setMode('join')}>
-              <LogIn size={24} />
-              <span style={styles.pickLabel}>Join Room</span>
-              <span style={styles.pickDesc}>Play from your phone</span>
-            </button>
-          </div>
-        )}
+        {mode === 'pick' && <JoinModePicker onSelect={setMode} />}
 
         {mode === 'create' && (
-          <div style={styles.form}>
-            <h2 style={styles.formTitle}>Create a Room</h2>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="create-host-nickname">Your Nickname</label>
-              <input
-                id="create-host-nickname"
-                style={styles.input}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-label="Host nickname"
-                aria-describedby={createErrorMessage ? createErrorId : undefined}
-                aria-invalid={createFieldInvalid('name') || undefined}
-                placeholder="Enter your name"
-                maxLength={20}
-                autoFocus
-              />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="create-property-address">Property Address</label>
-              <input
-                id="create-property-address"
-                style={styles.input}
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                aria-label="Property address"
-                aria-describedby={createErrorMessage ? createErrorId : undefined}
-                aria-invalid={createFieldInvalid('address') || undefined}
-                placeholder="742 Evergreen Terrace"
-                maxLength={100}
-              />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="create-asking-price">Asking Price ($)</label>
-              <input
-                id="create-asking-price"
-                style={styles.input}
-                value={askingPrice}
-                onChange={(e) => setAskingPrice(e.target.value)}
-                aria-label="Asking price"
-                aria-describedby={createErrorMessage ? createErrorId : undefined}
-                aria-invalid={createFieldInvalid('askingPrice') || undefined}
-                placeholder="450,000"
-                inputMode="numeric"
-              />
-            </div>
-            {createErrorMessage && <p id={createErrorId} style={styles.error} role="alert">{createErrorMessage}</p>}
-            <button
-              style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
-              onClick={handleCreate}
-              disabled={submitting || identityLoading}
-            >
-              {submitting ? 'Creating...' : 'Create Room'}
-            </button>
-            <button style={styles.backBtn} onClick={() => { setMode('pick'); setError(''); }}>
-              Back
-            </button>
-          </div>
+          <CreateRoomForm
+            name={name}
+            address={address}
+            askingPrice={askingPrice}
+            errorId={createErrorId}
+            errorMessage={createErrorMessage}
+            submitting={submitting}
+            identityLoading={identityLoading}
+            isFieldInvalid={createFieldInvalid}
+            onNameChange={setName}
+            onAddressChange={setAddress}
+            onAskingPriceChange={setAskingPrice}
+            onSubmit={handleCreate}
+            onBack={returnToPicker}
+          />
         )}
 
         {mode === 'studio' && (
@@ -494,57 +441,27 @@ export default function JoinPage() {
             >
               {submitting ? 'Creating...' : 'Create Room From Draft'}
             </button>
-            <button style={styles.backBtn} onClick={() => { setMode('pick'); setError(''); }}>
+            <button style={styles.backBtn} onClick={returnToPicker}>
               Back
             </button>
           </div>
         )}
 
         {mode === 'join' && (
-          <div style={styles.form}>
-            <h2 style={styles.formTitle}>Join a Room</h2>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="join-player-nickname">Your Nickname</label>
-              <input
-                id="join-player-nickname"
-                style={styles.input}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-label="Player nickname"
-                aria-describedby={joinErrorMessage ? joinErrorId : undefined}
-                aria-invalid={joinFieldInvalid('name') || undefined}
-                placeholder="Enter your name"
-                maxLength={20}
-                autoFocus
-              />
-            </div>
-            <div style={styles.field}>
-              <label style={styles.label} htmlFor="join-room-code">Room Code</label>
-              <input
-                id="join-room-code"
-                style={{ ...styles.input, textAlign: 'center', fontSize: 24, letterSpacing: 8, textTransform: 'uppercase' }}
-                value={roomCode}
-                onChange={(e) => setRoomCode(formatRoomCodeInput(e.target.value))}
-                aria-label="Room code"
-                aria-describedby={joinErrorMessage ? joinErrorId : undefined}
-                aria-invalid={joinFieldInvalid('roomCode') || undefined}
-                placeholder="A1B2"
-                maxLength={4}
-                inputMode="text"
-              />
-            </div>
-            {joinErrorMessage && <p id={joinErrorId} style={styles.error} role="alert">{joinErrorMessage}</p>}
-            <button
-              style={{ ...styles.submitBtn, opacity: submitting || identityLoading ? 0.6 : 1 }}
-              onClick={handleJoin}
-              disabled={submitting || identityLoading}
-            >
-              {submitting ? 'Joining...' : 'Join Room'}
-            </button>
-            <button style={styles.backBtn} onClick={() => { setMode('pick'); setError(''); }}>
-              Back
-            </button>
-          </div>
+          <JoinRoomForm
+            name={name}
+            roomCode={roomCode}
+            errorId={joinErrorId}
+            errorMessage={joinErrorMessage}
+            submitting={submitting}
+            identityLoading={identityLoading}
+            isFieldInvalid={joinFieldInvalid}
+            formatRoomCodeInput={formatRoomCodeInput}
+            onNameChange={setName}
+            onRoomCodeChange={setRoomCode}
+            onSubmit={handleJoin}
+            onBack={returnToPicker}
+          />
         )}
       </div>
 
@@ -595,36 +512,6 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: {
     fontSize: 14,
     color: 'var(--text-muted)',
-  },
-  pickContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
-  pickBtn: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 6,
-    padding: '24px 16px',
-    background: 'rgba(255,255,255,0.5)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,0.6)',
-    borderRadius: 20,
-    color: 'var(--text-primary)',
-    cursor: 'pointer',
-    transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)',
-    fontSize: 14,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 12px rgba(0,0,0,0.04)',
-  },
-  pickLabel: {
-    fontWeight: 700,
-    fontSize: 16,
-  },
-  pickDesc: {
-    color: 'var(--text-muted)',
-    fontSize: 13,
   },
   form: {
     display: 'flex',
