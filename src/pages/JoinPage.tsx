@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { loadProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
@@ -10,8 +11,17 @@ import {
   parseAskingPrice,
   validateMarketDraft,
 } from '../lib/marketDrafts';
+import {
+  MarketDraftPropertyMatch,
+  SavedMarketStudioDraft,
+  createDraftFromProperty,
+  deleteMarketStudioDraft,
+  matchDraftToProperties,
+  readSavedMarketStudioDrafts,
+  saveMarketStudioDraft,
+} from '../lib/marketStudioDrafts';
 import { useToast } from '../contexts/ToastContext';
-import { AlertTriangle, CheckCircle2, FileText, Home, LogIn, Plus, Users, WandSparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Database, FileText, Home, LogIn, Plus, Save, Trash2, Users, WandSparkles } from 'lucide-react';
 
 type RoomCreateResponse = {
   room_code?: string;
@@ -42,6 +52,9 @@ export default function JoinPage() {
   const [studioDraft, setStudioDraft] = useState<MarketDraft | null>(null);
   const [studioAddress, setStudioAddress] = useState('');
   const [studioPrice, setStudioPrice] = useState('');
+  const [propertyMatches, setPropertyMatches] = useState<MarketDraftPropertyMatch[]>([]);
+  const [savedDrafts, setSavedDrafts] = useState<SavedMarketStudioDraft[]>([]);
+  const [matchingProperties, setMatchingProperties] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,6 +84,10 @@ export default function JoinPage() {
   useEffect(() => {
     if (!name && nickname) setName(nickname);
   }, [name, nickname]);
+
+  useEffect(() => {
+    setSavedDrafts(readSavedMarketStudioDrafts());
+  }, []);
 
   const createRoomAndJoinHost = async (cleanName: string, cleanAddress: string, price: number) => {
     const identity = await ensureIdentity();
@@ -120,6 +137,28 @@ export default function JoinPage() {
   const parseRoomPrice = (value: string) =>
     parseAskingPrice(value) || parseFloat(value.replace(/[$,]/g, ''));
 
+  const applyStudioDraft = (draft: MarketDraft, sourceText = draft.source_text) => {
+    setStudioDraft(draft);
+    setStudioAddress(draft.address);
+    setStudioPrice(draft.asking_price ? String(draft.asking_price) : '');
+    setStudioText(sourceText);
+  };
+
+  const buildCurrentStudioDraft = () => {
+    if (!studioDraft) return null;
+    const cleanAddress = sanitize(studioAddress, 100);
+    const parsedPrice = parseRoomPrice(studioPrice);
+    const asking_price = Number.isNaN(parsedPrice) ? null : parsedPrice;
+    const priceTarget = asking_price ? formatDraftPrice(asking_price) : 'the asking price';
+    const subject = cleanAddress || 'this property';
+    return {
+      ...studioDraft,
+      address: cleanAddress,
+      asking_price,
+      market_question: `Will ${subject} appraise above ${priceTarget}?`,
+    };
+  };
+
   const handleCreate = async () => {
     const cleanName = sanitize(name, 20);
     const cleanAddress = sanitize(address, 100);
@@ -146,26 +185,65 @@ export default function JoinPage() {
     }
   };
 
-  const handleGenerateDraft = () => {
+  const handleGenerateDraft = async () => {
     if (!studioText.trim()) {
       setError('Paste a listing, address, or property notes first');
       return;
     }
     const draft = generateMarketDraft(studioText);
-    setStudioDraft(draft);
-    setStudioAddress(draft.address);
-    setStudioPrice(draft.asking_price ? String(draft.asking_price) : '');
+    applyStudioDraft(draft);
+    setPropertyMatches([]);
+    setMatchingProperties(true);
     setError('');
+    try {
+      const properties = await loadProperties();
+      setPropertyMatches(matchDraftToProperties(draft, properties));
+    } catch {
+      setPropertyMatches([]);
+    } finally {
+      setMatchingProperties(false);
+    }
+  };
+
+  const handleUsePropertyMatch = (match: MarketDraftPropertyMatch) => {
+    const nextDraft = createDraftFromProperty(match.property, studioDraft?.source_text || studioText);
+    applyStudioDraft(nextDraft);
+    setPropertyMatches([match]);
+    setError('');
+  };
+
+  const handleLoadSavedDraft = (saved: SavedMarketStudioDraft) => {
+    applyStudioDraft(saved.draft);
+    setPropertyMatches([]);
+    setError('');
+  };
+
+  const handleDeleteSavedDraft = (id: string) => {
+    setSavedDrafts(deleteMarketStudioDraft(id));
+  };
+
+  const handleSaveDraft = () => {
+    const currentDraft = buildCurrentStudioDraft();
+    if (!currentDraft) {
+      setError('Generate a market draft before saving');
+      return;
+    }
+    const validation = validateMarketDraft(currentDraft);
+    if (!validation.valid) {
+      setError(validation.issues.join(' '));
+      return;
+    }
+    const saved = saveMarketStudioDraft(currentDraft);
+    setSavedDrafts(saved);
+    setStudioDraft(currentDraft);
+    setError('');
+    showToast('Market draft saved', 'success');
   };
 
   const handleStudioCreate = async () => {
     const cleanName = sanitize(name, 20);
-    const cleanAddress = sanitize(studioAddress, 100);
-    const parsedPrice = parseRoomPrice(studioPrice);
-    const validation = validateMarketDraft({
-      address: cleanAddress,
-      asking_price: Number.isNaN(parsedPrice) ? null : parsedPrice,
-    });
+    const currentDraft = buildCurrentStudioDraft();
+    const validation = validateMarketDraft(currentDraft || { address: '', asking_price: null });
     if (!cleanName) {
       setError('Host nickname is required');
       return;
@@ -178,7 +256,7 @@ export default function JoinPage() {
     setSubmitting(true);
     setError('');
     try {
-      await createRoomAndJoinHost(cleanName, cleanAddress, parsedPrice);
+      await createRoomAndJoinHost(cleanName, currentDraft!.address, currentDraft!.asking_price!);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create room';
       setError(message);
@@ -326,6 +404,33 @@ export default function JoinPage() {
               <FileText size={19} color="var(--accent-primary)" aria-hidden="true" />
               <h2 style={styles.formTitle}>Market Studio</h2>
             </div>
+            {savedDrafts.length > 0 && (
+              <section style={styles.savedDraftPanel} aria-label="Saved market drafts" data-testid="market-studio-saved-drafts">
+                <div style={styles.savedDraftHeader}>Saved drafts</div>
+                <div style={styles.savedDraftList}>
+                  {savedDrafts.map((saved) => (
+                    <div key={saved.id} style={styles.savedDraftItem}>
+                      <button
+                        type="button"
+                        style={styles.savedDraftLoad}
+                        onClick={() => handleLoadSavedDraft(saved)}
+                      >
+                        <span style={styles.savedDraftTitle}>{saved.title}</span>
+                        <span style={styles.savedDraftMeta}>{saved.price_label || 'Price needed'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        style={styles.iconButton}
+                        aria-label={`Delete ${saved.title}`}
+                        onClick={() => handleDeleteSavedDraft(saved.id)}
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             <div style={styles.field}>
               <label style={styles.label} htmlFor="studio-host-nickname">Host Nickname</label>
               <input
@@ -363,6 +468,38 @@ export default function JoinPage() {
               Generate Market Draft
             </button>
 
+            {matchingProperties && (
+              <p style={styles.matchingText}>Checking local property dataset...</p>
+            )}
+
+            {propertyMatches.length > 0 && (
+              <section style={styles.matchPanel} aria-label="Existing property matches" data-testid="market-studio-matches">
+                <div style={styles.matchHeader}>
+                  <Database size={15} aria-hidden="true" />
+                  <span>Existing property match</span>
+                </div>
+                {propertyMatches.map((match) => (
+                  <div key={match.property_id} style={styles.matchItem}>
+                    <div style={styles.matchCopy}>
+                      <span style={styles.matchTitle}>{match.address}</span>
+                      <span style={styles.matchMeta}>
+                        {match.city}, {match.state} {match.zip} · {formatDraftPrice(match.asking_price)} · {match.score}% {match.confidence}
+                      </span>
+                      <span style={styles.matchReasons}>{match.reasons.slice(0, 3).join(', ')}</span>
+                    </div>
+                    <button
+                      type="button"
+                      style={styles.matchButton}
+                      aria-label={`Use local property ${match.address}`}
+                      onClick={() => handleUsePropertyMatch(match)}
+                    >
+                      Use Local Property
+                    </button>
+                  </div>
+                ))}
+              </section>
+            )}
+
             {studioDraft && (
               <section style={styles.draftCard} aria-label="Generated market draft" data-testid="market-studio-draft">
                 <div style={styles.draftTopline}>
@@ -372,6 +509,9 @@ export default function JoinPage() {
                   </span>
                   <span style={styles.generatedSource}>{studioDraft.provenance.source}</span>
                 </div>
+                {studioDraft.property_id && (
+                  <div style={styles.linkedPropertyNote}>Linked to local property {studioDraft.property_id}</div>
+                )}
                 <h3 style={styles.draftQuestion}>{studioDraft.market_question}</h3>
                 <p style={styles.draftSummary}>{studioDraft.generated_summary}</p>
 
@@ -430,6 +570,16 @@ export default function JoinPage() {
             )}
 
             {studioErrorMessage && <p id={studioErrorId} style={styles.error} role="alert">{studioErrorMessage}</p>}
+            {studioDraft && (
+              <button
+                type="button"
+                style={styles.secondaryActionBtn}
+                onClick={handleSaveDraft}
+              >
+                <Save size={16} aria-hidden="true" />
+                Save Draft
+              </button>
+            )}
             <button
               style={{ ...styles.submitBtn, opacity: submitting || identityLoading || !studioDraft ? 0.6 : 1 }}
               onClick={handleStudioCreate}
@@ -587,6 +737,64 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 8,
   },
+  savedDraftPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    padding: 12,
+    borderRadius: 18,
+    background: 'rgba(255,255,255,0.44)',
+    border: '1px solid rgba(0,0,0,0.07)',
+  },
+  savedDraftHeader: {
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  savedDraftList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  savedDraftItem: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 34px',
+    gap: 8,
+    alignItems: 'center',
+  },
+  savedDraftLoad: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+    padding: '10px 12px',
+    background: 'rgba(255,255,255,0.58)',
+    border: '1px solid rgba(0,0,0,0.06)',
+    borderRadius: 14,
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  savedDraftTitle: {
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  savedDraftMeta: {
+    color: 'var(--text-muted)',
+    fontSize: 12,
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(255,255,255,0.5)',
+    border: '1px solid rgba(0,0,0,0.07)',
+    borderRadius: 12,
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+  },
   field: {
     display: 'flex',
     flexDirection: 'column',
@@ -639,6 +847,66 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75), 0 2px 10px rgba(0,0,0,0.04)',
   },
+  matchingText: {
+    margin: '-4px 0 0',
+    color: 'var(--text-muted)',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  matchPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    padding: 14,
+    borderRadius: 18,
+    background: 'rgba(239,250,243,0.7)',
+    border: '1px solid rgba(11,111,50,0.16)',
+  },
+  matchHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 7,
+    color: 'var(--accent-success)',
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  matchItem: {
+    display: 'grid',
+    gridTemplateColumns: '1fr auto',
+    gap: 12,
+    alignItems: 'center',
+  },
+  matchCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 3,
+    minWidth: 0,
+  },
+  matchTitle: {
+    color: 'var(--text-primary)',
+    fontSize: 14,
+    fontWeight: 800,
+  },
+  matchMeta: {
+    color: 'var(--text-secondary)',
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  matchReasons: {
+    color: 'var(--text-muted)',
+    fontSize: 12,
+  },
+  matchButton: {
+    padding: '9px 12px',
+    borderRadius: 980,
+    border: '1px solid rgba(11,111,50,0.18)',
+    background: 'rgba(255,255,255,0.72)',
+    color: 'var(--accent-success)',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
+  },
   draftCard: {
     display: 'flex',
     flexDirection: 'column',
@@ -671,6 +939,11 @@ const styles: Record<string, React.CSSProperties> = {
   generatedSource: {
     color: 'var(--text-muted)',
     fontSize: 12,
+  },
+  linkedPropertyNote: {
+    color: 'var(--accent-success)',
+    fontSize: 12,
+    fontWeight: 700,
   },
   draftQuestion: {
     margin: 0,

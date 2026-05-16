@@ -234,10 +234,10 @@ test('core room surfaces pass serious accessibility checks without console error
 
 test('market studio generates a draft and creates a host room from pasted listing text', async ({ page }) => {
   const listing = `
-    1428 Dolores Street
+    3004 26th St
     San Francisco, CA 94110
-    Listed at $1,250,000
-    3 beds, 2 baths, 1,640 sqft single-family home with garden and updated kitchen.
+    Listed at $800,000
+    3 beds, 2 baths, 1,200 sqft single-family home with garden and updated kitchen.
   `;
 
   await page.goto('/join');
@@ -246,10 +246,16 @@ test('market studio generates a draft and creates a host room from pasted listin
   await page.getByLabel('Listing text').fill(listing);
   await page.getByRole('button', { name: /Generate Market Draft/ }).click();
 
-  await expect(page.getByTestId('market-studio-draft')).toContainText('Will 1428 Dolores Street appraise above $1,250,000?');
-  await expect(page.getByLabel('Generated property address')).toHaveValue('1428 Dolores Street');
-  await expect(page.getByLabel('Generated asking price')).toHaveValue('1250000');
+  await expect(page.getByTestId('market-studio-draft')).toContainText('Will 3004 26th St appraise above $800,000?');
+  await expect(page.getByTestId('market-studio-matches')).toContainText('Existing property match', { timeout: 15_000 });
+  await expect(page.getByTestId('market-studio-matches')).toContainText('3004 26th St');
+  await page.getByRole('button', { name: /Use local property 3004 26th St/ }).first().click();
+  await expect(page.getByTestId('market-studio-draft')).toContainText('Linked to local property 440298192');
+  await expect(page.getByLabel('Generated property address')).toHaveValue('3004 26th St');
+  await expect(page.getByLabel('Generated asking price')).toHaveValue('800000');
   await expect(page.getByTestId('market-studio-draft')).toContainText('Final sale price, appraisal report');
+  await page.getByRole('button', { name: /Save Draft/ }).click();
+  await expect(page.getByTestId('market-studio-saved-drafts')).toContainText('3004 26th St');
   await expectNoSeriousAxeViolations(page, 'market studio generated draft');
 
   await Promise.all([
@@ -259,7 +265,7 @@ test('market studio generates a draft and creates a host room from pasted listin
 
   await expect(page).toHaveURL(/\/host\/[A-Z0-9]{4}$/);
   await expect(page.getByTestId('host-player-count')).toContainText('1 player');
-  await expect(page.getByText(/^1428 Dolores Street$/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^3004 26th St$/)).toBeVisible({ timeout: 15_000 });
   await expectConnected(page);
 });
 

@@ -1,4 +1,4 @@
-export type MarketDraftSourceType = 'pasted_listing' | 'manual' | 'csv_row' | 'address';
+export type MarketDraftSourceType = 'pasted_listing' | 'manual' | 'csv_row' | 'address' | 'existing_property';
 
 export type MarketFormat = 'binary_over_under';
 
