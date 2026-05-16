@@ -59,10 +59,14 @@ const ROOM_CODE_PATTERN = /^[A-Z0-9]{4}$/;
 const USER_ID_PATTERN = /^usr_[A-Za-z0-9_-]{16,80}$/;
 const MAX_ASKING_PRICE = 100_000_000;
 const MAX_TEXT_LENGTH = 120;
+const MAX_DRAFT_LIST_ITEMS = 8;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const REQUEST_ID_HEADER = 'x-request-id';
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+const MARKET_DRAFT_SOURCE_TYPES = new Set(['pasted_listing', 'manual', 'csv_row', 'address', 'existing_property']);
+const MARKET_DRAFT_FORMATS = new Set(['binary_over_under']);
+const MARKET_DRAFT_CONFIDENCES = new Set(['low', 'medium', 'high']);
 const rateLimitBuckets = new Map();
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
@@ -139,6 +143,7 @@ function serializeRoomSnapshot(room) {
     durabilityError: room.durabilityError ? cloneJson(room.durabilityError) : null,
     activity: cloneJson(room.activity || []),
     marketId: room.marketId || null,
+    draftAudit: room.draftAudit ? cloneJson(room.draftAudit) : null,
     events: roomEventStore.list(room.code),
   };
 }
@@ -164,6 +169,7 @@ function hydrateRoomSnapshot(snapshot) {
     durabilityError: snapshot.durabilityError ? cloneJson(snapshot.durabilityError) : null,
     activity: cloneJson(snapshot.activity || []),
     marketId: snapshot.marketId || null,
+    draftAudit: snapshot.draftAudit ? cloneJson(snapshot.draftAudit) : null,
   };
 }
 
@@ -414,6 +420,102 @@ function parsePositiveNumber(value, max = Number.MAX_SAFE_INTEGER) {
   return parsed;
 }
 
+function normalizeDraftPropertyId(value) {
+  const propertyId = sanitizeText(value, 80);
+  return propertyId && /^[A-Za-z0-9._:-]+$/.test(propertyId) ? propertyId : null;
+}
+
+function sanitizeTextList(value, itemMaxLength = 160, maxItems = MAX_DRAFT_LIST_ITEMS) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => sanitizeText(item, itemMaxLength))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function hashDraftSourceText(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  return crypto.createHash('sha256').update(value.trim()).digest('hex');
+}
+
+function validateMarketDraftAuditPayload(rawDraft, house) {
+  if (rawDraft == null) return { value: null };
+  if (typeof rawDraft !== 'object' || Array.isArray(rawDraft)) {
+    return { error: 'Market draft must be an object' };
+  }
+
+  const sourceType = sanitizeText(rawDraft.source_type, 40) || 'manual';
+  if (!MARKET_DRAFT_SOURCE_TYPES.has(sourceType)) {
+    return { error: 'Market draft source type is invalid' };
+  }
+
+  const address = sanitizeText(rawDraft.address, 100);
+  const askingPrice = parsePositiveNumber(rawDraft.asking_price, MAX_ASKING_PRICE);
+  if (!address) return { error: 'Market draft address is required' };
+  if (askingPrice === null) return { error: 'Market draft asking price must be between $1 and $100M' };
+  if (address !== house.address) return { error: 'Market draft address must match room address' };
+  if (Math.abs(askingPrice - house.asking_price) > 0.01) {
+    return { error: 'Market draft asking price must match room asking price' };
+  }
+
+  const marketFormat = sanitizeText(rawDraft.market_format, 60) || 'binary_over_under';
+  if (!MARKET_DRAFT_FORMATS.has(marketFormat)) {
+    return { error: 'Market draft format is invalid' };
+  }
+
+  const provenance = rawDraft.provenance && typeof rawDraft.provenance === 'object'
+    ? rawDraft.provenance
+    : {};
+  const confidence = sanitizeText(provenance.confidence, 20) || 'low';
+  if (!MARKET_DRAFT_CONFIDENCES.has(confidence)) {
+    return { error: 'Market draft provenance confidence is invalid' };
+  }
+
+  const sourceText = typeof rawDraft.source_text === 'string' ? rawDraft.source_text : '';
+  const liquidityB = parsePositiveNumber(rawDraft.liquidity_b, 10_000) || DEFAULT_B;
+  const evidenceRequired = sanitizeTextList(rawDraft.evidence_required, 180, 6);
+  const warnings = sanitizeTextList(rawDraft.warnings, 180, 8);
+  const matchedSignals = sanitizeTextList(provenance.matchedSignals, 80, 8);
+
+  return {
+    value: {
+      schema_version: 'market-draft-audit/v1',
+      source_type: sourceType,
+      property_id: normalizeDraftPropertyId(rawDraft.property_id),
+      normalized_fields: {
+        address,
+        city: sanitizeText(rawDraft.city, 80),
+        state: sanitizeText(rawDraft.state, 20),
+        zip: sanitizeText(rawDraft.zip, 20),
+        asking_price: askingPrice,
+        beds: parsePositiveNumber(rawDraft.beds, 100),
+        baths: parsePositiveNumber(rawDraft.baths, 100),
+        sqft: parsePositiveNumber(rawDraft.sqft, 1_000_000),
+        home_type: sanitizeText(rawDraft.home_type, 80),
+      },
+      provenance: {
+        source: sanitizeText(provenance.source, 100) || 'Unspecified draft source',
+        confidence,
+        matchedSignals,
+      },
+      market_question: sanitizeText(rawDraft.market_question, 180) || `Will ${address} appraise above $${askingPrice.toLocaleString()}?`,
+      market_format: marketFormat,
+      liquidity_b: liquidityB,
+      settlement_rule: sanitizeText(rawDraft.settlement_rule, 240) || 'Settle using final sale price, appraisal, or host-provided valuation evidence.',
+      evidence_required: evidenceRequired,
+      generated_summary: sanitizeText(rawDraft.generated_summary, 520),
+      warnings,
+      source_text_hash: hashDraftSourceText(sourceText),
+      source_text_length: sourceText.trim().length,
+      validation: {
+        status: 'accepted',
+        checked_at: Date.now() / 1000,
+        issues: [],
+      },
+    },
+  };
+}
+
 function getIdempotencyKey(req) {
   const key = String(req.get('Idempotency-Key') || req.body?.idempotency_key || '').trim();
   return IDEMPOTENCY_KEY_PATTERN.test(key) ? key : null;
@@ -474,7 +576,10 @@ function validateCreateRoomPayload(body) {
   if (!address) return { error: 'Address is required' };
   if (askingPrice === null) return { error: 'Asking price must be between $1 and $100M' };
   if (hasHostUserId && !hostUserId) return { error: 'Host user ID is invalid' };
-  return { value: { address, asking_price: askingPrice, host_user_id: hostUserId } };
+  const house = { address, asking_price: askingPrice };
+  const draftAudit = validateMarketDraftAuditPayload(body?.market_draft, house);
+  if (draftAudit.error) return { error: draftAudit.error };
+  return { value: { ...house, host_user_id: hostUserId, draft_audit: draftAudit.value } };
 }
 
 function validateJoinPayload(body) {
@@ -541,6 +646,7 @@ async function createRoom(house, roomCode, options = {}) {
     durabilityError: null,
     activity: [],
     marketId: null,
+    draftAudit: options.draftAudit ? cloneJson(options.draftAudit) : null,
   };
 
   // Persist a new market row + market_state in Neon so trades are saved
@@ -568,6 +674,7 @@ async function createRoom(house, roomCode, options = {}) {
     house: room.house,
     market: getPublicMarketState(room.market),
     host_user_id: room.hostUserId,
+    draft_audit: room.draftAudit,
   });
   await waitForRoomPersistence(persistence);
   return room;
@@ -721,6 +828,7 @@ function getRoomStatePayload(room) {
     settled: replay.settled || room.settled,
     settlement: replay.settlement || room.settlement,
     event_sequence: replay.last_sequence,
+    draft_audit: replay.draft_audit || room.draftAudit || null,
   };
 }
 
@@ -1143,13 +1251,13 @@ app.post('/api/rooms', limitRequests('rooms:create', { max: 20 }), async (req, r
   const validated = validateCreateRoomPayload(req.body);
   if (validated.error) return validationError(res, validated.error);
 
-  const { host_user_id, ...house } = validated.value;
+  const { host_user_id, draft_audit, ...house } = validated.value;
   if (host_user_id && !requireExpectedUserIdentity(req, res, host_user_id)) return;
 
   try {
-    const room = await createRoom(house, undefined, { hostUserId: host_user_id });
+    const room = await createRoom(house, undefined, { hostUserId: host_user_id, draftAudit: draft_audit });
     observability.increment('room_lifecycle.created');
-    res.json({ room_code: room.code, host_token: room.hostToken, house });
+    res.json({ room_code: room.code, host_token: room.hostToken, house, draft_audit: room.draftAudit });
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -1218,6 +1326,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     house: state.house,
     activity: state.activity,
     host_user_id: state.host_user_id,
+    draft_audit: state.draft_audit,
     settled: state.settled,
     settlement: state.settlement,
     event_sequence: state.event_sequence,

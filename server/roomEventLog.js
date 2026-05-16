@@ -139,6 +139,7 @@ function createReplayState() {
   return {
     room_code: null,
     house: null,
+    draft_audit: null,
     market: null,
     players: {},
     activity: [],
@@ -167,6 +168,7 @@ function replayRoomEvents(events) {
     switch (event.type) {
       case EVENT_TYPES.ROOM_CREATED:
         state.house = cloneJson(payload.house || state.house);
+        state.draft_audit = cloneJson(payload.draft_audit || state.draft_audit);
         state.market = cloneJson(payload.market || state.market);
         state.phase = 'open';
         break;

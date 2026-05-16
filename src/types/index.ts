@@ -38,6 +38,42 @@ export interface House {
   asking_price: number;
 }
 
+export interface MarketDraftAudit {
+  schema_version: string;
+  source_type: string;
+  property_id: string | null;
+  normalized_fields: {
+    address: string;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    asking_price: number;
+    beds?: number | null;
+    baths?: number | null;
+    sqft?: number | null;
+    home_type?: string | null;
+  };
+  provenance: {
+    source: string;
+    confidence: 'low' | 'medium' | 'high';
+    matchedSignals: string[];
+  };
+  market_question: string;
+  market_format: string;
+  liquidity_b: number;
+  settlement_rule: string;
+  evidence_required: string[];
+  generated_summary?: string | null;
+  warnings: string[];
+  source_text_hash: string | null;
+  source_text_length: number;
+  validation: {
+    status: string;
+    checked_at: number;
+    issues: string[];
+  };
+}
+
 export interface ActivityEntry {
   type: string;
   nickname?: string;

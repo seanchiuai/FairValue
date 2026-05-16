@@ -133,6 +133,89 @@ test('room, join, bet, and settlement payloads are validated before mutation', a
   assert.equal(rooms[code].settled, false);
 });
 
+test('market studio draft metadata is server-validated and preserved for audit', async () => {
+  const invalidDraft = await request('/api/rooms', {
+    method: 'POST',
+    body: {
+      address: '3004 26th St',
+      asking_price: 800000,
+      market_draft: {
+        source_type: 'existing_property',
+        address: 'Different Address',
+        asking_price: 800000,
+      },
+    },
+  });
+  assert.equal(invalidDraft.status, 400);
+  assert.match(invalidDraft.data.error, /Market draft address/);
+  assert.equal(Object.keys(rooms).length, 0);
+
+  const sourceText = [
+    '3004 26th St',
+    'San Francisco, CA 94110',
+    'Listed at $800,000',
+    '3 beds, 2 baths, 1,200 sqft single-family home.',
+  ].join('\n');
+  const created = await request('/api/rooms', {
+    method: 'POST',
+    body: {
+      address: '3004 26th St',
+      asking_price: 800000,
+      market_draft: {
+        source_type: 'existing_property',
+        source_text: sourceText,
+        property_id: '440298192',
+        address: '3004 26th St',
+        city: 'San Francisco',
+        state: 'CA',
+        zip: '94110',
+        asking_price: 800000,
+        beds: 3,
+        baths: 2,
+        sqft: 1200,
+        home_type: 'Single Family',
+        provenance: {
+          source: 'Local property dataset match',
+          confidence: 'high',
+          matchedSignals: ['existing property', 'street address', 'asking price'],
+        },
+        market_question: 'Will 3004 26th St appraise above $800,000?',
+        market_format: 'binary_over_under',
+        liquidity_b: 100,
+        settlement_rule: 'Settle using final sale price, appraisal, or host-provided valuation evidence.',
+        evidence_required: ['Final sale price, appraisal report, or signed valuation evidence.'],
+        generated_summary: 'Matched local property draft.',
+        warnings: ['Settlement still requires final evidence.'],
+      },
+    },
+  });
+  assert.equal(created.status, 200);
+  assert.equal(created.data.draft_audit.property_id, '440298192');
+  assert.equal(created.data.draft_audit.validation.status, 'accepted');
+  assert.equal(created.data.draft_audit.normalized_fields.address, '3004 26th St');
+  assert.equal(created.data.draft_audit.provenance.source, 'Local property dataset match');
+  assert.equal(created.data.draft_audit.source_text_length, sourceText.length);
+  assert.match(created.data.draft_audit.source_text_hash, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(created.data.draft_audit).includes(sourceText), false);
+
+  const code = created.data.room_code;
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.draft_audit.market_question, 'Will 3004 26th St appraise above $800,000?');
+
+  const events = await request(`/api/rooms/${code}/events`, {
+    headers: { 'X-FairValue-Host-Token': created.data.host_token },
+  });
+  assert.equal(events.status, 200);
+  assert.equal(events.data.events[0].payload.draft_audit.property_id, '440298192');
+
+  const replay = await request(`/api/rooms/${code}/replay`, {
+    headers: { 'X-FairValue-Host-Token': created.data.host_token },
+  });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.replay.draft_audit.property_id, '440298192');
+});
+
 test('bet idempotency replays duplicates without mutating the room twice', async () => {
   const room = await createHostedRoom();
   const code = room.room_code;

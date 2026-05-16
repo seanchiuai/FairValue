@@ -266,6 +266,11 @@ test('market studio generates a draft and creates a host room from pasted listin
   await expect(page).toHaveURL(/\/host\/[A-Z0-9]{4}$/);
   await expect(page.getByTestId('host-player-count')).toContainText('1 player');
   await expect(page.getByText(/^3004 26th St$/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Market Studio draft audit');
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Local property dataset match');
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Linked property: 440298192');
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Server-validated draft metadata');
+  await expectNoSeriousAxeViolations(page, 'market studio host draft audit');
   await expectConnected(page);
 });
 

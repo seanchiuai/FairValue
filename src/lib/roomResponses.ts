@@ -1,4 +1,4 @@
-import type { ActivityEntry, House, Market, PlayerData, SettleResult } from '../types';
+import type { ActivityEntry, House, Market, MarketDraftAudit, PlayerData, SettleResult } from '../types';
 
 export type RoomMutationResponse = {
   error?: string;
@@ -6,6 +6,7 @@ export type RoomMutationResponse = {
   players?: PlayerData[];
   player?: PlayerData;
   house?: House;
+  draft_audit?: MarketDraftAudit | null;
   activity?: ActivityEntry[];
   ai_enabled?: boolean;
   host_user_id?: string | null;

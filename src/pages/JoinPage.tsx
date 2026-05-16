@@ -89,7 +89,12 @@ export default function JoinPage() {
     setSavedDrafts(readSavedMarketStudioDrafts());
   }, []);
 
-  const createRoomAndJoinHost = async (cleanName: string, cleanAddress: string, price: number) => {
+  const createRoomAndJoinHost = async (
+    cleanName: string,
+    cleanAddress: string,
+    price: number,
+    marketDraft?: MarketDraft | null
+  ) => {
     const identity = await ensureIdentity();
     const res = await fetch('/api/rooms', {
       method: 'POST',
@@ -101,6 +106,7 @@ export default function JoinPage() {
         address: cleanAddress,
         asking_price: price,
         host_user_id: identity.user_id,
+        ...(marketDraft ? { market_draft: marketDraft } : {}),
       }),
     });
     const data = await readJson<RoomCreateResponse>(res);
@@ -256,7 +262,7 @@ export default function JoinPage() {
     setSubmitting(true);
     setError('');
     try {
-      await createRoomAndJoinHost(cleanName, currentDraft!.address, currentDraft!.asking_price!);
+      await createRoomAndJoinHost(cleanName, currentDraft!.address, currentDraft!.asking_price!, currentDraft);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create room';
       setError(message);

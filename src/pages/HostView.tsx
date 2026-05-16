@@ -37,6 +37,7 @@ export default function HostView() {
     market,
     players,
     house,
+    draftAudit,
     activity,
     aiEnabled,
     hostUserId,
@@ -258,6 +259,26 @@ export default function HostView() {
             </div>
           </div>
 
+          {draftAudit && (
+            <section
+              style={s.draftAuditCard}
+              aria-label="Market Studio draft audit"
+              data-testid="host-draft-audit-note"
+            >
+              <div style={s.draftAuditTitle}>Market Studio draft audit</div>
+              <div style={s.draftAuditGrid}>
+                <span>Source: <strong>{draftAudit.provenance.source}</strong></span>
+                <span>Validation: <strong>{draftAudit.validation.status}</strong></span>
+                {draftAudit.property_id && <span>Linked property: <strong>{draftAudit.property_id}</strong></span>}
+                <span>Format: <strong>{draftAudit.market_format.replace(/_/g, ' ')}</strong></span>
+              </div>
+              <p style={s.draftAuditQuestion}>{draftAudit.market_question}</p>
+              <p style={s.draftAuditText}>
+                Server-validated draft metadata is preserved in this room's event history. Original pasted text is not stored; the audit keeps a source hash and settlement evidence checklist.
+              </p>
+            </section>
+          )}
+
           <TrustNotice
             testId="host-room-trust-notice"
             title="Room trust note"
@@ -468,6 +489,38 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 14,
     color: 'var(--text-secondary)',
     marginTop: 4,
+  },
+  draftAuditCard: {
+    padding: 16,
+    background: 'rgba(0,95,204,0.08)',
+    border: '1px solid rgba(0,95,204,0.18)',
+    borderRadius: 10,
+  },
+  draftAuditTitle: {
+    fontSize: 14,
+    fontWeight: 800,
+    marginBottom: 10,
+  },
+  draftAuditGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: 8,
+    color: 'var(--text-secondary)',
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  draftAuditQuestion: {
+    margin: '0 0 8px',
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontWeight: 700,
+    lineHeight: 1.4,
+  },
+  draftAuditText: {
+    margin: 0,
+    color: 'var(--text-secondary)',
+    fontSize: 12,
+    lineHeight: 1.45,
   },
   probBig: {
     display: 'flex',

@@ -77,10 +77,12 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Local boot readiness now has `npm run smoke:boot`, which launches `node server/index.js` on a free local port with an isolated temporary room snapshot, checks health/readiness/security headers, proves ops-token gating, drives create/join/bet/settle plus a WebSocket join broadcast, confirms host-token non-leakage, and verifies snapshot persistence wrote.
 - Market Studio now exists as a real `/join` creation mode: hosts can paste listing text, generate a deterministic local market draft, review normalized address/asking price/facts/provenance/warnings/settlement evidence, edit generated fields, and create a real host room through the existing authenticated room creation and host auto-join path.
 - Market Studio now matches generated drafts against the local property dataset on demand and lets hosts save, reload, update, and delete local draft artifacts in browser storage before creating a real room.
+- Market Studio room creation now sends draft metadata to the server, which validates that the draft address/asking price match the room, stores an audit envelope with a source-text hash instead of raw pasted text, persists it through snapshots/events/replay/state, and shows the host a draft-audit note.
 - Market detail pages now include deterministic Market Intelligence: a local property brief, confidence reason, valuation metrics, bull/bear/uncertainty cases, scenario prompts, and settlement checklist generated from existing property snapshot fields without external AI credentials.
 
 ## Current Test Status
 
+- 2026-05-16 Market Studio server draft-audit pass: focused `node --test server/__tests__/validationAndIdempotency.test.js server/__tests__/roomEventLog.test.js` passed 11 server tests; focused `npm test -- marketDrafts marketStudioDrafts` passed 2 files / 9 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local match -> use matched property -> create host room -> render host draft audit; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 9 Vitest suites / 57 tests, production build, bundle budget, and `smoke:boot` room `MFJD`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local render on backend `8049` / frontend `3049` created room `298G`, rendered the server-validated draft audit card with linked property `440298192`, returned `/healthz` ok, and reported zero console/page errors.
 - 2026-05-16 Market Studio matching/saved-drafts pass: focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local property match -> use matched property -> save draft -> create host room; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 9 Vitest suites / 57 tests, production build, bundle budget, and `smoke:boot` room `LYSK`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local render on backend `8047` / frontend `3047` returned `/join` 200 and `/healthz` ok, with desktop/mobile Studio snapshots showing match/save/create controls and only the expected React DevTools info console entry.
 - 2026-05-16 Market Detail Intelligence pass: focused `npm test -- marketIntelligence` passed 4 tests; `npm run typecheck` passed; focused Playwright market-detail route passed desktop/mobile content and serious axe checks; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 8 Vitest suites / 53 tests, production build, bundle budget, and `smoke:boot` room `FWGP`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live browser render on backend `8045` / frontend `3045` returned `/market/440298192` 200 and `/healthz` ok with desktop/mobile snapshots and only the expected React DevTools info console entry.
 - 2026-05-16 Market Studio pass: baseline `npm run typecheck`, `npm test`, and `npm run test:server` passed before edits; focused `npm test -- marketDrafts` passed 5 tests; focused Market Studio Playwright passed; live local dev smoke on backend `8042` / frontend `3042` returned `/join` 200 and `/healthz` ok, with desktop/mobile browser snapshots showing the new Market Studio option and only the expected React DevTools info console entry; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 7 Vitest suites / 49 tests, production build, bundle budget, and `smoke:boot` room `1NFU`; final full `npm run test:e2e:isolated` passed 32 Chromium tests after a strict-locator assertion was tightened.
@@ -175,8 +177,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Add optional server-side Market Studio draft validation and a draft-to-room audit envelope so matched/saved drafts can be checked before persistence and later replayed from room history.
-2. Evolve Market Intelligence into room-aware analysis by combining property snapshot signals with live LMSR room flow, recent bets, and optional provider-backed comps while keeping the deterministic no-key fallback.
+1. Evolve Market Intelligence into room-aware analysis by combining property snapshot signals with live LMSR room flow, recent bets, server-preserved draft audit metadata, and optional provider-backed comps while keeping the deterministic no-key fallback.
+2. Add an operator-facing draft audit/review route that can compare room draft audits, final settlement evidence, and event history before public recaps or exports exist.
 3. Extract the touched `/join` UI into reusable primitives or a co-located CSS module so the Market Studio design does not add more long-lived inline-style sprawl.
 4. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 5. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
@@ -187,6 +189,15 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 10. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Market Studio Server Draft Audit
+
+- Added server-side validation for optional `market_draft` room creation payloads, requiring valid source/type fields plus address and asking price parity with the room before any room mutation is accepted.
+- Added a persisted `draft_audit` envelope that captures normalized draft fields, provenance, market question, settlement evidence requirements, warnings, validation status, source-text hash, and source-text length while intentionally omitting raw pasted listing text.
+- Carried draft audits through room creation responses, durable snapshots, room event logs, replay, state payloads, cached room state, and the host dashboard.
+- Updated `/join` Market Studio room creation so generated or matched drafts are submitted to the server, while manual create-room flow still creates rooms without audit metadata.
+- Added host UI proof that a Market Studio room is backed by server-validated draft metadata and linked property provenance.
+- Verified with focused server/type/unit checks, focused Market Studio Playwright, full `npm run verify`, full isolated Playwright, and a live local render of a Market Studio host room.
 
 ### 2026-05-16 - Market Studio Matching And Saved Drafts
 

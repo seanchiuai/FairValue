@@ -11,6 +11,7 @@ import {
 } from '../lib/roomResponses';
 import type {
   Market,
+  MarketDraftAudit,
   PlayerData,
   House,
   ActivityEntry,
@@ -34,6 +35,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   const [market, setMarket] = useState<Market | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
   const [house, setHouse] = useState<House | null>(null);
+  const [draftAudit, setDraftAudit] = useState<MarketDraftAudit | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [hostUserId, setHostUserId] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
           setMarket(data.market);
           setPlayers(data.players);
           setHouse(data.house);
+          setDraftAudit(data.draft_audit || null);
           setActivity(data.activity || []);
           setAiEnabled(data.ai_enabled);
           setHostUserId(data.host_user_id || null);
@@ -79,6 +82,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         setMarket(data.market || null);
         setPlayers(data.players || []);
         setHouse(data.house || null);
+        setDraftAudit(data.draft_audit || null);
         setActivity(data.activity || []);
         setAiEnabled(Boolean(data.ai_enabled));
         setHostUserId(data.host_user_id || null);
@@ -112,6 +116,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     setMarket(data.market || null);
     setPlayers(data.players || []);
     setHouse(data.house || null);
+    setDraftAudit(data.draft_audit || null);
     setActivity(data.activity || []);
     setAiEnabled(Boolean(data.ai_enabled));
     setHostUserId(data.host_user_id || null);
@@ -241,6 +246,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
       setMarket(data.market || null);
       setPlayers(data.players || []);
       setHouse(data.house || null);
+      setDraftAudit(data.draft_audit || null);
       if (data.activity) setActivity(data.activity);
       setHostUserId(data.host_user_id || null);
       if (data.settled) setSettled(true);
@@ -318,6 +324,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     players,
     myPlayer,
     house,
+    draftAudit,
     activity,
     aiEnabled,
     hostUserId,
