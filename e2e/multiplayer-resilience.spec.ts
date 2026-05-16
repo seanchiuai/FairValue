@@ -538,7 +538,7 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
   }
 });
 
-test('player pre-bet preview caps wagers against remaining balance', async ({
+test('player pre-bet preview caps wagers and rejects over-balance bets', async ({
   request,
   browser,
 }: {
@@ -583,6 +583,18 @@ test('player pre-bet preview caps wagers against remaining balance', async ({
     );
     await expect(page.getByTestId('player-prebet-over')).toContainText('OVER');
     await expect(page.getByTestId('player-prebet-under')).toContainText('UNDER');
+
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/bet`) && response.status() === 400
+      ),
+      page.getByRole('button', { name: 'Bet $950 on OVER' }).click(),
+    ]);
+    await expect(page.getByTestId('bet-error')).toContainText('Insufficient balance');
+    await expect(page.getByRole('button', { name: 'Dismiss error notification: Insufficient balance' })).toBeVisible();
+    await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-describedby', 'player-bet-error');
+    await expect(page.getByTestId('player-balance')).toHaveText('50');
     await expectNoSeriousAxeViolations(page, 'player balance-capped pre-bet preview');
   } finally {
     await context.close();
