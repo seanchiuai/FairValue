@@ -1,0 +1,102 @@
+.host-market-chart {
+  padding: 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.host-market-chart__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.host-market-chart__title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.host-market-chart__legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.host-market-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.host-market-chart__legend-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.host-market-chart__legend-dot--probability {
+  background: #4ba3ff;
+}
+
+.host-market-chart__legend-dot--fair-value {
+  background: #3ba776;
+}
+
+.host-market-chart__canvas {
+  width: 100%;
+  height: 300px;
+}
+
+.host-market-chart__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.host-market-chart__stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.host-market-chart__stat-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.host-market-chart__stat-value {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .host-market-chart {
+    padding: 16px;
+  }
+
+  .host-market-chart__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .host-market-chart__stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -17,6 +17,7 @@ import HostDraftAuditCard from '../components/host/HostDraftAuditCard';
 import HostTopBar from '../components/host/HostTopBar';
 import HostAuthorityNotice from '../components/host/HostAuthorityNotice';
 import HostPropertySummary from '../components/host/HostPropertySummary';
+import HostMarketChartPanel from '../components/host/HostMarketChartPanel';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
 import SkeletonLeaderboard from '../components/skeletons/SkeletonLeaderboard';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
@@ -260,31 +261,7 @@ export default function HostView() {
             </div>
           )}
 
-          {/* Chart */}
-          <div style={s.chartCard}>
-            <div style={s.chartHeader}>
-              <span style={{ fontSize: 15, fontWeight: 600 }}>Market Probability</span>
-              <div style={s.legend}>
-                <span style={s.legendDot} /> OVER probability
-                <span style={{ ...s.legendDot, background: '#3BA776', marginLeft: 12 }} /> Fair value ($)
-              </div>
-            </div>
-            <div ref={chartRef} style={{ width: '100%', height: 300 }} />
-            <div style={s.statsRow}>
-              <div style={s.statBox}>
-                <span style={s.statLabel}>Total Trades</span>
-                <span style={s.statValue} data-testid="total-trades">{market.total_trades}</span>
-              </div>
-              <div style={s.statBox}>
-                <span style={s.statLabel}>Volume</span>
-                <span style={s.statValue} data-testid="total-volume">${market.total_wagered.toFixed(0)}</span>
-              </div>
-              <div style={s.statBox}>
-                <span style={s.statLabel}>Avg Bet</span>
-                <span style={s.statValue} data-testid="avg-bet">${market.avg_bet_size.toFixed(0)}</span>
-              </div>
-            </div>
-          </div>
+          <HostMarketChartPanel market={market} chartRef={chartRef} />
 
           <CogneeChat
             propertyId={roomCode || ''}
@@ -328,56 +305,5 @@ const s: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: 8,
-  },
-  chartCard: {
-    padding: 20,
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 10,
-  },
-  chartHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  legend: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    fontSize: 12,
-    color: 'var(--text-secondary)',
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    background: '#4BA3FF',
-    display: 'inline-block',
-  },
-  statsRow: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: 12,
-    marginTop: 16,
-  },
-  statBox: {
-    padding: 12,
-    background: 'var(--bg-input)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 8,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 700,
   },
 };
