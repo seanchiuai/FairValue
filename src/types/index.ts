@@ -33,6 +33,9 @@ export interface RoomMarketConfig {
   threshold_price?: number;
   band_low?: number;
   band_high?: number;
+  yield_threshold?: number;
+  threshold_percent?: number;
+  settlement_price_hint?: number;
   outcomes?: string[];
   liquidity_b?: number;
 }
@@ -249,6 +252,9 @@ export interface SettlementEvidencePacket {
 export interface SettleResult {
   winning_outcome: string;
   actual_price: number;
+  settlement_price?: number | null;
+  annual_rent?: number | null;
+  rent_yield?: number | null;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
   reputation_summary?: RoomReputationSummary | null;

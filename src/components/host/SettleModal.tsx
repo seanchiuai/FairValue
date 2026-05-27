@@ -4,8 +4,11 @@ import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
 import {
   formatOutcomeLabel,
   isRangeMarket,
+  isRentYieldMarket,
   rangeBandLabel,
   rangeSettlementOutcome,
+  rentYieldSettlementOutcome,
+  rentYieldThresholdLabel,
 } from '../../lib/roomMarketDisplay';
 import { useToast } from '../../contexts/ToastContext';
 import TrustNotice from '../TrustNotice';
@@ -69,6 +72,7 @@ export default function SettleModal({
   onClose,
 }: SettleModalProps) {
   const [actualPrice, setActualPrice] = useState('');
+  const [annualRent, setAnnualRent] = useState('');
   const [evidenceType, setEvidenceType] = useState<EvidenceType>('sale_record');
   const [evidenceConfidence, setEvidenceConfidence] = useState<EvidenceConfidence>('medium');
   const [evidenceSummary, setEvidenceSummary] = useState('');
@@ -99,6 +103,12 @@ export default function SettleModal({
     const price = parseFloat(actualPrice.replace(/,/g, ''));
     if (isNaN(price) || price <= 0 || price > 100_000_000) {
       setError('Enter a valid actual price (up to $100M)');
+      return;
+    }
+    const rentYieldRoom = isRentYieldMarket(marketFormat);
+    const parsedAnnualRent = parseFloat(annualRent.replace(/,/g, ''));
+    if (rentYieldRoom && (isNaN(parsedAnnualRent) || parsedAnnualRent <= 0 || parsedAnnualRent > 10_000_000)) {
+      setError('Enter a valid annual rent (up to $10M)');
       return;
     }
     const authHeaders = buildHostAuthHeaders({ userToken, hostToken });
@@ -146,6 +156,7 @@ export default function SettleModal({
         },
         body: JSON.stringify({
           actual_price: price,
+          ...(rentYieldRoom ? { annual_rent: parsedAnnualRent } : {}),
           ...(settlementEvidence ? { settlement_evidence: settlementEvidence } : {}),
         }),
       });
@@ -181,6 +192,8 @@ export default function SettleModal({
     hostToken,
     userToken,
     actualPrice,
+    annualRent,
+    marketFormat,
     evidenceType,
     evidenceConfidence,
     evidenceSummary,
@@ -194,9 +207,15 @@ export default function SettleModal({
   ]);
 
   const parsedActualPrice = parseFloat(actualPrice.replace(/,/g, ''));
+  const parsedAnnualRent = parseFloat(annualRent.replace(/,/g, ''));
   const rangeRoom = isRangeMarket(marketFormat);
+  const rentYieldRoom = isRentYieldMarket(marketFormat);
   const settlementHint = actualPrice && !isNaN(parsedActualPrice)
-    ? rangeRoom
+    ? rentYieldRoom
+      ? annualRent && !isNaN(parsedAnnualRent)
+        ? `${formatOutcomeLabel(rentYieldSettlementOutcome(parsedAnnualRent, parsedActualPrice, marketConfig))} wins at ${Math.round((parsedAnnualRent / parsedActualPrice) * 10000) / 100}% yield`
+        : `enter annual rent; threshold ${rentYieldThresholdLabel(marketConfig)}`
+      : rangeRoom
       ? `${formatOutcomeLabel(rangeSettlementOutcome(parsedActualPrice, marketConfig))} wins`
       : parsedActualPrice >= house.asking_price
         ? 'OVER wins'
@@ -215,7 +234,9 @@ export default function SettleModal({
       <div style={s.modal} onClick={(e) => e.stopPropagation()}>
         <h3 id="settle-title" style={s.title}>Settle Market</h3>
         <p id="settle-desc" style={s.desc}>
-          Enter the actual appraisal/sale price to determine the winner.
+          {rentYieldRoom
+            ? `Enter settlement price and annual rent to resolve against ${rentYieldThresholdLabel(marketConfig)} yield.`
+            : 'Enter the actual appraisal/sale price to determine the winner.'}
           {rangeRoom ? ` Band: ${rangeBandLabel(marketConfig)}.` : ''}
         </p>
         <TrustNotice
@@ -225,19 +246,20 @@ export default function SettleModal({
           tone="dark"
           points={[
             'Confirm against actual sale or appraisal evidence.',
+            ...(rentYieldRoom ? ['Confirm annual rent with lease, rent roll, or public-safe rental evidence.'] : []),
             'This value decides simulation-credit payouts only.',
             'The settlement is written into the room event history.',
           ]}
         />
         <div style={s.field}>
-          <label style={s.label} htmlFor="settle-actual-price">Actual Price ($)</label>
+          <label style={s.label} htmlFor="settle-actual-price">{rentYieldRoom ? 'Settlement Price ($)' : 'Actual Price ($)'}</label>
           <input
             id="settle-actual-price"
             ref={inputRef}
             style={s.input}
             value={actualPrice}
             onChange={(e) => setActualPrice(e.target.value)}
-            aria-label="Actual price"
+            aria-label={rentYieldRoom ? 'Settlement price' : 'Actual price'}
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={error ? 'settle-error' : undefined}
             placeholder="450,000"
@@ -245,6 +267,23 @@ export default function SettleModal({
             aria-required="true"
           />
         </div>
+        {rentYieldRoom && (
+          <div style={s.field}>
+            <label style={s.label} htmlFor="settle-annual-rent">Annual Rent ($)</label>
+            <input
+              id="settle-annual-rent"
+              style={s.input}
+              value={annualRent}
+              onChange={(e) => setAnnualRent(e.target.value)}
+              aria-label="Annual rent"
+              aria-invalid={Boolean(error) || undefined}
+              aria-describedby={error ? 'settle-error' : undefined}
+              placeholder="60,000"
+              inputMode="numeric"
+              aria-required="true"
+            />
+          </div>
+        )}
         <p style={s.hint}>
           Asking: ${house.asking_price.toLocaleString()} —{' '}
           {settlementHint}

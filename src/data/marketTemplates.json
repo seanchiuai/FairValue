@@ -34,27 +34,28 @@
       "settlement_rule": "Resolve to below_band, inside_band, or above_band using the configured price band.",
       "supported_surfaces": ["room_creation_api", "betting_api", "settlement", "event_replay", "public_verification", "developer_api"],
       "limitations": [
-        "Playable through the room API and server event/replay path.",
-        "The current rendered host/player room UI remains optimized for binary rooms until the generic market surface is implemented.",
+        "Playable through the room API, rendered host/player room UI, and server event/replay path.",
+        "The current chart and AI bot workflows remain binary-first.",
         "AI bot trading remains disabled for range rooms."
       ]
     },
     {
       "market_format": "rent_yield_over_under",
       "label": "Rent yield over/under",
-      "status": "draft_only",
+      "status": "playable",
       "summary": "Players forecast whether annualized rent yield clears a configured threshold.",
       "outcome_schema": {
         "type": "binary",
         "outcomes": ["over", "under"]
       },
-      "pricing_engine": "not_implemented",
+      "pricing_engine": "lmsr_binary_v1",
       "settlement_inputs": ["annual_rent", "settlement_price", "yield_threshold", "settlement_evidence"],
       "settlement_rule": "OVER wins when annual_rent / settlement_price >= yield_threshold.",
-      "supported_surfaces": ["market_studio_registry", "developer_api"],
+      "supported_surfaces": ["room_creation_api", "betting", "settlement", "event_replay", "public_verification", "developer_api"],
       "limitations": [
-        "Registered for schema planning only.",
-        "Rent and settlement-price evidence normalization is not implemented yet."
+        "Simulation credits only.",
+        "The host must provide public-safe settlement price and annual-rent evidence.",
+        "AI bot trading remains disabled for rent-yield rooms."
       ]
     },
     {

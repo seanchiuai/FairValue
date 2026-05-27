@@ -39,6 +39,7 @@ const {
   placeRoomBetWithBudget,
   selectedProbabilityAfter,
   winningOutcomeForRoom,
+  settlementMetricsForRoom,
   settlePlayersForRoom,
   eventMarketPayload,
   isBinaryMarket,
@@ -355,7 +356,7 @@ async function runAiBotTick(room) {
     stopAiBotInterval(room);
     return { ok: false, skipped: true };
   }
-  if (!isBinaryMarket(room)) {
+  if ((room.marketFormat || BINARY_MARKET_FORMAT) !== BINARY_MARKET_FORMAT) {
     room.aiEnabled = false;
     stopAiBotInterval(room);
     return { ok: false, skipped: true, reason: 'unsupported_market_format' };
@@ -809,15 +810,22 @@ function validateBetPayload(body, room) {
   return { value: { session_id: sessionId, user_id: userId, outcome: outcomeValidation.value, wager, reason } };
 }
 
-function validateSettlePayload(body) {
-  const actualPrice = parsePositiveNumber(body?.actual_price, MAX_ASKING_PRICE);
+function validateSettlePayload(body, room = null) {
+  const actualPrice = parsePositiveNumber(body?.actual_price ?? body?.settlement_price, MAX_ASKING_PRICE);
   if (actualPrice === null) return { error: 'Actual price must be between $1 and $100M' };
+  const settlementInput = { actual_price: actualPrice };
+  if (room?.marketFormat === 'rent_yield_over_under') {
+    const annualRent = parsePositiveNumber(body?.annual_rent, 10_000_000);
+    if (annualRent === null) return { error: 'Annual rent must be between $1 and $10M for rent-yield settlement' };
+    settlementInput.settlement_price = actualPrice;
+    settlementInput.annual_rent = annualRent;
+  }
   const rawEvidence = Object.prototype.hasOwnProperty.call(body || {}, 'settlement_evidence')
     ? body.settlement_evidence
     : body?.evidence_packet;
   const evidence = validateSettlementEvidencePayload(rawEvidence, actualPrice);
   if (evidence.error) return { error: evidence.error };
-  return { value: { actual_price: actualPrice, evidence_packet: evidence.value } };
+  return { value: { ...settlementInput, evidence_packet: evidence.value } };
 }
 
 function validateRoomPhasePayload(body) {
@@ -1962,7 +1970,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   if (!room) return;
   if (!(await requireHostCapability(req, res, room))) return;
 
-  const validated = validateSettlePayload(req.body);
+  const validated = validateSettlePayload(req.body, room);
   if (validated.error) {
     recordRoomError(room, 'settle', validated.error, 400, req);
     return validationError(res, validated.error);
@@ -1978,7 +1986,8 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   });
 
   const { actual_price, evidence_packet } = validated.value;
-  const winningOutcome = winningOutcomeForRoom(room, actual_price);
+  const settlementMetrics = settlementMetricsForRoom(room, validated.value);
+  const winningOutcome = winningOutcomeForRoom(room, validated.value);
   const settlement = settlePlayersForRoom(room, Object.values(room.players), winningOutcome);
   for (const player of settlement.players) {
     room.players[player.session_id] = player;
@@ -1993,6 +2002,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   room.settlement = {
     winning_outcome: winningOutcome,
     actual_price,
+    ...settlementMetrics,
     results,
     evidence_packet,
     reputation_summary,
@@ -2045,7 +2055,7 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
     recordRoomError(room, 'toggle-ai', 'Betting is locked by the host', 400, req);
     return res.status(400).json({ error: 'Betting is locked by the host' });
   }
-  if (nextAiEnabled && !isBinaryMarket(room)) {
+  if (nextAiEnabled && (room.marketFormat || BINARY_MARKET_FORMAT) !== BINARY_MARKET_FORMAT) {
     recordRoomError(room, 'toggle-ai', 'AI bot currently supports binary over/under rooms only', 400, req);
     return res.status(400).json({ error: 'AI bot currently supports binary over/under rooms only' });
   }

@@ -4,6 +4,8 @@ import {
   leadingOutcome,
   outcomeProbability,
   rangeSettlementOutcome,
+  rentYieldSettlementOutcome,
+  rentYieldThresholdLabel,
   roomOutcomeIds,
 } from '../roomMarketDisplay';
 import type { Market, RoomMarketConfig } from '../../types';
@@ -36,6 +38,12 @@ const rangeMarket = {
   b: 100,
 } as Market;
 
+const rentYieldConfig: RoomMarketConfig = {
+  market_format: 'rent_yield_over_under',
+  yield_threshold: 0.05,
+  outcomes: ['over', 'under'],
+};
+
 describe('roomMarketDisplay', () => {
   it('labels and ranks range market outcomes', () => {
     expect(formatOutcomeLabel('inside_band')).toBe('Inside band');
@@ -48,5 +56,11 @@ describe('roomMarketDisplay', () => {
     expect(rangeSettlementOutcome(740000, rangeConfig)).toBe('below_band');
     expect(rangeSettlementOutcome(800000, rangeConfig)).toBe('inside_band');
     expect(rangeSettlementOutcome(860000, rangeConfig)).toBe('above_band');
+  });
+
+  it('labels and maps rent yield settlement outcomes', () => {
+    expect(rentYieldThresholdLabel(rentYieldConfig)).toBe('5%');
+    expect(rentYieldSettlementOutcome(48_000, 800_000, rentYieldConfig)).toBe('over');
+    expect(rentYieldSettlementOutcome(35_000, 800_000, rentYieldConfig)).toBe('under');
   });
 });

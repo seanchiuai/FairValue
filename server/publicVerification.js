@@ -78,6 +78,9 @@ function publicSettlementProjection(settlement) {
   return {
     winning_outcome: settlement.winning_outcome,
     actual_price: settlement.actual_price,
+    settlement_price: Number.isFinite(settlement.settlement_price) ? settlement.settlement_price : null,
+    annual_rent: Number.isFinite(settlement.annual_rent) ? settlement.annual_rent : null,
+    rent_yield: Number.isFinite(settlement.rent_yield) ? settlement.rent_yield : null,
     result_count: results.length,
     total_positive_payout: results.reduce((sum, result) => sum + Math.max(0, Number(result.payout) || 0), 0),
     evidence_packet: settlement.evidence_packet ? cloneJson(settlement.evidence_packet) : null,
@@ -212,6 +215,9 @@ function createPublicVerificationArtifact(room, events, options = {}) {
       ? {
         winning_outcome: settlement.winning_outcome,
         actual_price: settlement.actual_price,
+        settlement_price: Number.isFinite(settlement.settlement_price) ? settlement.settlement_price : null,
+        annual_rent: Number.isFinite(settlement.annual_rent) ? settlement.annual_rent : null,
+        rent_yield: Number.isFinite(settlement.rent_yield) ? settlement.rent_yield : null,
         evidence_packet_status: evidencePacket?.status || 'missing',
         evidence_packet_hash: evidencePacketHash,
         evidence_item_count: Array.isArray(evidencePacket?.items) ? evidencePacket.items.length : 0,

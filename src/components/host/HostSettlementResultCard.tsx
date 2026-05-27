@@ -16,13 +16,17 @@ export default function HostSettlementResultCard({ settleResult }: HostSettlemen
       ? 'host-settlement-result__outcome--under'
       : '';
   const evidencePacket = settleResult.evidence_packet;
+  const hasRentYield = Number.isFinite(settleResult.rent_yield);
+  const rentYieldPercent = hasRentYield ? `${Math.round(Number(settleResult.rent_yield) * 10000) / 100}%` : '';
 
   return (
     <section className="host-settlement-result" data-testid="host-settlement-result">
       <Trophy size={28} color="var(--accent-warning)" aria-hidden="true" />
       <div className="host-settlement-result__title">Market Settled</div>
       <div className="host-settlement-result__actual">
-        Actual: ${settleResult.actual_price.toLocaleString()}
+        {hasRentYield
+          ? `Settlement: $${settleResult.actual_price.toLocaleString()} · Annual rent: $${Number(settleResult.annual_rent || 0).toLocaleString()} · Yield: ${rentYieldPercent}`
+          : `Actual: $${settleResult.actual_price.toLocaleString()}`}
       </div>
       <div className={`host-settlement-result__outcome ${outcomeClass}`}>
         {outcome} WINS
@@ -50,7 +54,9 @@ export default function HostSettlementResultCard({ settleResult }: HostSettlemen
         tone="dark"
         points={[
           'This recap uses simulation credits only.',
-          'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
+          hasRentYield
+            ? 'Settlement price and annual rent are host-entered evidence, not a FairValue appraisal or rent roll.'
+            : 'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
           evidencePacket
             ? `${evidencePacket.items.length} public-safe evidence metadata item${evidencePacket.items.length === 1 ? '' : 's'} attached.`
             : 'No external evidence metadata is attached.',

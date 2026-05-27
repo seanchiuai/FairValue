@@ -21,13 +21,17 @@ export default function PlayerSettlementResultCard({
       ? 'player-settlement-result__outcome--under'
       : '';
   const evidencePacket = settleResult.evidence_packet;
+  const hasRentYield = Number.isFinite(settleResult.rent_yield);
+  const rentYieldPercent = hasRentYield ? `${Math.round(Number(settleResult.rent_yield) * 10000) / 100}%` : '';
 
   return (
     <section className="player-settlement-result" data-testid="player-settlement-result">
       <Trophy size={24} color="var(--accent-warning)" aria-hidden="true" />
       <div className="player-settlement-result__title">Market Settled</div>
       <div className="player-settlement-result__detail">
-        Actual price: ${settleResult.actual_price.toLocaleString()}
+        {hasRentYield
+          ? `Settlement price: $${settleResult.actual_price.toLocaleString()} · Annual rent: $${Number(settleResult.annual_rent || 0).toLocaleString()} · Yield: ${rentYieldPercent}`
+          : `Actual price: $${settleResult.actual_price.toLocaleString()}`}
       </div>
       <div className={`player-settlement-result__outcome ${outcomeClass}`}>
         {outcome} wins!
@@ -46,7 +50,9 @@ export default function PlayerSettlementResultCard({
         tone="dark"
         points={[
           'Payouts are simulation credits only.',
-          'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
+          hasRentYield
+            ? 'Settlement price and annual rent are host-entered evidence, not a FairValue appraisal or rent roll.'
+            : 'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
           evidencePacket
             ? 'Evidence metadata is public-safe and does not include private documents.'
             : 'No external evidence metadata is attached.',

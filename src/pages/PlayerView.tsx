@@ -11,10 +11,12 @@ import {
   formatOutcomeLabel,
   isBinaryMarket,
   isRangeMarket,
+  isRentYieldMarket,
   leadingOutcome,
   outcomeProbability,
   rangeBandLabel,
   rangeOutcomeDescription,
+  rentYieldThresholdLabel,
   roomOutcomeIds,
 } from '../lib/roomMarketDisplay';
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
@@ -221,6 +223,7 @@ export default function PlayerView() {
 
   const probPercent = Number.isFinite(market.prob_over) ? Math.round(market.prob_over * 100) : 0;
   const isRangeRoom = isRangeMarket(marketFormat);
+  const isRentYieldRoom = isRentYieldMarket(marketFormat);
   const isBinaryRoom = isBinaryMarket(marketFormat);
   const rangeOutcomes = isRangeRoom ? roomOutcomeIds(market, marketConfig) : [];
   const leadingRangeOutcome = isRangeRoom ? leadingOutcome(market, marketConfig) : null;
@@ -263,8 +266,12 @@ export default function PlayerView() {
             'Your balance and wagers are simulation credits only.',
             isRangeRoom
               ? `Range prices come from LMSR probabilities around ${rangeBandLabel(marketConfig)}, not an appraisal.`
+              : isRentYieldRoom
+                ? `Rent-yield prices come from LMSR probabilities around ${rentYieldThresholdLabel(marketConfig)} annual yield, not a rent roll.`
               : 'Over/Under prices come from LMSR probability, not an appraisal.',
-            'The host settles with actual sale or appraisal evidence.',
+            isRentYieldRoom
+              ? 'The host settles with settlement price and annual-rent evidence.'
+              : 'The host settles with actual sale or appraisal evidence.',
           ]}
         />
       </div>
@@ -306,7 +313,7 @@ export default function PlayerView() {
               aria-valuenow={probPercent}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label={`${probPercent}% probability of going over asking price`}
+              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : 'going over asking price'}`}
             >
               <div
                 style={{

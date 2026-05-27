@@ -75,10 +75,17 @@ describe('market draft generation', () => {
     });
     expect(range.valid).toBe(true);
 
-    const draftOnly = validateMarketDraft({
+    const rentYield = validateMarketDraft({
       address: '1428 Dolores Street',
       asking_price: 1_250_000,
       market_format: 'rent_yield_over_under',
+    });
+    expect(rentYield.valid).toBe(true);
+
+    const draftOnly = validateMarketDraft({
+      address: '1428 Dolores Street',
+      asking_price: 1_250_000,
+      market_format: 'time_on_market_over_under',
     });
     expect(draftOnly.valid).toBe(false);
     expect(draftOnly.issues).toContain('Market format is registered but not playable yet.');
