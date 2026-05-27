@@ -1202,6 +1202,27 @@ app.get('/api/market-templates', (req, res) => {
   res.json(publicMarketTemplateRegistry());
 });
 
+app.get('/api/properties', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  res.json(propertySnapshot.queryResponse({
+    ids: req.query.ids,
+    q: req.query.q,
+    city: req.query.city,
+    state: req.query.state,
+    minPrice: req.query.min_price,
+    maxPrice: req.query.max_price,
+    limit: req.query.limit,
+  }));
+});
+
+app.get('/api/properties/:propertyId', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const property = propertySnapshot.getById(req.params.propertyId);
+  if (!property) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  res.json(propertySnapshot.queryResponse({ ids: [property.property_id], limit: 1 }));
+});
+
 app.get('/api/ops/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
   res.json(observability.snapshot({ rooms, roomPersistence, roomEventLog, sql }));
