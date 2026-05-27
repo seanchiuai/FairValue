@@ -74,13 +74,14 @@ const baseInput = {
           shares: 48.2,
           prob_at_entry: 0.5,
           timestamp: 2,
+          reason: 'Local comps support the ask.',
         },
       ],
     },
   ],
   activity: [
     { type: 'join', nickname: 'Ada', timestamp: 1, event_sequence: 2 },
-    { type: 'bet', nickname: 'Ada', outcome: 'over', wager: 50, timestamp: 2, event_sequence: 3 },
+    { type: 'bet', nickname: 'Ada', outcome: 'over', wager: 50, reason: 'Local comps support the ask.', timestamp: 2, event_sequence: 3 },
     { type: 'bet', nickname: 'Lin', outcome: 'under', wager: 25, timestamp: 3, event_sequence: 4 },
   ],
   draftAudit,
@@ -125,6 +126,7 @@ const events: RoomEvent[] = [
       nickname: 'Ada',
       outcome: 'over',
       wager: 50,
+      reason: 'Local comps support the ask.',
       player: baseInput.players[1],
       market: baseInput.market,
     },
@@ -151,6 +153,7 @@ describe('room review generation', () => {
     );
     expect(review.integrity_checks.join(' ')).toContain('raw pasted listing text is not stored');
     expect(review.timeline.map((item) => item.label)).toEqual(['Room created', 'Player joined', 'Bet placed']);
+    expect(review.timeline[2].detail).toContain('Reason: Local comps support the ask.');
     expect(review.recap.join(' ')).toContain('Latest movement');
   });
 

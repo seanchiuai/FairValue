@@ -58,7 +58,8 @@ function activityLabel(entry: ActivityEntry) {
 
 function activityDetail(entry: ActivityEntry) {
   if (entry.type === 'bet') {
-    return `${entry.nickname || 'A player'} backed ${String(entry.outcome || 'unknown').toUpperCase()} with ${formatMoney(entry.wager)}.`;
+    const reason = entry.reason ? ` Reason: ${entry.reason}.` : '';
+    return `${entry.nickname || 'A player'} backed ${String(entry.outcome || 'unknown').toUpperCase()} with ${formatMoney(entry.wager)}.${reason}`;
   }
   if (entry.type === 'settle') {
     return `${String(entry.winning_outcome || 'unknown').toUpperCase()} won at ${formatMoney(entry.actual_price)}.`;

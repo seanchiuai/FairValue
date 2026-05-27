@@ -24,16 +24,19 @@ export default function ActivityFeed({ activity }: { activity: ActivityEntry[] }
                 ) : (
                   <TrendingDown size={12} color="var(--accent-danger)" />
                 )}
-                <span>
-                  <strong>{a.nickname}</strong> bet ${a.wager?.toFixed(0)} on{' '}
-                  <span
-                    style={{
-                      color: a.outcome === 'over' ? 'var(--accent-success)' : 'var(--accent-danger)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {a.outcome?.toUpperCase()}
+                <span style={s.itemText}>
+                  <span>
+                    <strong>{a.nickname}</strong> bet ${a.wager?.toFixed(0)} on{' '}
+                    <span
+                      style={{
+                        color: a.outcome === 'over' ? 'var(--accent-success)' : 'var(--accent-danger)',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {a.outcome?.toUpperCase()}
+                    </span>
                   </span>
+                  {a.reason && <span style={s.reason}>"{a.reason}"</span>}
                 </span>
               </>
             )}
@@ -116,11 +119,23 @@ const s: Record<string, React.CSSProperties> = {
   },
   item: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     fontSize: 13,
     color: 'var(--text-secondary)',
     padding: '6px 0',
     borderBottom: '1px solid var(--border-subtle)',
+  },
+  itemText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    minWidth: 0,
+  },
+  reason: {
+    color: 'var(--text-muted)',
+    fontSize: 12,
+    lineHeight: 1.35,
+    overflowWrap: 'anywhere',
   },
 };

@@ -1,6 +1,7 @@
 const { after, afterEach, before, test } = require('node:test');
 const assert = require('node:assert/strict');
 const { server, rooms, configureRoomPersistence, roomEventStore, runAiBotTick } = require('../index');
+const { publicLiveProjection } = require('../publicVerification');
 
 let baseUrl;
 
@@ -419,6 +420,87 @@ test('bet idempotency replays duplicates without mutating the room twice', async
   });
   assert.equal(secondBet.status, 200);
   assert.equal(secondBet.data.market.total_trades, 2);
+});
+
+test('bet reasons are sanitized, idempotent, replayed, and public-projected', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+  const hostHeaders = { 'X-FairValue-Host-Token': room.host_token };
+
+  const joined = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'reason-player', nickname: 'Reason Player' },
+  });
+  assert.equal(joined.status, 200);
+
+  const invalidReason = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'reason-bad-type-001' },
+    body: { session_id: 'reason-player', outcome: 'over', wager: 25, reason: { text: 'too structured' } },
+  });
+  assert.equal(invalidReason.status, 400);
+  assert.match(invalidReason.data.error, /reason must be text/i);
+
+  const reason = 'Recent comp supports OVER after touring the block.';
+  const firstBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'reason-bet-001' },
+    body: {
+      session_id: 'reason-player',
+      outcome: 'over',
+      wager: 25,
+      reason: `<b>${reason}</b>`,
+    },
+  });
+  assert.equal(firstBet.status, 200);
+  assert.equal(firstBet.data.player.bets[0].reason, reason);
+  assert.equal(JSON.stringify(firstBet.data).includes('<b>'), false);
+
+  const duplicate = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'reason-bet-001' },
+    body: {
+      session_id: 'reason-player',
+      outcome: 'over',
+      wager: 25,
+      bet_reason: reason,
+    },
+  });
+  assert.equal(duplicate.status, 200);
+  assert.equal(duplicate.headers.get('idempotent-replay'), 'true');
+  assert.equal(duplicate.data.player.bets[0].reason, reason);
+
+  const conflict = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'reason-bet-001' },
+    body: {
+      session_id: 'reason-player',
+      outcome: 'over',
+      wager: 25,
+      rationale: 'A different reason changes the canonical bet.',
+    },
+  });
+  assert.equal(conflict.status, 409);
+
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.activity.at(-1).reason, reason);
+  assert.equal(state.data.players.find((player) => player.session_id === 'reason-player').bets[0].reason, reason);
+
+  const events = await request(`/api/rooms/${code}/events`, { headers: hostHeaders });
+  assert.equal(events.status, 200);
+  const betEvent = events.data.events.find((event) => event.type === 'bet_placed');
+  assert.equal(betEvent.payload.reason, reason);
+  assert.equal(betEvent.payload.player.bets[0].reason, reason);
+
+  const replay = await request(`/api/rooms/${code}/replay`, { headers: hostHeaders });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.replay.activity.at(-1).reason, reason);
+  assert.equal(replay.data.replay.players['reason-player'].bets[0].reason, reason);
+
+  const projection = publicLiveProjection(rooms[code]);
+  assert.equal(projection.activity.at(-1).reason, reason);
+  assert.equal(projection.players.find((player) => player.nickname === 'Reason Player').reason_count, 1);
 });
 
 test('concurrent bet requests reconcile through the authoritative server market', async () => {

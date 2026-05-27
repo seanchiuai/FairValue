@@ -30,6 +30,7 @@ export interface PlayerData {
     shares: number;
     prob_at_entry: number;
     timestamp: number;
+    reason?: string | null;
   }>;
 }
 
@@ -89,6 +90,7 @@ export interface ActivityEntry {
   nickname?: string;
   outcome?: string;
   wager?: number;
+  reason?: string | null;
   timestamp: number;
   actual_price?: number;
   winning_outcome?: string;
@@ -186,6 +188,7 @@ export type WsBetMessage = {
   market: Market;
   player?: PlayerData;
   activity?: ActivityEntry;
+  reason?: string | null;
 };
 
 export type WsJoinMessage = {

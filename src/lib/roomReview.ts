@@ -103,7 +103,10 @@ function eventDetail(event: RoomEvent) {
     return `${payload.nickname || payload.player?.nickname || 'A player'} entered the room.`;
   }
   if (event.type === 'bet_placed') {
-    return `${payload.nickname || payload.player?.nickname || 'A player'} bet ${formatMoney(payload.wager)} on ${String(payload.outcome || 'unknown').toUpperCase()}.`;
+    const reason = typeof payload.reason === 'string' && payload.reason.trim()
+      ? ` Reason: ${payload.reason.trim()}.`
+      : '';
+    return `${payload.nickname || payload.player?.nickname || 'A player'} bet ${formatMoney(payload.wager)} on ${String(payload.outcome || 'unknown').toUpperCase()}.${reason}`;
   }
   if (event.type === 'settlement_completed') {
     const settlement = payload.settlement || payload;
@@ -128,7 +131,7 @@ function buildTimeline(events: RoomEvent[], activity: ActivityEntry[]) {
     sequence: entry.event_sequence || index + 1,
     label: entry.type === 'bet' ? 'Bet activity' : entry.type === 'settle' ? 'Settlement activity' : 'Room activity',
     detail: entry.type === 'bet'
-      ? `${entry.nickname || 'A player'} bet ${formatMoney(entry.wager)} on ${String(entry.outcome || 'unknown').toUpperCase()}.`
+      ? `${entry.nickname || 'A player'} bet ${formatMoney(entry.wager)} on ${String(entry.outcome || 'unknown').toUpperCase()}.${entry.reason ? ` Reason: ${entry.reason}.` : ''}`
       : entry.type === 'settle'
         ? `${String(entry.winning_outcome || 'unknown').toUpperCase()} won at ${formatMoney(entry.actual_price)}.`
         : `${entry.nickname || 'Room'} recorded ${entry.type}.`,

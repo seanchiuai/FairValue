@@ -102,6 +102,13 @@ function validateRoomEventPayload(type, payload = {}) {
       if (!hasText(body.session_id || body.player?.session_id)) return 'session_id is required';
       if (!hasOutcome(body.outcome)) return 'outcome is required';
       if (!hasFiniteNumber(body.wager)) return 'wager is required';
+      if (
+        Object.prototype.hasOwnProperty.call(body, 'reason') &&
+        body.reason !== null &&
+        typeof body.reason !== 'string'
+      ) {
+        return 'reason must be text when present';
+      }
       if (!isObject(body.market)) return 'market is required';
       if (!isObject(body.player)) return 'player is required';
       return null;
@@ -501,6 +508,7 @@ function roomEventToActivity(event) {
         nickname: payload.nickname || payload.player?.nickname,
         outcome: payload.outcome,
         wager: payload.wager,
+        reason: typeof payload.reason === 'string' && payload.reason.trim() ? payload.reason.trim() : null,
         timestamp: event.timestamp,
         event_sequence: event.sequence,
       };

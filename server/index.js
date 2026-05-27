@@ -66,6 +66,7 @@ const ROOM_CODE_PATTERN = /^[A-Z0-9]{4}$/;
 const USER_ID_PATTERN = /^usr_[A-Za-z0-9_-]{16,80}$/;
 const MAX_ASKING_PRICE = 100_000_000;
 const MAX_TEXT_LENGTH = 120;
+const MAX_BET_REASON_LENGTH = 280;
 const MAX_DRAFT_LIST_ITEMS = 8;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const REQUEST_ID_HEADER = 'x-request-id';
@@ -694,11 +695,15 @@ function validateBetPayload(body) {
   const userId = hasUserId ? normalizeUserId(body?.user_id) : null;
   const outcome = typeof body?.outcome === 'string' ? body.outcome.trim().toLowerCase() : body?.outcome;
   const wager = parsePositiveNumber(body?.wager, 1000);
+  const rawReason = body?.reason ?? body?.bet_reason ?? body?.rationale;
+  const hasReason = rawReason !== undefined && rawReason !== null && rawReason !== '';
   if (!sessionId) return { error: 'Session ID is required' };
   if (hasUserId && !userId) return { error: 'User ID is invalid' };
   if (!['over', 'under'].includes(outcome)) return { error: "Outcome must be 'over' or 'under'" };
   if (wager === null) return { error: 'Wager must be between $1 and $1,000' };
-  return { value: { session_id: sessionId, user_id: userId, outcome, wager } };
+  if (hasReason && typeof rawReason !== 'string') return { error: 'Bet reason must be text' };
+  const reason = sanitizeText(rawReason, MAX_BET_REASON_LENGTH);
+  return { value: { session_id: sessionId, user_id: userId, outcome, wager, reason } };
 }
 
 function validateSettlePayload(body) {
@@ -756,6 +761,7 @@ function betFingerprint(bet) {
     session_id: bet.session_id,
     outcome: bet.outcome,
     wager: bet.wager,
+    reason: bet.reason || null,
   });
 }
 
@@ -1621,7 +1627,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     return validationError(res, 'Idempotency-Key header is required for bets');
   }
 
-  const { session_id, outcome, wager } = validated.value;
+  const { session_id, outcome, wager, reason } = validated.value;
   if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'bet'))) return;
 
   const fingerprint = betFingerprint(validated.value);
@@ -1667,6 +1673,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     shares: Math.round(shares * 100) / 100,
     prob_at_entry: outcome === 'over' ? trade.prob_over_after : trade.prob_under_after,
     timestamp: trade.timestamp,
+    reason: reason || null,
   });
 
   const marketState = execution.publicMarket;
@@ -1675,6 +1682,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     nickname: player.nickname,
     outcome,
     wager: trade.wager,
+    reason: reason || null,
     shares: Math.round(shares * 100) / 100,
     trade,
     market: marketState,
@@ -1703,6 +1711,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     nickname: player.nickname,
     outcome,
     wager: trade.wager,
+    reason: reason || null,
     trade,
     market: marketState,
     player,

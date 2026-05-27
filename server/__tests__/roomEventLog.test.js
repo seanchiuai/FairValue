@@ -242,8 +242,14 @@ test('in-memory room event adapter appends deterministically and replays state',
       nickname: 'Replay Player',
       outcome: 'over',
       wager: 25,
+      reason: 'Walked comps favor the over.',
       market: { total_trades: 1, prob_over: 0.55, prob_under: 0.45 },
-      player: { session_id: 'player-1', nickname: 'Replay Player', balance: 975, bets: [{ outcome: 'over' }] },
+      player: {
+        session_id: 'player-1',
+        nickname: 'Replay Player',
+        balance: 975,
+        bets: [{ outcome: 'over', reason: 'Walked comps favor the over.' }],
+      },
     },
   });
   const phase = store.append({
@@ -279,9 +285,11 @@ test('in-memory room event adapter appends deterministically and replays state',
   assert.equal(replay.house.address, 'Replay House');
   assert.equal(replay.market.total_trades, 1);
   assert.equal(replay.players['player-1'].balance, 975);
+  assert.equal(replay.players['player-1'].bets[0].reason, 'Walked comps favor the over.');
   assert.equal(replay.room_phase.status, 'locked');
   assert.equal(replay.room_phase.betting_locked, true);
   assert.deepEqual(replay.activity.map((entry) => entry.type), ['join', 'bet', 'phase']);
+  assert.equal(replay.activity.find((entry) => entry.type === 'bet').reason, 'Walked comps favor the over.');
 });
 
 test('room event payload contracts reject malformed canonical events before append', () => {
@@ -297,6 +305,28 @@ test('room event payload contracts reject malformed canonical events before appe
   assert.equal(
     validateRoomEventPayload(EVENT_TYPES.RECONNECT, { source: 'websocket', connection_count: 1 }),
     null
+  );
+  assert.equal(
+    validateRoomEventPayload(EVENT_TYPES.BET_PLACED, {
+      session_id: 'player-1',
+      outcome: 'over',
+      wager: 25,
+      reason: 'Text reason',
+      market: {},
+      player: { session_id: 'player-1', nickname: 'Contract Player' },
+    }),
+    null
+  );
+  assert.match(
+    validateRoomEventPayload(EVENT_TYPES.BET_PLACED, {
+      session_id: 'player-1',
+      outcome: 'over',
+      wager: 25,
+      reason: 42,
+      market: {},
+      player: {},
+    }),
+    /reason/
   );
   assert.match(
     validateRoomEventPayload(EVENT_TYPES.BET_PLACED, {

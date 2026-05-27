@@ -52,7 +52,7 @@ const baseInput = {
   ],
   activity: [
     { type: 'join', nickname: 'Ada', timestamp: 1 },
-    { type: 'bet', nickname: 'Ada', outcome: 'over', wager: 50, timestamp: 2 },
+    { type: 'bet', nickname: 'Ada', outcome: 'over', wager: 50, reason: 'Local comps support the ask.', timestamp: 2 },
     { type: 'bet', nickname: 'Lin', outcome: 'under', wager: 25, timestamp: 3 },
   ],
   draftAudit,
@@ -76,6 +76,7 @@ describe('public room recap generation', () => {
     expect(recap.guardrails.join(' ')).toContain('host tokens/user tokens are never shown');
     expect(recap.guardrails.join(' ')).toContain('No provider-backed comps');
     expect(recap.timeline.map((item) => item.label)).toEqual(['Player joined', 'Bet placed', 'Bet placed']);
+    expect(recap.timeline[1].detail).toContain('Reason: Local comps support the ask.');
   });
 
   it('adds public settlement evidence for settled rooms', () => {

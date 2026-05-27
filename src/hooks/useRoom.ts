@@ -274,7 +274,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   );
 
   const placeBet = useCallback(
-    async (outcome: 'over' | 'under', wager: number) => {
+    async (outcome: 'over' | 'under', wager: number, reason?: string) => {
       // Optimistic update: predict new state using LMSR math
       const prevMarket = market;
       const prevPlayers = players;
@@ -305,6 +305,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
       try {
         const idempotencyKey = generateBetIdempotencyKey();
         if (!sessionId) throw new Error('User identity is still loading');
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
         const res = await fetch(`/api/rooms/${roomCode}/bet`, {
           method: 'POST',
           headers: {
@@ -317,6 +318,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
             ...(userToken ? { user_id: sessionId } : {}),
             outcome,
             wager,
+            ...(trimmedReason ? { reason: trimmedReason } : {}),
           }),
         });
         const data = await readRoomMutationResponse(res);
