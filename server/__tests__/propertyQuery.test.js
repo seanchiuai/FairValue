@@ -104,6 +104,100 @@ function configureFixtureSnapshot() {
   });
 }
 
+function createPostgresProjectionSql() {
+  const queries = [];
+  const sql = async (strings) => {
+    const query = strings.join('?').replace(/\s+/g, ' ').trim();
+    queries.push(query);
+    if (query.startsWith('SELECT dataset_id')) {
+      return [
+        {
+          dataset_id: 'fixture-property-snapshot',
+          schema_version: 'fairvalue.propertyDataManifest.v1',
+          source_kind: 'static_provider_snapshot',
+          source_sha256: 'fixture-postgres-source-hash',
+          property_count: 3,
+          latest_observed_at: '2026-05-22',
+          provider_summary: [{ provider: 'Fixture MLS', count: 2 }],
+          field_coverage: [{ field: 'price', coverage_percent: 100 }],
+          legal_limitations: ['Fixture PostGIS projection only.'],
+        },
+      ];
+    }
+    if (query.startsWith('SELECT property_id')) {
+      return [
+        {
+          property_id: '101',
+          price: 700000,
+          address: '10 Query St',
+          city: 'Oakland',
+          state: 'CA',
+          zip_code: '94607',
+          home_status: 'FOR_SALE',
+          home_type: 'CONDO',
+          bedrooms: 2,
+          bathrooms: 1,
+          living_area: 1000,
+          rent_zestimate: 3000,
+          school_rating_average: 7,
+          school_count: 2,
+          latitude: 37.8044,
+          longitude: -122.2712,
+          has_bad_geocode: false,
+          provider_source: 'Fixture MLS',
+          observed_at: '2026-05-20',
+        },
+        {
+          property_id: '102',
+          price: 900000,
+          address: '20 Ridge Rd',
+          city: 'Berkeley',
+          state: 'CA',
+          zip_code: '94704',
+          home_status: 'FOR_SALE',
+          home_type: 'SINGLE_FAMILY',
+          bedrooms: 3,
+          bathrooms: 2,
+          living_area: 1200,
+          rent_zestimate: 4200,
+          school_rating_average: 7,
+          school_count: 1,
+          latitude: 37.8715,
+          longitude: -122.2730,
+          has_bad_geocode: false,
+          provider_source: 'Fixture MLS',
+          observed_at: '2026-05-21',
+        },
+        {
+          property_id: '103',
+          price: 1200000,
+          address: '30 Query Ct',
+          city: 'Oakland',
+          state: 'CA',
+          zip_code: '94607',
+          home_status: 'RECENTLY_SOLD',
+          home_type: 'CONDO',
+          bedrooms: 4,
+          bathrooms: 2,
+          living_area: 1500,
+          rent_zestimate: 5000,
+          school_rating_average: 4.5,
+          school_count: 2,
+          latitude: 37.8060,
+          longitude: -122.2698,
+          has_bad_geocode: false,
+          provider_source: 'County export',
+          observed_at: '2026-05-22',
+        },
+      ];
+    }
+    return [];
+  };
+  sql.isConfigured = true;
+  sql.queries = queries;
+  return sql;
+}
+
 before(() => listen());
 
 afterEach(() => {
@@ -128,6 +222,59 @@ test('property query API filters the manifest-backed snapshot with provenance', 
   assert.equal(filtered.data.provenance.source_sha256, 'fixture-source-hash');
   assert.equal(filtered.data.provenance.latest_observed_at, '2026-05-22');
   assert.equal(JSON.stringify(filtered.data).includes('streetView'), false);
+});
+
+test('property query APIs can read from an explicit Postgres projection source with static-route parity', async () => {
+  const fakeSql = createPostgresProjectionSql();
+  const loaded = await configurePropertySnapshot({ mode: 'postgres', sql: fakeSql });
+  assert.equal(loaded.source, 'postgres');
+  assert.equal(loaded.kind, 'postgres-property-snapshot');
+  assert.equal(loaded.source_adapter, 'postgres-postgis-property-snapshot');
+  assert.equal(loaded.table_name, 'fairvalue_properties');
+  assert.equal(loaded.count, 3);
+
+  const filtered = await request('/api/properties?q=query&city=Oakland&max_price=800000&limit=5');
+  assert.equal(filtered.status, 200);
+  assert.equal(filtered.data.schema_version, 'fairvalue.propertyQuery.v1');
+  assert.equal(filtered.data.source_adapter, 'postgres-postgis-property-snapshot');
+  assert.equal(filtered.data.count, 1);
+  assert.equal(filtered.data.properties[0].property_id, '101');
+  assert.equal(filtered.data.properties[0].address, '10 Query St');
+  assert.equal(filtered.data.provenance.source_sha256, 'fixture-postgres-source-hash');
+
+  const one = await request('/api/properties/102');
+  assert.equal(one.status, 200);
+  assert.equal(one.data.properties[0].address, '20 Ridge Rd');
+  assert.equal(one.data.properties[0].school_rating_average, 7);
+
+  const radius = await request('/api/geospatial/properties?lat=37.8044&lng=-122.2712&radius_km=1&limit=5');
+  assert.equal(radius.status, 200);
+  assert.equal(radius.data.properties[0].property_id, '101');
+  assert.equal(radius.data.properties[0].distance_km, 0);
+  assert.equal(radius.data.provenance.source_sha256, 'fixture-postgres-source-hash');
+
+  const drafts = await request('/api/neighborhoods/94607/market-drafts');
+  assert.equal(drafts.status, 200);
+  assert.equal(drafts.data.neighborhood_entity_id, 'zip:CA:94607');
+  assert.equal(drafts.data.drafts[0].default_config.baseline_median_price, 950000);
+  assert.equal(JSON.stringify(drafts.data).includes('streetView'), false);
+  assert.equal(fakeSql.queries.some((query) => query.includes('FROM fairvalue_properties')), true);
+});
+
+test('explicit Postgres projection source fails closed when no database is configured', async () => {
+  configureFixtureSnapshot();
+
+  await assert.rejects(
+    () => configurePropertySnapshot({
+      mode: 'postgres',
+      sql: Object.assign(async () => [], { isConfigured: false }),
+    }),
+    /Postgres property snapshot requested.*DATABASE_URL/
+  );
+
+  const stillStatic = await request('/api/properties/101');
+  assert.equal(stillStatic.status, 200);
+  assert.equal(stillStatic.data.properties[0].property_id, '101');
 });
 
 test('property query API supports ID lists, limit caps, and single-property lookup', async () => {

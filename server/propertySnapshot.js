@@ -52,6 +52,20 @@ function averageSchoolRating(schools) {
   };
 }
 
+function sanitizedSchoolSummary(source, fallback) {
+  if (fallback.average != null || fallback.count > 0) return fallback;
+  const average = sanitizePositiveNumber(source.school_rating_average, {
+    max: 10,
+    decimals: 2,
+    allowZero: true,
+  });
+  const count = Number(source.school_count);
+  return {
+    average,
+    count: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
+  };
+}
+
 function sanitizeLimit(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return 50;
@@ -74,31 +88,31 @@ function mapRawProperty(raw, index) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const address = source.address && typeof source.address === 'object' ? source.address : {};
   const attribution = source.attributionInfo && typeof source.attributionInfo === 'object' ? source.attributionInfo : {};
-  const propertyId = String(source.zpid || index + 1);
-  const schoolRating = averageSchoolRating(source.schools);
+  const propertyId = String(source.zpid || source.property_id || index + 1);
+  const schoolRating = sanitizedSchoolSummary(source, averageSchoolRating(source.schools));
   return {
     property_id: propertyId,
     price: sanitizePrice(source.price),
-    address: sanitizeText(source.streetAddress || address.streetAddress),
+    address: sanitizeText(source.streetAddress || source.address || address.streetAddress),
     city: sanitizeText(source.city || address.city || 'San Francisco', 80),
     state: sanitizeText(source.state || address.state || 'CA', 24),
-    zip_code: sanitizeText(source.zipcode || address.zipcode, 24),
-    home_status: sanitizeText(source.homeStatus, 80),
-    home_type: sanitizeText(source.homeType, 80),
+    zip_code: sanitizeText(source.zipcode || source.zip_code || address.zipcode, 24),
+    home_status: sanitizeText(source.homeStatus || source.home_status, 80),
+    home_type: sanitizeText(source.homeType || source.home_type, 80),
     bedrooms: sanitizePositiveNumber(source.bedrooms, { max: 100, decimals: 1, allowZero: true }),
     bathrooms: sanitizePositiveNumber(source.bathrooms, { max: 100, decimals: 1, allowZero: true }),
-    living_area: sanitizePositiveNumber(source.livingArea || source.livingAreaValue, { max: 1_000_000, decimals: 0 }),
-    rent_zestimate: sanitizePrice(source.rentZestimate),
+    living_area: sanitizePositiveNumber(source.livingArea || source.livingAreaValue || source.living_area, { max: 1_000_000, decimals: 0 }),
+    rent_zestimate: sanitizePrice(source.rentZestimate || source.rent_zestimate),
     zestimate: sanitizePrice(source.zestimate),
-    tax_assessed_value: sanitizePrice(source.taxAssessedValue),
-    year_built: sanitizeYear(source.yearBuilt),
+    tax_assessed_value: sanitizePrice(source.taxAssessedValue || source.tax_assessed_value),
+    year_built: sanitizeYear(source.yearBuilt || source.year_built),
     school_rating_average: schoolRating.average,
     school_count: schoolRating.count,
     latitude: sanitizeLatitude(source.latitude),
     longitude: sanitizeLongitude(source.longitude),
-    has_bad_geocode: source.hasBadGeocode === true,
-    provider_source: sanitizeText(source.listingDataSource || source.listingSource || 'Zillow static property snapshot', 120),
-    observed_at: sanitizeText(attribution.lastUpdated || attribution.lastChecked || source.dateSoldString, 80) || null,
+    has_bad_geocode: source.hasBadGeocode === true || source.has_bad_geocode === true,
+    provider_source: sanitizeText(source.listingDataSource || source.listingSource || source.provider_source || 'Zillow static property snapshot', 120),
+    observed_at: sanitizeText(attribution.lastUpdated || attribution.lastChecked || source.dateSoldString || source.observed_at, 80) || null,
   };
 }
 
@@ -109,8 +123,8 @@ function manifestSummary(rawManifest) {
     dataset_id: manifest.dataset_id || null,
     source_kind: manifest.source_kind || null,
     property_count: Number.isFinite(Number(manifest.property_count)) ? Number(manifest.property_count) : null,
-    source_sha256: manifest.source_files?.[0]?.sha256 || null,
-    latest_observed_at: manifest.freshness?.latest_observed_at || null,
+    source_sha256: manifest.source_sha256 || manifest.source_files?.[0]?.sha256 || null,
+    latest_observed_at: manifest.latest_observed_at || manifest.freshness?.latest_observed_at || null,
     provider_summary: Array.isArray(manifest.provider_summary) ? manifest.provider_summary.slice(0, 12) : [],
     field_coverage: Array.isArray(manifest.field_coverage) ? manifest.field_coverage.slice(0, 20) : [],
     legal_limitations: Array.isArray(manifest.legal_limitations) ? manifest.legal_limitations.slice(0, 8) : [],
@@ -122,10 +136,14 @@ function createPropertySnapshot({
   manifestPath = path.join(path.dirname(filePath), 'property-data-manifest.json'),
   properties = null,
   manifest = null,
+  kind = null,
+  sourceAdapter = null,
 } = {}) {
   let loaded = false;
   let byId = new Map();
   let provenance = null;
+  const snapshotKind = kind || (Array.isArray(properties) ? 'memory-property-snapshot' : 'json-property-snapshot');
+  const snapshotSourceAdapter = sourceAdapter || snapshotKind;
 
   function load() {
     const rawProperties = Array.isArray(properties)
@@ -219,6 +237,7 @@ function createPropertySnapshot({
         max_price: sanitizePrice(filters.maxPrice),
         limit: result.limit,
       },
+      source_adapter: snapshotSourceAdapter,
       ...result,
       limitations: [
         'Properties come from the current FairValue static provider snapshot, not a live listing feed.',
@@ -270,7 +289,8 @@ function createPropertySnapshot({
   }
 
   return {
-    kind: Array.isArray(properties) ? 'memory-property-snapshot' : 'json-property-snapshot',
+    kind: snapshotKind,
+    sourceAdapter: snapshotSourceAdapter,
     filePath,
     manifestPath,
     load,

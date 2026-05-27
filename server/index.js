@@ -24,6 +24,7 @@ const { createUserReputationStore } = require('./userReputationStore');
 const { createUserProfileStore } = require('./userProfileStore');
 const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
 const { createPropertySnapshot } = require('./propertySnapshot');
+const { createPropertyPostgresProjection } = require('./propertyPostgresProjection');
 const { buildNeighborhoodMarketDrafts } = require('./neighborhoodMarketDrafts');
 const { buildOperatorIncidentQueue } = require('./operatorIncidentQueue');
 const { buildOperatorIncidentReplayReview } = require('./operatorIncidentReplayReview');
@@ -111,13 +112,14 @@ const MARKET_DRAFT_SOURCE_TYPES = new Set(['pasted_listing', 'manual', 'csv_row'
 const MARKET_DRAFT_CONFIDENCES = new Set(['low', 'medium', 'high']);
 const HOST_SETTABLE_ROOM_PHASES = new Set(['open', 'discussion', 'locked']);
 const MAX_ROOM_PHASE_TIMER_SECONDS = 3 * 60 * 60;
+const PROPERTY_SNAPSHOT_POSTGRES_MODES = new Set(['postgres', 'postgis', 'database', 'db', 'neon']);
 const rateLimitBuckets = new Map();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
 let roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: sql }));
 let userReputationStore = createUserReputationStore(resolveUserReputationOptions());
 let userProfileStore = createUserProfileStore(resolveUserProfileOptions());
 let alertDeliveryAdapter = createAlertDeliveryAdapter(resolveAlertDeliveryOptions());
-let propertySnapshot = createPropertySnapshot(resolvePropertySnapshotOptions());
+let propertySnapshot = createPropertySnapshot(resolveStaticPropertySnapshotOptions());
 let operatorIncidentWorkflowStore = createOperatorIncidentWorkflowStore(resolveOperatorIncidentWorkflowOptions());
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
@@ -191,10 +193,43 @@ function resolveUserProfileOptions() {
   return { filePath };
 }
 
-function resolvePropertySnapshotOptions() {
-  const filePath = process.env.FAIRVALUE_PROPERTY_SNAPSHOT_PATH ||
+function resolvePropertySnapshotFilePath() {
+  return process.env.FAIRVALUE_PROPERTY_SNAPSHOT_PATH ||
     path.join(process.cwd(), 'public', 'data', 'properties.json');
-  return { filePath };
+}
+
+function resolveStaticPropertySnapshotOptions(overrides = {}) {
+  return {
+    filePath: resolvePropertySnapshotFilePath(),
+    sourceAdapter: 'static-json-property-snapshot',
+    ...overrides,
+  };
+}
+
+function propertyQuerySourceMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  if (PROPERTY_SNAPSHOT_POSTGRES_MODES.has(mode)) return 'postgres';
+  return 'static';
+}
+
+function allowsPropertyPostgresFallback() {
+  const value = String(process.env.FAIRVALUE_PROPERTY_POSTGRES_FALLBACK || '').trim().toLowerCase();
+  return ['1', 'true', 'yes', 'on', 'static', 'json'].includes(value);
+}
+
+function resolvePropertySnapshotOptions() {
+  const storeMode = propertyQuerySourceMode(process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE);
+  const querySourceMode = propertyQuerySourceMode(process.env.FAIRVALUE_PROPERTY_QUERY_SOURCE);
+  const mode = querySourceMode === 'postgres' ? querySourceMode : storeMode;
+  if (mode === 'postgres') {
+    return {
+      mode,
+      sql,
+      fallbackToStatic: allowsPropertyPostgresFallback(),
+      fallbackSnapshotOptions: resolveStaticPropertySnapshotOptions(),
+    };
+  }
+  return resolveStaticPropertySnapshotOptions();
 }
 
 function resolveAlertDeliveryOptions() {
@@ -588,9 +623,80 @@ function configureUserProfilePersistence(filePathOrOptions) {
   return userProfileStore.load();
 }
 
-function configurePropertySnapshot(options = null) {
-  propertySnapshot = createPropertySnapshot(options || resolvePropertySnapshotOptions());
+function isPostgresPropertySnapshotOptions(options = {}) {
+  return propertyQuerySourceMode(options.mode || options.store || options.source || options.adapter) === 'postgres';
+}
+
+function configureStaticPropertySnapshot(options = {}) {
+  propertySnapshot = createPropertySnapshot(options);
   return propertySnapshot.load();
+}
+
+function configureStaticPropertySnapshotFallback(reason, options = {}) {
+  const fallbackOptions = {
+    ...resolveStaticPropertySnapshotOptions(),
+    ...(options.fallbackSnapshotOptions || {}),
+    sourceAdapter: 'static-json-property-snapshot-fallback',
+  };
+  const loaded = configureStaticPropertySnapshot(fallbackOptions);
+  return {
+    ...loaded,
+    source: 'static-json-fallback',
+    fallback_reason: reason,
+  };
+}
+
+async function configurePostgresPropertySnapshot(options = {}) {
+  const projection = createPropertyPostgresProjection({ sql: options.sql || sql });
+  if (!projection.enabled) {
+    if (options.fallbackToStatic) {
+      return configureStaticPropertySnapshotFallback(projection.reason, options);
+    }
+    throw new Error(`Postgres property snapshot requested but ${projection.reason}`);
+  }
+
+  try {
+    const loaded = await projection.loadSnapshot();
+    if (!loaded.enabled) {
+      throw new Error(loaded.reason || 'Postgres property projection is disabled');
+    }
+    if (!Array.isArray(loaded.properties) || loaded.properties.length === 0) {
+      throw new Error(`Postgres property projection ${loaded.table_name || projection.tableName} has no rows`);
+    }
+    propertySnapshot = createPropertySnapshot({
+      properties: loaded.properties,
+      manifest: {
+        ...(loaded.provenance || {}),
+        property_count: loaded.provenance?.property_count ?? loaded.count,
+      },
+      kind: 'postgres-property-snapshot',
+      sourceAdapter: 'postgres-postgis-property-snapshot',
+    });
+    const info = propertySnapshot.load();
+    return {
+      ...info,
+      source: 'postgres',
+      kind: propertySnapshot.kind,
+      source_adapter: propertySnapshot.sourceAdapter,
+      table_name: loaded.table_name,
+      manifest_table_name: loaded.manifest_table_name,
+      projection_schema_version: loaded.schema_version,
+      count: info.count,
+    };
+  } catch (error) {
+    if (options.fallbackToStatic) {
+      return configureStaticPropertySnapshotFallback(error.message, options);
+    }
+    throw error;
+  }
+}
+
+function configurePropertySnapshot(options = null) {
+  const resolvedOptions = options || resolvePropertySnapshotOptions();
+  if (isPostgresPropertySnapshotOptions(resolvedOptions)) {
+    return configurePostgresPropertySnapshot(resolvedOptions);
+  }
+  return configureStaticPropertySnapshot(resolvedOptions);
 }
 
 function configureAlertDelivery(options = null) {
@@ -2642,10 +2748,18 @@ wss.on('connection', (ws, req) => {
 
 const PORT = process.env.PORT || 8000;
 if (require.main === module) {
-  Promise.resolve(loadPersistedRooms())
-    .then((restored) => {
+  Promise.all([
+    Promise.resolve(configurePropertySnapshot()),
+    Promise.resolve(loadPersistedRooms()),
+  ])
+    .then(([propertyLoaded, restored]) => {
       server.listen(PORT, () => {
         console.log(`FairValue server running on http://localhost:${PORT}`);
+        if (propertyLoaded?.source === 'postgres') {
+          console.log(`Loaded ${propertyLoaded.count} property row(s) from ${propertyLoaded.table_name}`);
+        } else if (propertyLoaded?.fallback_reason) {
+          console.log(`Loaded static property snapshot after Postgres fallback: ${propertyLoaded.fallback_reason}`);
+        }
         if (restored.loaded) {
           const source = restored.filePath || restored.kind;
           console.log(`Restored ${restored.loaded} room(s) from ${source}`);
@@ -2654,7 +2768,7 @@ if (require.main === module) {
       });
     })
     .catch((error) => {
-      console.error('Failed to load persisted rooms:', error.message);
+      console.error('Failed to load server runtime dependencies:', error.message);
       process.exitCode = 1;
     });
 }
