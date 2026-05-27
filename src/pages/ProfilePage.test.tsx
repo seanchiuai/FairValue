@@ -39,6 +39,8 @@ const reputation: UserReputation = {
   ],
 };
 
+let reputationFetchCount = 0;
+
 function createStorageMock() {
   const values = new Map<string, string>();
   return {
@@ -57,6 +59,7 @@ function createStorageMock() {
 
 describe('ProfilePage', () => {
   beforeEach(() => {
+    reputationFetchCount = 0;
     Object.defineProperty(globalThis, 'localStorage', {
       value: createStorageMock(),
       configurable: true,
@@ -76,10 +79,17 @@ describe('ProfilePage', () => {
     global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/api/me/reputation')) {
+        reputationFetchCount += 1;
         expect(init?.headers).toMatchObject({ 'X-FairValue-User-Token': 'profile-token' });
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(reputation),
+        } as Response);
+      }
+      if (url.includes('properties.json')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([]),
         } as Response);
       }
       return Promise.resolve({
@@ -111,6 +121,6 @@ describe('ProfilePage', () => {
     expect(screen.queryByText('profile-token')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(reputationFetchCount).toBe(2));
   });
 });

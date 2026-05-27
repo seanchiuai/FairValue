@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, History, RefreshCw, ShieldCheck, UserRound, WalletCards } from 'lucide-react';
+import { ArrowLeft, Bookmark, History, RefreshCw, ShieldCheck, UserRound, WalletCards, X } from 'lucide-react';
 import { useMemo } from 'react';
 import PlayerReputationPanel from '../components/player/PlayerReputationPanel';
+import { useProperties } from '../data/properties';
+import { usePropertyWatchlist } from '../hooks/usePropertyWatchlist';
 import { useSession } from '../hooks/useSession';
 import { useUserReputation } from '../hooks/useUserReputation';
 import { formatOutcomeLabel } from '../lib/roomMarketDisplay';
@@ -55,11 +57,24 @@ export default function ProfilePage() {
     reputationError,
     refreshReputation,
   } = useUserReputation(userToken);
+  const { properties, loading: propertiesLoading } = useProperties();
+  const { watchlistItems, removeProperty } = usePropertyWatchlist();
 
   const marketFormatRows = useMemo(
     () => Object.entries(reputation?.market_formats || {})
       .sort((left, right) => right[1] - left[1]),
     [reputation?.market_formats]
+  );
+  const propertyById = useMemo(
+    () => new Map(properties.map((property) => [property.id, property])),
+    [properties]
+  );
+  const watchedProperties = useMemo(
+    () => watchlistItems.map((item) => ({
+      item,
+      property: propertyById.get(item.property_id) || null,
+    })),
+    [propertyById, watchlistItems]
   );
   const recentRooms = reputation?.recent_rooms || [];
   const displayName = reputation?.nickname || nickname || 'FairValue player';
@@ -205,6 +220,63 @@ export default function ProfilePage() {
             <strong>{formatMoney(reputation?.total_payout || 0)}</strong>
           </div>
         </div>
+      </section>
+
+      <section className="profile-page__panel" data-testid="profile-watchlist" aria-label="Property watchlist">
+        <div className="profile-page__section-head">
+          <div className="profile-page__panel-title">
+            <Bookmark size={16} />
+            Watchlist
+          </div>
+          <span>{watchlistItems.length} saved</span>
+        </div>
+
+        {propertiesLoading && watchedProperties.length === 0 ? (
+          <div className="profile-page__empty">
+            Loading watchlist...
+          </div>
+        ) : watchedProperties.length > 0 ? (
+          <div className="profile-page__watchlist-list">
+            {watchedProperties.map(({ item, property }) => {
+              const label = property?.address || `Property ${item.property_id}`;
+              return (
+                <article key={item.property_id} className="profile-page__watchlist-row">
+                  <div className="profile-page__watchlist-main">
+                    <strong>{label}</strong>
+                    <span>
+                      {property
+                        ? `${property.city}, ${property.state} ${property.zipCode}`
+                        : 'Property details unavailable'}
+                    </span>
+                  </div>
+                  <div>
+                    <span>Price</span>
+                    <strong>{property ? formatMoney(property.price) : 'Unknown'}</strong>
+                  </div>
+                  <div>
+                    <span>Added</span>
+                    <strong>{formatDate(item.added_at)}</strong>
+                  </div>
+                  <Link to={`/market/${item.property_id}`} className="profile-page__watchlist-link">
+                    Open
+                  </Link>
+                  <button
+                    type="button"
+                    className="profile-page__watchlist-remove"
+                    aria-label={`Remove ${label} from watchlist`}
+                    onClick={() => removeProperty(item.property_id)}
+                  >
+                    <X size={14} />
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="profile-page__empty">
+            No watched properties yet.
+          </div>
+        )}
       </section>
     </main>
   );

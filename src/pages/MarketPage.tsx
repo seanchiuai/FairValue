@@ -11,6 +11,7 @@ import {
   Calendar,
   Home,
   DollarSign,
+  Bookmark,
   GraduationCap,
   Info,
   Database,
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
+import { usePropertyWatchlist } from '../hooks/usePropertyWatchlist';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
 import { useMarketChart } from '../hooks/useMarketChart';
@@ -62,6 +64,7 @@ const MarketPage: React.FC = () => {
   const navigate = useNavigate();
   const { properties, loading } = useProperties();
   const { ensureIdentity } = useSession();
+  const { isWatched, toggleProperty } = usePropertyWatchlist();
   const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -142,6 +145,12 @@ const MarketPage: React.FC = () => {
     }
   };
 
+  const handleToggleWatchlist = () => {
+    if (!property) return;
+    const added = toggleProperty(property.id);
+    showToast(added ? 'Property added to watchlist' : 'Property removed from watchlist', 'success');
+  };
+
   if (loading || !property) {
     return <div className="market-page"><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#7F93A8' }}>Loading property...</div></div>;
   }
@@ -173,6 +182,7 @@ const MarketPage: React.FC = () => {
   );
   const freshnessLabel = freshnessDate ? ` Checked ${freshnessDate}.` : '';
   const intelligence = generateMarketIntelligence(property);
+  const watched = isWatched(property.id);
 
   return (
     <div className="market-page">
@@ -197,6 +207,16 @@ const MarketPage: React.FC = () => {
         <div className="detail-header-card">
           <div className="detail-price-row">
             <div className="detail-price">{formatPrice(property.price)}</div>
+            <button
+              type="button"
+              className={`watchlist-toggle ${watched ? 'active' : ''}`}
+              onClick={handleToggleWatchlist}
+              aria-pressed={watched}
+              aria-label={`${watched ? 'Remove from' : 'Add to'} watchlist`}
+            >
+              <Bookmark size={16} />
+              {watched ? 'Watching' : 'Watch'}
+            </button>
             {property.zestimate && priceDiff !== null && (
               <div className={`detail-zestimate ${priceDiff >= 0 ? 'up' : 'down'}`}>
                 <span className="zest-label">Zestimate</span>

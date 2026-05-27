@@ -118,6 +118,42 @@
   color: #1D1D1F;
 }
 
+.watchlist-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #1D1D1F;
+  font-size: 13px;
+  font-weight: 700;
+  background: #FFFFFF;
+  border: 1px solid #D2D2D7;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.watchlist-toggle svg {
+  color: #636366;
+}
+
+.watchlist-toggle:hover {
+  border-color: #55565C;
+}
+
+.watchlist-toggle.active {
+  color: #0D5C2D;
+  background: #F2FBF4;
+  border-color: #A5D6A7;
+}
+
+.watchlist-toggle.active svg {
+  color: #0D5C2D;
+  fill: rgba(11, 111, 50, 0.14);
+}
+
 .original-price-ref {
   font-size: 13px;
   color: #55565C;

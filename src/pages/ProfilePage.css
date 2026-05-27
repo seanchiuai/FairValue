@@ -183,18 +183,79 @@
   gap: 8px;
 }
 
+.profile-page__watchlist-list {
+  display: grid;
+  gap: 8px;
+}
+
 .profile-page__history-row {
   display: grid;
   grid-template-columns: minmax(120px, 1.25fr) repeat(5, minmax(92px, 1fr));
   gap: 8px;
 }
 
+.profile-page__watchlist-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(86px, 0.7fr) minmax(96px, 0.7fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.profile-page__watchlist-row span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.profile-page__watchlist-row strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .profile-page__room-main strong {
   font-size: 15px;
 }
 
-.profile-page__room-main span {
+.profile-page__room-main span,
+.profile-page__watchlist-main span {
   text-transform: capitalize;
+}
+
+.profile-page__watchlist-link,
+.profile-page__watchlist-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.profile-page__watchlist-remove {
+  width: 36px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.profile-page__watchlist-link:hover,
+.profile-page__watchlist-remove:hover {
+  color: var(--text-primary);
+  border-color: var(--border-default);
 }
 
 .profile-page__empty {
@@ -222,6 +283,10 @@
   .profile-page__history-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .profile-page__watchlist-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
@@ -235,7 +300,13 @@
 
   .profile-page__mini-stats,
   .profile-page__mini-stats--wide,
-  .profile-page__history-row {
+  .profile-page__history-row,
+  .profile-page__watchlist-row {
     grid-template-columns: 1fr;
+  }
+
+  .profile-page__watchlist-link,
+  .profile-page__watchlist-remove {
+    width: 100%;
   }
 }
