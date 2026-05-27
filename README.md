@@ -269,7 +269,7 @@ npm run verify
 
 This runs a client secret scan, checks that the property data manifest is current, typechecks, runs server integration tests, runs the non-watch Vitest suite, builds the Vite bundle, enforces bundle budgets, and smoke-boots the local backend.
 
-`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 805 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
+`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 810 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
 
 For a deployment environment gate, run:
 

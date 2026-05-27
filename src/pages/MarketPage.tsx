@@ -45,6 +45,53 @@ type RoomCreateResponse = {
   error?: string;
 };
 
+type NeighborhoodMix = {
+  value: string;
+  count: number;
+};
+
+type NeighborhoodEntity = {
+  entity_id: string;
+  entity_type: string;
+  label: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  property_count: number;
+  latest_observed_at: string | null;
+  status_mix: NeighborhoodMix[];
+  home_type_mix: NeighborhoodMix[];
+  metrics: {
+    median_price: number | null;
+    average_price: number | null;
+    min_price: number | null;
+    max_price: number | null;
+    median_price_per_sqft: number | null;
+    median_rent_estimate: number | null;
+    median_gross_rent_yield: number | null;
+    median_bedrooms: number | null;
+    median_bathrooms: number | null;
+    median_living_area: number | null;
+    average_school_rating: number | null;
+  };
+  data_quality: Array<{ field: string; coverage_percent: number }>;
+  sample_confidence: string;
+  sample_properties: Array<{
+    property_id: string;
+    address: string;
+    price: number | null;
+    home_status: string;
+  }>;
+  limitations: string[];
+};
+
+type NeighborhoodIndexResponse = {
+  schema_version?: string;
+  entities?: NeighborhoodEntity[];
+  limitations?: string[];
+  error?: string;
+};
+
 async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
 }
@@ -78,6 +125,9 @@ const MarketPage: React.FC = () => {
   const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [neighborhood, setNeighborhood] = useState<NeighborhoodIndexResponse | null>(null);
+  const [neighborhoodLoading, setNeighborhoodLoading] = useState(false);
+  const [neighborhoodError, setNeighborhoodError] = useState('');
   const property = properties.find(p => p.id === propertyId) || properties[0];
 
   // Chart with historical data from DB
@@ -101,6 +151,33 @@ const MarketPage: React.FC = () => {
       })
       .catch(() => console.warn('Chart history unavailable'));
   }, [propertyId, property, loadHistory]);
+
+  useEffect(() => {
+    if (!property?.zipCode) {
+      setNeighborhood(null);
+      setNeighborhoodError('');
+      setNeighborhoodLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setNeighborhoodLoading(true);
+    setNeighborhoodError('');
+    fetch(`/api/neighborhoods/${encodeURIComponent(property.zipCode)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await readJson<NeighborhoodIndexResponse>(response);
+        if (!response.ok || data.error) throw new Error(data.error || 'Neighborhood entity unavailable');
+        setNeighborhood(data);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setNeighborhood(null);
+        setNeighborhoodError('Static neighborhood entity unavailable from the local API.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNeighborhoodLoading(false);
+      });
+    return () => controller.abort();
+  }, [property?.zipCode]);
 
   const handleStartBid = async () => {
     if (!property || creating) return;
@@ -209,6 +286,17 @@ const MarketPage: React.FC = () => {
     : 'The manifest check runs in repo verification so stale static data changes fail fast.';
   const intelligence = generateMarketIntelligence(property);
   const watched = isWatched(property.id);
+  const neighborhoodEntity = neighborhood?.entities?.[0] || null;
+  const neighborhoodQuality = neighborhoodEntity?.data_quality
+    .slice(0, 3)
+    .map((item) => `${item.field.replace(/_/g, ' ')} ${item.coverage_percent}%`)
+    .join(', ');
+  const formatMetric = (value: number | null | undefined, suffix = '') => (
+    value == null || !Number.isFinite(value) ? '—' : `${Math.round(value).toLocaleString()}${suffix}`
+  );
+  const formatYield = (value: number | null | undefined) => (
+    value == null || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(1)}%`
+  );
 
   return (
     <div className="market-page">
@@ -346,6 +434,67 @@ const MarketPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Neighborhood Brief */}
+        <section className="detail-section neighborhood-section" aria-labelledby="neighborhood-brief-title" data-testid="neighborhood-brief-section">
+          <div className="neighborhood-head">
+            <div>
+              <h2 id="neighborhood-brief-title" className="section-title"><MapPin size={18} /> Neighborhood Brief</h2>
+              <p className="neighborhood-summary">
+                {neighborhoodEntity
+                  ? `${neighborhoodEntity.label} groups ${neighborhoodEntity.property_count} static snapshot properties for directional context around this listing.`
+                  : neighborhoodLoading
+                    ? 'Loading static ZIP-code entity from the local property snapshot.'
+                    : neighborhoodError || 'Neighborhood entity is not available for this ZIP code.'}
+              </p>
+            </div>
+            <span className="neighborhood-pill">Static ZIP entity</span>
+          </div>
+
+          {neighborhoodEntity && (
+            <>
+              <div className="neighborhood-metrics" aria-label="Neighborhood aggregate metrics">
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">Median price</span>
+                  <span className="neighborhood-metric-value">{formatPrice(neighborhoodEntity.metrics.median_price || 0)}</span>
+                  <span className="neighborhood-metric-detail">{formatMetric(neighborhoodEntity.metrics.median_living_area)} sqft median area</span>
+                </div>
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">Price per sqft</span>
+                  <span className="neighborhood-metric-value">{formatMetric(neighborhoodEntity.metrics.median_price_per_sqft, '/sqft')}</span>
+                  <span className="neighborhood-metric-detail">Directional snapshot median</span>
+                </div>
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">Gross rent yield</span>
+                  <span className="neighborhood-metric-value">{formatYield(neighborhoodEntity.metrics.median_gross_rent_yield)}</span>
+                  <span className="neighborhood-metric-detail">{formatPrice(neighborhoodEntity.metrics.median_rent_estimate || 0)}/mo rent median</span>
+                </div>
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">School refs</span>
+                  <span className="neighborhood-metric-value">{formatMetric(neighborhoodEntity.metrics.average_school_rating, '/10')}</span>
+                  <span className="neighborhood-metric-detail">{neighborhoodEntity.sample_confidence.replace(/_/g, ' ')} confidence</span>
+                </div>
+              </div>
+
+              <div className="neighborhood-detail-grid">
+                <div className="neighborhood-detail">
+                  <span className="neighborhood-detail-label">Status mix</span>
+                  <p>{neighborhoodEntity.status_mix.slice(0, 3).map((item) => `${item.value.replace(/_/g, ' ')} (${item.count})`).join(', ') || 'Unavailable'}</p>
+                </div>
+                <div className="neighborhood-detail">
+                  <span className="neighborhood-detail-label">Home type mix</span>
+                  <p>{neighborhoodEntity.home_type_mix.slice(0, 3).map((item) => `${typeLabel(item.value)} (${item.count})`).join(', ') || 'Unavailable'}</p>
+                </div>
+                <div className="neighborhood-detail">
+                  <span className="neighborhood-detail-label">Coverage</span>
+                  <p>{neighborhoodQuality || 'Coverage unavailable'}</p>
+                </div>
+              </div>
+
+              <p className="neighborhood-limitation">{neighborhoodEntity.limitations[0]}</p>
+            </>
+          )}
         </section>
 
         {/* Market Intelligence */}

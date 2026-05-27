@@ -450,6 +450,11 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(desktop.getByTestId('market-trust-section')).toContainText('MLSListings Inc');
     await expect(desktop.getByTestId('market-trust-section')).toContainText('Checked Feb');
     await expect(desktop.getByTestId('market-trust-section')).toContainText('room events preserve joins, bets, and settlement');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Neighborhood Brief', { timeout: 15_000 });
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Static ZIP entity');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Median price');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Gross rent yield');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('static snapshot properties');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Market Intelligence');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Local market brief');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Gross rent yield');
@@ -466,6 +471,8 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(mobile.getByTestId('market-trust-section')).toContainText('Simulation market', { timeout: 15_000 });
     await expect(mobile.getByTestId('market-trust-section')).toContainText('play-money credits');
     await expect(mobile.getByTestId('market-trust-section')).toContainText('LMSR market probability');
+    await expect(mobile.getByTestId('neighborhood-brief-section')).toContainText('Neighborhood Brief', { timeout: 15_000 });
+    await expect(mobile.getByTestId('neighborhood-brief-section')).toContainText('Static ZIP entity');
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Market Intelligence', { timeout: 15_000 });
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Analyst case network');
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Uncertainty map');

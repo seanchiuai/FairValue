@@ -532,6 +532,109 @@
   line-height: 1.45;
 }
 
+/* Neighborhood Brief */
+.neighborhood-section {
+  border-color: #D8E7D8;
+  background: #FBFFFB;
+}
+
+.neighborhood-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.neighborhood-summary {
+  margin: -6px 0 0;
+  color: #334E36;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.neighborhood-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid #B7D7B7;
+  border-radius: 7px;
+  color: #0D5C2D;
+  background: #F0FAF1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.neighborhood-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #DCEADC;
+  border-radius: 10px;
+  background: #DCEADC;
+  margin-bottom: 16px;
+}
+
+.neighborhood-metric {
+  min-height: 104px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px;
+  background: #FFFFFF;
+}
+
+.neighborhood-metric-label,
+.neighborhood-detail-label {
+  color: #426347;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.neighborhood-metric-value {
+  color: #1D1D1F;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.neighborhood-metric-detail {
+  color: #58715B;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.neighborhood-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.neighborhood-detail {
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 4px solid #82AD84;
+}
+
+.neighborhood-detail p {
+  margin: 5px 0 0;
+  color: #3C513E;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.neighborhood-limitation {
+  margin: 0;
+  padding-top: 13px;
+  border-top: 1px solid #DCEADC;
+  color: #5A665B;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 /* Market Intelligence */
 .intelligence-section {
   border-color: #E0DED6;
@@ -1241,9 +1344,13 @@
   .intelligence-confidence { align-self: flex-start; }
   .intelligence-cases,
   .agent-case-list,
-  .prompt-list {
+  .prompt-list,
+  .neighborhood-metrics,
+  .neighborhood-detail-grid {
     grid-template-columns: 1fr;
   }
+  .neighborhood-head { flex-direction: column; gap: 8px; }
+  .neighborhood-pill { align-self: flex-start; }
   
   .market-layout {
     grid-template-columns: 1fr;
