@@ -11,12 +11,15 @@ import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import PreBetIntelligenceCard from '../components/player/PreBetIntelligenceCard';
+import PlayerBetReasonControl from '../components/player/PlayerBetReasonControl';
 import PlayerSettlementResultCard from '../components/player/PlayerSettlementResultCard';
+import PlayerJoinGate from '../components/player/PlayerJoinGate';
 import { RateLimiter } from '../lib/rateLimiter';
 import { useToast } from '../contexts/ToastContext';
 
 const playerJoinErrorId = 'player-join-error';
 const playerBetErrorId = 'player-bet-error';
+const PLAYER_BET_REASON_MAX_LENGTH = 280;
 
 export default function PlayerView() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -78,6 +81,7 @@ export default function PlayerView() {
   }, [market, house, addPoint]);
 
   const [wager, setWager] = useState<number>(25);
+  const [betReason, setBetReason] = useState('');
   const [betting, setBetting] = useState(false);
   const [betError, setBetError] = useState('');
   const [joinName, setJoinName] = useState(savedNickname);
@@ -116,8 +120,10 @@ export default function PlayerView() {
     }
     setBetting(true);
     setBetError('');
+    const reason = betReason.trim();
     try {
-      await placeBet(outcome, wager);
+      await placeBet(outcome, wager, reason);
+      setBetReason('');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Bet failed';
       setBetError(message);
@@ -171,55 +177,18 @@ export default function PlayerView() {
 
     return (
       <div style={s.page}>
-        <div style={s.joinContainer}>
-          <div style={s.joinTitle}>Join Game</div>
-          <div style={s.joinRoomCode}>{roomCode}</div>
-          {house && (
-            <div style={s.joinProperty}>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>{house.address}</div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                Asking: ${house.asking_price.toLocaleString()}
-              </div>
-            </div>
-          )}
-          <div style={s.joinTrustWrap}>
-            <TrustNotice
-              testId="player-entry-trust-notice"
-              title="Before you join"
-              compact
-              tone="dark"
-            />
-          </div>
-          <div style={s.joinField}>
-            <label style={s.joinLabel} htmlFor="player-join-nickname">Your Name</label>
-            <input
-              id="player-join-nickname"
-              style={s.joinInput}
-              value={joinName}
-              onChange={(e) => setJoinName(e.target.value)}
-              aria-label="Player nickname"
-              aria-describedby={displayedJoinError ? playerJoinErrorId : undefined}
-              aria-invalid={joinNameInvalid || undefined}
-              placeholder="Enter your name"
-              maxLength={20}
-              aria-required="true"
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-            />
-          </div>
-          {displayedJoinError && (
-            <div id={playerJoinErrorId} style={s.joinError} role="alert" aria-live="assertive">
-              {displayedJoinError}
-            </div>
-          )}
-          <button
-            style={{ ...s.joinBtn, opacity: joining || identityLoading ? 0.6 : 1 }}
-            onClick={handleJoin}
-            disabled={joining || identityLoading}
-          >
-            {joining ? 'Joining...' : 'Join Room'}
-          </button>
-        </div>
+        <PlayerJoinGate
+          roomCode={roomCode}
+          house={house}
+          joinName={joinName}
+          joining={joining}
+          identityLoading={identityLoading}
+          displayedJoinError={displayedJoinError}
+          joinNameInvalid={joinNameInvalid}
+          errorId={playerJoinErrorId}
+          onJoinNameChange={setJoinName}
+          onJoin={handleJoin}
+        />
       </div>
     );
   }
@@ -334,6 +303,7 @@ export default function PlayerView() {
                   </span>
                   <span style={s.positionWager}>${bet.wager.toFixed(0)}</span>
                   <span style={s.positionProb}>@ {Math.round(bet.prob_at_entry * 100)}%</span>
+                  {bet.reason && <span style={s.positionReason}>{bet.reason}</span>}
                 </div>
               ))}
             </div>
@@ -349,6 +319,16 @@ export default function PlayerView() {
               {betError}
             </div>
           )}
+          <PlayerBetReasonControl
+            value={betReason}
+            maxLength={PLAYER_BET_REASON_MAX_LENGTH}
+            describedBy={betError ? playerBetErrorId : undefined}
+            invalid={Boolean(betError)}
+            onChange={(value) => {
+              setBetReason(value);
+              if (betError) setBetError('');
+            }}
+          />
           <div style={s.presets}>
             {[10, 25, 50, 100].map((amount) => (
               <button
@@ -419,7 +399,7 @@ const s: Record<string, React.CSSProperties> = {
     background: 'var(--bg-primary)',
     display: 'flex',
     flexDirection: 'column',
-    paddingBottom: 190,
+    paddingBottom: 270,
   },
   loading: {
     display: 'flex',
@@ -551,6 +531,7 @@ const s: Record<string, React.CSSProperties> = {
   positionRow: {
     display: 'flex',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 12,
     padding: '8px 0',
     borderBottom: '1px solid var(--border-subtle)',
@@ -571,16 +552,25 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 12,
     marginLeft: 'auto',
   },
+  positionReason: {
+    flexBasis: '100%',
+    color: 'var(--text-muted)',
+    fontSize: 12,
+    lineHeight: 1.35,
+    overflowWrap: 'anywhere',
+  },
   betPanel: {
     position: 'fixed',
     bottom: 0,
     left: 0,
     right: 0,
-    background: 'var(--bg-nav)',
+    background: '#fff',
     borderTop: '1px solid var(--border-subtle)',
+    boxShadow: '0 -14px 32px rgba(0, 0, 0, 0.08)',
     padding: '12px 16px',
     paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
     zIndex: 200,
+    isolation: 'isolate',
   },
   betError: {
     color: 'var(--accent-danger)',
@@ -643,84 +633,7 @@ const s: Record<string, React.CSSProperties> = {
   underBtn: {
     background: 'var(--accent-danger)',
   },
-  joinContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '100vh',
-    padding: 24,
-    gap: 16,
-  },
-  joinTitle: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-  },
-  joinRoomCode: {
-    fontSize: 28,
-    fontWeight: 800,
-    letterSpacing: 6,
-    color: 'var(--accent-primary)',
-  },
-  joinProperty: {
-    textAlign: 'center',
-    padding: '12px 16px',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 10,
-    width: '100%',
-    maxWidth: 320,
-  },
-  joinTrustWrap: {
-    width: '100%',
-    maxWidth: 320,
-  },
   roomTrustWrap: {
     margin: '0 16px 12px',
-  },
-  joinField: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    width: '100%',
-    maxWidth: 320,
-  },
-  joinLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  joinInput: {
-    padding: '14px 16px',
-    background: 'var(--bg-input)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 10,
-    color: 'var(--text-primary)',
-    fontSize: 16,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-    textAlign: 'center',
-  },
-  joinError: {
-    color: 'var(--accent-danger)',
-    fontSize: 13,
-  },
-  joinBtn: {
-    padding: '14px 24px',
-    background: 'var(--accent-primary)',
-    border: 'none',
-    borderRadius: 10,
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 700,
-    cursor: 'pointer',
-    width: '100%',
-    maxWidth: 320,
-    minHeight: 48,
-    touchAction: 'manipulation',
   },
 };

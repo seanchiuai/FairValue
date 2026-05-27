@@ -99,7 +99,9 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await host.getByRole('button', { name: 'Open betting' }).click();
     await expect(host.getByTestId('host-phase-status')).toContainText('Betting open');
 
+    await playerOne.getByLabel('Public bet reason').fill('Touring comps point above asking.');
     await clickBetAndWait(playerOne, roomCode, /Bet \$25 on OVER/);
+    await expect(playerOne.getByLabel('Public bet reason')).toHaveValue('');
     await playerTwo.getByRole('button', { name: 'Set wager to $50' }).click();
     await clickBetAndWait(playerTwo, roomCode, /Bet \$50 on UNDER/);
 
@@ -110,6 +112,7 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(host.getByTestId('activity-feed')).toContainText('Player Two');
     await expect(host.getByTestId('activity-feed')).toContainText('OVER');
     await expect(host.getByTestId('activity-feed')).toContainText('UNDER');
+    await expect(host.getByTestId('activity-feed')).toContainText('Touring comps point above asking.');
 
     await host.getByRole('button', { name: 'AI bot disabled', exact: true }).click();
     await expect(host.getByRole('button', { name: 'AI bot enabled', exact: true })).toHaveAttribute(
@@ -127,6 +130,7 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(playerOne.getByText(property.address)).toBeVisible();
     await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
     await expect(playerOne.getByTestId('player-positions')).toContainText('$25');
+    await expect(playerOne.getByTestId('player-positions')).toContainText('Touring comps point above asking.');
 
     await host.getByRole('button', { name: /Settle/ }).click();
     await expect(host.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
