@@ -76,6 +76,7 @@ Browser (React)
 
 - **Rooms** are live in-memory objects with JSON snapshot durability for local degraded mode (`.fairvalue/rooms.json` by default in the real server process)
 - **Room event logs** are kept with each durable room snapshot so state can be reconstructed after a local backend restart
+- **Room event journals** append canonical room events to a local `.events.ndjson` stream for JSON-backed development, so replay recovery is less dependent on rewritten whole-room snapshots
 - **Player Pre-Bet Intelligence** is deterministic local fallback output on `/play/:roomCode`; it uses LMSR math, the player's wager/balance, current room probability, and recent room activity to explain one reason to believe, one reason to doubt, and both OVER/UNDER wager previews before a bet is placed.
 - **Live Room Intelligence** is deterministic local fallback output on the host dashboard; it combines room LMSR state, recent room activity, players, and optional server-accepted draft audits without claiming provider-backed comps
 - **Operator Review** is a host-facing deterministic recap surface over room state plus host-authorized event logs, including draft audit, settlement evidence, timeline, and integrity checks
@@ -171,6 +172,8 @@ cp .env.example .env
 - `VITE_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.
 - `FAIRVALUE_ROOM_STORE=json` keeps the default local JSON snapshot adapter; `FAIRVALUE_ROOM_STORE=postgres` uses the Neon/Postgres `fairvalue_room_snapshots` table when `DATABASE_URL` is configured.
 - `FAIRVALUE_ROOM_STORE_PATH` overrides the local durable room snapshot file. If unset, `npm run server` uses `.fairvalue/rooms.json`.
+- `FAIRVALUE_ROOM_EVENT_LOG=auto` keeps the append-only local room event journal enabled for JSON room persistence. Set it to `off` to disable event journaling.
+- `FAIRVALUE_ROOM_EVENT_LOG_PATH` overrides the append-only local event journal path. If unset and JSON room persistence has a snapshot path, FairValue uses `<room snapshot path>.events.ndjson`.
 - `FAIRVALUE_ROOM_PERSISTENCE=off` disables local room snapshots and returns to fully ephemeral in-memory room state.
 - `FAIRVALUE_ROOM_RETENTION_DAYS` defaults to `30` for local JSON snapshots and prunes only settled rooms whose last saved room event/activity is older than that window. Set it to `0` or `off` to disable local retention pruning.
 - `FAIRVALUE_ROOM_SNAPSHOT_SECRET` encrypts the local JSON room snapshot file with AES-256-GCM. Set a stable private value before creating rooms; encrypted local snapshots cannot be read without the same value.
@@ -182,7 +185,7 @@ cp .env.example .env
 - `FAIRVALUE_IDENTITY_SECRET` signs anonymous browser identities used for durable player sessions and host authority. Set a stable private value anywhere rooms need to survive server restarts.
 - `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` signs public settled-room verification artifacts. If unset, the public endpoint still returns deterministic hashes but marks the artifact as an unsigned local digest. Production readiness requires this value so shareable public artifacts do not ship unsigned.
 
-Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, bet idempotency receipts, and optional Market Studio draft audit envelopes; AI bot intervals are not auto-resumed after a backend restart. Draft audits intentionally keep source-text hashes and lengths, not raw pasted listing text. Local JSON retention prunes settled rooms only; active rooms and rooms without a room-specific timestamp are kept. Postgres retention is opt-in and prunes settled rows only. If `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, local JSON snapshots are saved as encrypted envelopes; existing plaintext snapshots still load and are rewritten encrypted on the next save. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually.
+Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, bet idempotency receipts, and optional Market Studio draft audit envelopes; AI bot intervals are not auto-resumed after a backend restart. Draft audits intentionally keep source-text hashes and lengths, not raw pasted listing text. Local JSON retention prunes settled rooms only; active rooms and rooms without a room-specific timestamp are kept. Postgres retention is opt-in and prunes settled rows only. If `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, local JSON snapshots are saved as encrypted envelopes; existing plaintext snapshots still load and are rewritten encrypted on the next save. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually. The local append-only event journal stores canonical room events without host tokens or private evidence documents; on restore, the server prefers the journal when it contains a longer event stream for a snapshotted room.
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
 
@@ -267,6 +270,7 @@ server/
   db.js             # Neon database connection
   replayIntegrity.js # Host-only replay/live projection verification
   publicVerification.js # Share-safe settled-room verification digests
+  roomEventLog.js    # Canonical room events, replay projection, and local append-only event journal
   settlementEvidence.js # Public-safe settlement evidence packet normalization
   seed.js           # Database seeding script
 src/

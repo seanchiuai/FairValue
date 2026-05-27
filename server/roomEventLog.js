@@ -1,3 +1,7 @@
+const fs = require('fs');
+const path = require('path');
+
+const EVENT_LOG_SCHEMA_VERSION = 'fairvalue.roomEventLog.v1';
 const EVENT_TYPES = Object.freeze({
   ROOM_CREATED: 'room_created',
   PLAYER_JOINED: 'player_joined',
@@ -93,6 +97,133 @@ function validateRoomEventPayload(type, payload = {}) {
 
 function normalizeRoomCode(value) {
   return String(value || '').trim().toUpperCase();
+}
+
+function normalizeEventRecord(event) {
+  if (!isObject(event)) throw new Error('room event must be an object');
+  if (!VALID_EVENT_TYPES.has(event.type)) throw new Error(`Unknown room event type: ${event.type}`);
+  const roomCode = normalizeRoomCode(event.room_code);
+  if (!roomCode) throw new Error('room event room_code is required');
+  const sequence = Number(event.sequence);
+  if (!Number.isInteger(sequence) || sequence <= 0) throw new Error('room event sequence must be a positive integer');
+
+  const normalized = {
+    id: typeof event.id === 'string' && event.id.trim()
+      ? event.id.trim()
+      : `${roomCode}-${String(sequence).padStart(8, '0')}`,
+    room_code: roomCode,
+    sequence,
+    type: event.type,
+    payload: isObject(event.payload) ? cloneJson(event.payload) : {},
+    timestamp: Number.isFinite(Number(event.timestamp)) ? Number(event.timestamp) : Date.now() / 1000,
+  };
+  if (event.request_id) normalized.request_id = String(event.request_id);
+  return normalized;
+}
+
+function createDisabledRoomEventLog({ kind = 'disabled', reason = 'Room event log persistence is disabled' } = {}) {
+  return {
+    enabled: false,
+    kind,
+    reason,
+    filePath: null,
+    append() {},
+    load() {
+      return [];
+    },
+    loadRoom() {
+      return [];
+    },
+    clear() {},
+  };
+}
+
+function dedupeAndSortEvents(events) {
+  const seen = new Set();
+  return events
+    .map((event) => normalizeEventRecord(event))
+    .filter((event) => {
+      const key = event.id || `${event.room_code}:${event.sequence}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.room_code.localeCompare(b.room_code) || a.sequence - b.sequence)
+    .map((event) => cloneJson(event));
+}
+
+function createJsonRoomEventLog({ filePath } = {}) {
+  if (!filePath) return createDisabledRoomEventLog({ kind: 'json', reason: 'No room event log file configured' });
+
+  const resolvedPath = path.resolve(filePath);
+
+  function quarantineCorruptEventLog(parseError) {
+    const baseCorruptPath = `${resolvedPath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    let corruptPath = baseCorruptPath;
+    let attempt = 0;
+
+    while (fs.existsSync(corruptPath)) {
+      attempt += 1;
+      corruptPath = `${baseCorruptPath}-${attempt}`;
+    }
+
+    try {
+      fs.renameSync(resolvedPath, corruptPath);
+    } catch (quarantineError) {
+      const error = new Error(`Room event log is corrupt and could not be quarantined: ${quarantineError.message}`);
+      error.cause = parseError;
+      throw error;
+    }
+
+    console.warn(`Recovered from corrupt room event log; quarantined ${resolvedPath} to ${corruptPath}`);
+    return [];
+  }
+
+  function append(event) {
+    const normalized = normalizeEventRecord(event);
+    fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+    fs.appendFileSync(resolvedPath, `${JSON.stringify({
+      schema_version: EVENT_LOG_SCHEMA_VERSION,
+      event: normalized,
+    })}\n`);
+  }
+
+  function load({ roomCode } = {}) {
+    if (!fs.existsSync(resolvedPath)) return [];
+    const normalizedRoomCode = roomCode ? normalizeRoomCode(roomCode) : null;
+    const lines = fs.readFileSync(resolvedPath, 'utf8').split(/\r?\n/).filter((line) => line.trim());
+    const events = [];
+
+    try {
+      for (const line of lines) {
+        const parsed = JSON.parse(line);
+        const event = normalizeEventRecord(parsed.event || parsed);
+        if (!normalizedRoomCode || event.room_code === normalizedRoomCode) events.push(event);
+      }
+    } catch (error) {
+      return quarantineCorruptEventLog(error);
+    }
+
+    return dedupeAndSortEvents(events);
+  }
+
+  function loadRoom(roomCode) {
+    return load({ roomCode });
+  }
+
+  function clear() {
+    if (fs.existsSync(resolvedPath)) fs.rmSync(resolvedPath, { force: true });
+  }
+
+  return {
+    kind: 'json',
+    enabled: true,
+    filePath: resolvedPath,
+    append,
+    load,
+    loadRoom,
+    clear,
+  };
 }
 
 function createInMemoryRoomEventStore() {
@@ -298,8 +429,11 @@ function replayRoomEvents(events) {
 }
 
 module.exports = {
+  EVENT_LOG_SCHEMA_VERSION,
   EVENT_TYPES,
+  createDisabledRoomEventLog,
   createInMemoryRoomEventStore,
+  createJsonRoomEventLog,
   replayRoomEvents,
   roomEventToActivity,
   validateRoomEventPayload,

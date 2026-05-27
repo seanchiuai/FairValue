@@ -12,8 +12,11 @@ const {
   configureRoomPersistence,
   loadPersistedRooms,
   roomPersistence,
+  roomEventLog,
 } = require('../index');
 const {
+  EVENT_LOG_SCHEMA_VERSION,
+  createJsonRoomEventLog,
   createInMemoryRoomEventStore,
   replayRoomEvents,
   validateRoomEventPayload,
@@ -207,6 +210,54 @@ test('room event payload contracts reject malformed canonical events before appe
   );
 });
 
+test('json room event log appends canonical events without rewriting the stream', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fairvalue-event-log-'));
+  tempDirs.add(tempDir);
+  const eventLogPath = path.join(tempDir, 'room-events.ndjson');
+  const eventLog = createJsonRoomEventLog({ filePath: eventLogPath });
+
+  const created = {
+    id: 'EVLG-00000001',
+    room_code: 'EVLG',
+    sequence: 1,
+    type: EVENT_TYPES.ROOM_CREATED,
+    payload: {
+      house: { address: 'Append House', asking_price: 500000 },
+      market: { total_trades: 0, prob_over: 0.5, prob_under: 0.5 },
+    },
+    timestamp: 1,
+  };
+  const joined = {
+    id: 'EVLG-00000002',
+    room_code: 'EVLG',
+    sequence: 2,
+    type: EVENT_TYPES.PLAYER_JOINED,
+    payload: {
+      session_id: 'event-log-player',
+      nickname: 'Event Log Player',
+      player: { session_id: 'event-log-player', nickname: 'Event Log Player', balance: 1000, bets: [] },
+    },
+    timestamp: 2,
+  };
+
+  eventLog.append(created);
+  const firstWrite = fs.readFileSync(eventLogPath, 'utf8');
+  eventLog.append(joined);
+  const secondWrite = fs.readFileSync(eventLogPath, 'utf8');
+
+  assert.ok(secondWrite.startsWith(firstWrite));
+  const records = secondWrite.trim().split('\n').map((line) => JSON.parse(line));
+  assert.deepEqual(records.map((record) => record.schema_version), [
+    EVENT_LOG_SCHEMA_VERSION,
+    EVENT_LOG_SCHEMA_VERSION,
+  ]);
+
+  const loaded = eventLog.loadRoom('evlg');
+  assert.deepEqual(loaded.map((event) => event.sequence), [1, 2]);
+  assert.equal(loaded[1].payload.player.session_id, 'event-log-player');
+  assert.equal(JSON.stringify(loaded).includes('host_token'), false);
+});
+
 test('room event log supports audit access, ordered replay, and settlement reconstruction', async () => {
   const room = await createHostedRoom();
   const code = room.room_code;
@@ -366,6 +417,7 @@ test('file-backed room persistence restores room state, events, and bet idempote
   tempDirs.add(tempDir);
   const storePath = path.join(tempDir, 'rooms.json');
   configureRoomPersistence(storePath);
+  assert.equal(roomEventLog().filePath, `${storePath}.events.ndjson`);
 
   const room = await createHostedRoom();
   const code = room.room_code;
@@ -383,12 +435,16 @@ test('file-backed room persistence restores room state, events, and bet idempote
   assert.equal(bet.status, 200);
   assert.equal(bet.data.market.total_trades, 1);
   assert.equal(fs.existsSync(storePath), true);
+  assert.equal(fs.existsSync(roomEventLog().filePath), true);
 
   const stored = JSON.parse(fs.readFileSync(storePath, 'utf8'));
   assert.equal(stored.rooms[code].code, code);
   assert.equal(stored.rooms[code].hostToken, room.host_token);
   assert.equal(stored.rooms[code].events.at(-1).type, EVENT_TYPES.BET_PLACED);
   assert.equal(stored.rooms[code].betReceipts.length, 1);
+  const eventLogRecords = fs.readFileSync(roomEventLog().filePath, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  assert.equal(eventLogRecords.at(-1).event.type, EVENT_TYPES.BET_PLACED);
+  assert.equal(JSON.stringify(eventLogRecords).includes(room.host_token), false);
   stored.rooms[code].aiEnabled = true;
   fs.writeFileSync(storePath, `${JSON.stringify(stored, null, 2)}\n`);
 
@@ -436,4 +492,66 @@ test('file-backed room persistence restores room state, events, and bet idempote
     settledState.data.activity.map((entry) => entry.type),
     ['join', 'bet', 'settle']
   );
+});
+
+test('append-only room event journal restores replay state when snapshot events are stale', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fairvalue-event-recovery-'));
+  tempDirs.add(tempDir);
+  const storePath = path.join(tempDir, 'rooms.json');
+  configureRoomPersistence(storePath);
+
+  const room = await createHostedRoom();
+  const code = room.room_code;
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'journal-player', nickname: 'Journal Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'journal-bet-001' },
+    body: { session_id: 'journal-player', outcome: 'over', wager: 40 },
+  });
+  assert.equal(bet.status, 200);
+  assert.equal(bet.data.market.total_trades, 1);
+
+  const stored = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+  const snapshotEventCount = stored.rooms[code].events.length;
+  assert.ok(snapshotEventCount >= 3);
+
+  stored.rooms[code].events = stored.rooms[code].events.slice(0, 1);
+  stored.rooms[code].market = {
+    q_over: 0,
+    q_under: 0,
+    b: 100,
+    total_trades: 0,
+    total_wagered: 0,
+  };
+  stored.rooms[code].players = {};
+  stored.rooms[code].activity = [];
+  fs.writeFileSync(storePath, `${JSON.stringify(stored, null, 2)}\n`);
+
+  for (const existingCode of Object.keys(rooms)) delete rooms[existingCode];
+  roomEventStore.clearAll();
+
+  const restored = loadPersistedRooms();
+  assert.equal(restored.loaded, 1);
+  assert.equal(roomEventStore.list(code).length, snapshotEventCount);
+  assert.equal(rooms[code].market.total_trades, 1);
+  assert.equal(rooms[code].players['journal-player'].nickname, 'Journal Player');
+
+  const restoredState = await request(`/api/rooms/${code}/state`);
+  assert.equal(restoredState.status, 200);
+  assert.equal(restoredState.data.market.total_trades, 1);
+  assert.equal(restoredState.data.players[0].nickname, 'Journal Player');
+  assert.equal(restoredState.data.event_sequence, snapshotEventCount);
+
+  const secondBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'journal-bet-002' },
+    body: { session_id: 'journal-player', outcome: 'under', wager: 20 },
+  });
+  assert.equal(secondBet.status, 200);
+  assert.equal(secondBet.data.market.total_trades, 2);
 });

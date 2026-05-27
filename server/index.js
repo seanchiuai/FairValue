@@ -7,6 +7,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const sql = require('./db');
 const {
   EVENT_TYPES,
+  createJsonRoomEventLog,
   createInMemoryRoomEventStore,
   replayRoomEvents,
   roomEventToActivity,
@@ -71,8 +72,9 @@ const MARKET_DRAFT_SOURCE_TYPES = new Set(['pasted_listing', 'manual', 'csv_row'
 const MARKET_DRAFT_FORMATS = new Set(['binary_over_under']);
 const MARKET_DRAFT_CONFIDENCES = new Set(['low', 'medium', 'high']);
 const rateLimitBuckets = new Map();
-const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
+let roomEventLog = createJsonRoomEventLog(resolveRoomEventLogOptions(roomPersistence));
+const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
 
 function isPromiseLike(value) {
@@ -81,6 +83,13 @@ function isPromiseLike(value) {
 
 function tagRoomPersistenceError(error) {
   error.roomPersistenceFailed = true;
+  if (!error.roomPersistenceKind) error.roomPersistenceKind = roomPersistence.kind;
+  return error;
+}
+
+function tagRoomEventLogPersistenceError(error) {
+  error.roomPersistenceFailed = true;
+  error.roomPersistenceKind = roomEventLog.kind || 'room-event-log';
   return error;
 }
 
@@ -107,6 +116,18 @@ function resolveRoomPersistenceOptions() {
     encryptionSecret: process.env.FAIRVALUE_ROOM_SNAPSHOT_SECRET || '',
     retentionDays: process.env.FAIRVALUE_ROOM_RETENTION_DAYS || '30',
   };
+}
+
+function resolveRoomEventLogOptions(persistence = roomPersistence) {
+  const mode = String(process.env.FAIRVALUE_ROOM_EVENT_LOG || 'auto').trim().toLowerCase();
+  if (['0', 'false', 'off', 'disabled', 'none'].includes(mode)) return {};
+  if (process.env.FAIRVALUE_ROOM_EVENT_LOG_PATH) {
+    return { filePath: process.env.FAIRVALUE_ROOM_EVENT_LOG_PATH };
+  }
+  if (persistence?.kind === 'json' && persistence.filePath) {
+    return { filePath: `${persistence.filePath}.events.ndjson` };
+  }
+  return {};
 }
 
 function generateRoomCode() {
@@ -202,6 +223,21 @@ function persistRooms() {
   }
 }
 
+function persistRoomEvent(event) {
+  if (!roomEventLog.enabled) return;
+  try {
+    return roomEventLog.append(event);
+  } catch (error) {
+    throw tagRoomEventLogPersistenceError(error);
+  }
+}
+
+function combinePersistenceResults(...results) {
+  const pending = results.filter(Boolean);
+  if (!pending.length) return;
+  if (pending.some(isPromiseLike)) return Promise.all(pending);
+}
+
 async function waitForRoomPersistence(persistenceResult) {
   if (isPromiseLike(persistenceResult)) await persistenceResult;
 }
@@ -210,7 +246,7 @@ function roomPersistenceError(res, error) {
   if (!error?.roomPersistenceFailed) throw error;
   observability.increment('persistence.failures');
   observability.increment('room_lifecycle.durability_failures');
-  observability.recordError('persistence', error, { kind: roomPersistence.kind });
+  observability.recordError('persistence', error, { kind: error.roomPersistenceKind || roomPersistence.kind });
   return res.status(503).json({
     error: 'Room persistence failed',
     message: 'Configured room persistence could not save this room mutation.',
@@ -332,12 +368,25 @@ function persistRoom(room) {
 
 function hydratePersistedRooms(snapshot) {
   let loaded = 0;
+  const durableEventsByRoom = new Map();
+
+  if (roomEventLog.enabled) {
+    for (const event of roomEventLog.load()) {
+      const events = durableEventsByRoom.get(event.room_code) || [];
+      events.push(event);
+      durableEventsByRoom.set(event.room_code, events);
+    }
+  }
 
   for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
     const room = hydrateRoomSnapshot({ ...roomSnapshot, code: roomSnapshot.code || code });
     if (!room) continue;
+    const snapshotEvents = roomSnapshot.events || [];
+    const durableEvents = durableEventsByRoom.get(room.code) || [];
+    const events = durableEvents.length >= snapshotEvents.length ? durableEvents : snapshotEvents;
+    if (events.length > snapshotEvents.length) hydrateRoomFromReplay(room, events);
     rooms[room.code] = room;
-    roomEventStore.replace(room.code, roomSnapshot.events || []);
+    roomEventStore.replace(room.code, events);
     loaded += 1;
   }
 
@@ -346,6 +395,18 @@ function hydratePersistedRooms(snapshot) {
     filePath: roomPersistence.filePath,
     kind: roomPersistence.kind,
   };
+}
+
+function hydrateRoomFromReplay(room, events) {
+  const replay = replayRoomEvents(events);
+  if (replay.house) room.house = cloneJson(replay.house);
+  if (replay.market) room.market = createMarketState(replay.market);
+  if (replay.players) room.players = cloneJson(replay.players);
+  if (replay.activity) room.activity = cloneJson(replay.activity);
+  room.settled = Boolean(replay.settled);
+  room.settlement = replay.settlement ? cloneJson(replay.settlement) : null;
+  room.draftAudit = replay.draft_audit ? cloneJson(replay.draft_audit) : room.draftAudit;
+  room.aiEnabled = false;
 }
 
 function loadPersistedRooms() {
@@ -367,6 +428,7 @@ function configureRoomPersistence(filePathOrOptions) {
       filePath: filePathOrOptions,
     });
   }
+  roomEventLog = createJsonRoomEventLog(resolveRoomEventLogOptions(roomPersistence));
   roomPersistenceWriteQueue = Promise.resolve();
   return loadPersistedRooms();
 }
@@ -712,12 +774,19 @@ function appendRoomEvent(room, type, payload = {}, req) {
   });
   const activityEntry = roomEventToActivity(event);
   if (activityEntry) room.activity.push(activityEntry);
-  let persistence;
+  let eventPersistence;
+  let roomSnapshotPersistence;
   try {
-    persistence = persistRoom(room);
+    eventPersistence = persistRoomEvent(event);
   } catch (error) {
-    persistence = Promise.reject(error);
+    eventPersistence = Promise.reject(error);
   }
+  try {
+    roomSnapshotPersistence = persistRoom(room);
+  } catch (error) {
+    roomSnapshotPersistence = Promise.reject(error);
+  }
+  const persistence = combinePersistenceResults(eventPersistence, roomSnapshotPersistence);
   return { event, activityEntry, persistence };
 }
 
@@ -1479,7 +1548,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   });
 
   const marketState = execution.publicMarket;
-  const { event, activityEntry } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
+  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
     session_id,
     nickname: player.nickname,
     outcome,
@@ -1502,7 +1571,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     createdAt: Date.now(),
   });
   try {
-    await waitForRoomPersistence(persistRoom(room));
+    await waitForRoomPersistence(combinePersistenceResults(persistence, persistRoom(room)));
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -1863,6 +1932,7 @@ module.exports = {
   runAiBotTick,
   requireHostCapability,
   roomEventStore,
+  roomEventLog: () => roomEventLog,
   roomPersistence: () => roomPersistence,
   observability,
   configureRoomPersistence,
