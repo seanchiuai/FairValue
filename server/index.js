@@ -26,6 +26,7 @@ const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
 const { createPropertySnapshot } = require('./propertySnapshot');
 const { buildNeighborhoodMarketDrafts } = require('./neighborhoodMarketDrafts');
 const { buildOperatorIncidentQueue } = require('./operatorIncidentQueue');
+const { buildOperatorIncidentReplayReview } = require('./operatorIncidentReplayReview');
 const { createOperatorIncidentWorkflowStore } = require('./operatorIncidentWorkflowStore');
 const {
   buildPropertyIntelligenceProviderContract,
@@ -1486,29 +1487,48 @@ app.get('/api/ops/metrics', (req, res) => {
   res.json(observability.snapshot({ rooms, roomPersistence, roomEventLog, sql }));
 });
 
-app.get('/api/ops/incidents', (req, res) => {
-  if (!requireOpsAccess(req, res)) return;
-  const queue = buildOperatorIncidentQueue({
+function buildCurrentOperatorIncidentQueue(filters = {}) {
+  return buildOperatorIncidentQueue({
     rooms,
     roomEventsByCode: (code) => roomEventStore.list(code),
-    filters: {
-      roomCode: req.query.room_code,
-      severity: req.query.severity,
-      limit: req.query.limit,
-    },
+    filters,
+  });
+}
+
+app.get('/api/ops/incidents', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  const queue = buildCurrentOperatorIncidentQueue({
+    roomCode: req.query.room_code,
+    severity: req.query.severity,
+    limit: req.query.limit,
   });
   res.json(operatorIncidentWorkflowStore.projectQueue(queue));
 });
 
+app.get('/api/ops/incidents/:incidentId/replay', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  const queue = buildCurrentOperatorIncidentQueue({ limit: 250 });
+  const incident = queue.incidents.find((item) => item.incident_id === req.params.incidentId);
+  if (!incident) {
+    res.status(404).json({ error: 'Operator incident not found in current queue' });
+    return;
+  }
+  const room = rooms[incident.room_code];
+  if (!room) {
+    res.status(404).json({ error: 'Room not found for operator incident' });
+    return;
+  }
+  const events = roomEventStore.list(room.code);
+  const integrityReport = createReplayIntegrityReport(room, events);
+  recordReplayIntegrity(integrityReport);
+  const replay = replayRoomEvents(events);
+  const review = buildOperatorIncidentReplayReview({ incident, replay, integrityReport });
+  res.status(integrityReport.ok ? 200 : 409).json(review);
+});
+
 app.patch('/api/ops/incidents/:incidentId', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
-  const queue = buildOperatorIncidentQueue({
-    rooms,
-    roomEventsByCode: (code) => roomEventStore.list(code),
-    filters: {
-      limit: 250,
-    },
-  });
+  const queue = buildCurrentOperatorIncidentQueue({ limit: 250 });
   const incident = queue.incidents.find((item) => item.incident_id === req.params.incidentId);
   if (!incident) {
     res.status(404).json({ error: 'Operator incident not found in current queue' });

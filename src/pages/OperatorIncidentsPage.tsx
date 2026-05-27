@@ -81,6 +81,27 @@ type OperatorIncidentQueue = {
   message?: string;
 };
 
+type OperatorReplayReview = {
+  schema_version?: string;
+  replay_status?: {
+    ok?: boolean;
+    event_count?: number;
+    last_sequence?: number;
+    mismatch_count?: number;
+  };
+  replay_summary?: {
+    settled?: boolean;
+    winning_outcome?: string | null;
+    settlement_evidence_status?: string;
+    total_trades?: number;
+    player_count?: number;
+    activity_count?: number;
+    room_phase?: string;
+  };
+  limitations?: string[];
+  error?: string;
+};
+
 const statusOptions: OperatorWorkflowStatus[] = ['open', 'investigating', 'waiting_on_host', 'resolved', 'dismissed'];
 const severityOptions: Array<OperatorSeverity | ''> = ['', 'critical', 'high', 'medium', 'low'];
 const opsTokenStorageKey = 'fv_ops_token';
@@ -133,6 +154,10 @@ async function readWorkflowResponse(response: Response): Promise<IncidentWorkflo
   return response.json().catch(() => ({}));
 }
 
+async function readReplayResponse(response: Response): Promise<OperatorReplayReview> {
+  return response.json().catch(() => ({}));
+}
+
 export default function OperatorIncidentsPage() {
   const [opsToken, setOpsToken] = useState(readStoredOpsToken);
   const [severityFilter, setSeverityFilter] = useState<OperatorSeverity | ''>('');
@@ -146,6 +171,9 @@ export default function OperatorIncidentsPage() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [replayReview, setReplayReview] = useState<OperatorReplayReview | null>(null);
+  const [replayLoading, setReplayLoading] = useState(false);
+  const [replayError, setReplayError] = useState('');
 
   const incidents = queue?.incidents || [];
   const selectedIncident = useMemo(
@@ -197,17 +225,45 @@ export default function OperatorIncidentsPage() {
       setWorkflowStatus('open');
       setAssignee('');
       setNote('');
+      setReplayReview(null);
+      setReplayError('');
       return;
     }
     setWorkflowStatus(selectedIncident.workflow?.status || selectedIncident.status || 'open');
     setAssignee(selectedIncident.workflow?.assignee || '');
     setNote('');
+    setReplayReview(null);
+    setReplayError('');
   }, [
     selectedIncident?.incident_id,
     selectedIncident?.status,
     selectedIncident?.workflow?.assignee,
     selectedIncident?.workflow?.status,
   ]);
+
+  async function handleLoadReplay() {
+    if (!selectedIncident) return;
+    setReplayLoading(true);
+    setReplayError('');
+    try {
+      const response = await fetch(`/api/ops/incidents/${selectedIncident.incident_id}/replay`, {
+        headers: buildOpsHeaders(opsToken),
+      });
+      const data = await readReplayResponse(response);
+      if ((!response.ok && response.status !== 409) || data.error) {
+        throw new Error(data.error || 'Replay review unavailable');
+      }
+      setReplayReview(data);
+      if (response.status === 409 || data.replay_status?.ok === false) {
+        setReplayError('Replay mismatch needs operator review.');
+      }
+    } catch (error) {
+      setReplayReview(null);
+      setReplayError(error instanceof Error ? error.message : 'Replay review unavailable');
+    } finally {
+      setReplayLoading(false);
+    }
+  }
 
   async function handleSaveWorkflow() {
     if (!selectedIncident) return;
@@ -407,7 +463,56 @@ export default function OperatorIncidentsPage() {
                   <Gauge size={15} aria-hidden="true" />
                   Host
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => void handleLoadReplay()}
+                  disabled={replayLoading}
+                  data-testid="operator-incident-replay-check"
+                >
+                  <RefreshCw size={15} aria-hidden="true" />
+                  {replayLoading ? 'Checking' : 'Check replay'}
+                </button>
               </div>
+
+              <section className="operator-incidents__replay" data-testid="operator-incident-replay-panel" aria-label="Replay projection check">
+                <div className="operator-incidents__panel-head">
+                  <h3><ShieldCheck size={15} aria-hidden="true" /> Replay guard</h3>
+                  <span>{replayReview ? (replayReview.replay_status?.ok ? 'match' : 'mismatch') : 'not checked'}</span>
+                </div>
+                {replayError && <p className="operator-incidents__replay-alert">{replayError}</p>}
+                {replayReview ? (
+                  <dl className="operator-incidents__replay-grid">
+                    <div>
+                      <dt>Status</dt>
+                      <dd>{replayReview.replay_status?.ok ? 'Replay match' : 'Replay mismatch'}</dd>
+                    </div>
+                    <div>
+                      <dt>Events</dt>
+                      <dd>{replayReview.replay_status?.event_count ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Last seq</dt>
+                      <dd>{replayReview.replay_status?.last_sequence ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Outcome</dt>
+                      <dd>{replayReview.replay_summary?.winning_outcome || 'Pending'}</dd>
+                    </div>
+                    <div>
+                      <dt>Evidence</dt>
+                      <dd>{formatLabel(replayReview.replay_summary?.settlement_evidence_status || 'missing')}</dd>
+                    </div>
+                    <div>
+                      <dt>Trades</dt>
+                      <dd>{replayReview.replay_summary?.total_trades ?? 0}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="operator-incidents__empty">
+                    Run a redacted replay projection check before changing workflow status or exporting review links.
+                  </p>
+                )}
+              </section>
 
               <div className="operator-incidents__detail-grid">
                 <section aria-label="Incident evidence">

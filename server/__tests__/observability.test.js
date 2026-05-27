@@ -216,6 +216,25 @@ test('ops incidents expose redacted operator triage behind the ops token', async
   assert.equal(JSON.stringify(allowed.data).includes(room.host_token), false);
   assert.match(allowed.data.limitations.join(' '), /redacted/);
 
+  const deniedReplay = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}/replay`);
+  assert.equal(deniedReplay.status, 403);
+
+  const replayReview = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}/replay`, {
+    headers: { Authorization: 'Bearer incident-test-token' },
+  });
+  assert.equal(replayReview.status, 200);
+  assert.equal(replayReview.data.schema_version, 'fairvalue.operatorIncidentReplayReview.v1');
+  assert.equal(replayReview.data.incident_id, allowed.data.incidents[0].incident_id);
+  assert.equal(replayReview.data.room_code, code);
+  assert.equal(replayReview.data.replay_status.ok, true);
+  assert.equal(replayReview.data.replay_status.mismatch_count, 0);
+  assert.equal(replayReview.data.replay_summary.settled, true);
+  assert.equal(replayReview.data.replay_summary.winning_outcome, 'over');
+  assert.equal(replayReview.data.replay_summary.settlement_evidence_status, 'host_attested');
+  assert.equal(replayReview.data.checks.some((check) => check.path === 'settlement' && check.ok), true);
+  assert.match(replayReview.data.limitations.join(' '), /operator-only redacted projection check/);
+  assert.equal(JSON.stringify(replayReview.data).includes(room.host_token), false);
+
   const deniedWorkflow = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}`, {
     method: 'PATCH',
     body: { status: 'investigating' },

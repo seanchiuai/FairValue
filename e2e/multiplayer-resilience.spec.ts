@@ -513,6 +513,11 @@ test('operator incident console renders redacted workflow queue', async ({ page,
   await expect(detail).toContainText('settled without external evidence metadata');
   await expect(detail).toContainText('Host-attested default packets still need operator review.');
 
+  await page.getByTestId('operator-incident-replay-check').click();
+  await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('Replay match', { timeout: 15_000 });
+  await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('host attested');
+  await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('Events');
+
   await page.getByTestId('operator-incident-status-select').selectOption('investigating');
   await page.getByTestId('operator-incident-assignee').fill('Ops Desk');
   await page.getByTestId('operator-incident-note').fill('Check host_token=abcdefghijklmnopqrstuvwxyz1234567890 before recap.');
