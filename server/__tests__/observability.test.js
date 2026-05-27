@@ -5,6 +5,7 @@ const {
   rooms,
   configureRoomPersistence,
   configureOperatorIncidentWorkflowPersistence,
+  configurePropertySnapshot,
   observability,
   roomEventStore,
 } = require('../index');
@@ -12,6 +13,9 @@ const {
 let baseUrl;
 const originalOpsToken = process.env.FAIRVALUE_OPS_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
+const originalPropertySnapshotStore = process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE;
+const originalPropertyQuerySource = process.env.FAIRVALUE_PROPERTY_QUERY_SOURCE;
+const originalPropertyPostgresFallback = process.env.FAIRVALUE_PROPERTY_POSTGRES_FALLBACK;
 
 function restoreEnv(name, value) {
   if (value === undefined) delete process.env[name];
@@ -66,8 +70,12 @@ before(listen);
 afterEach(() => {
   restoreEnv('FAIRVALUE_OPS_TOKEN', originalOpsToken);
   restoreEnv('NODE_ENV', originalNodeEnv);
+  restoreEnv('FAIRVALUE_PROPERTY_SNAPSHOT_STORE', originalPropertySnapshotStore);
+  restoreEnv('FAIRVALUE_PROPERTY_QUERY_SOURCE', originalPropertyQuerySource);
+  restoreEnv('FAIRVALUE_PROPERTY_POSTGRES_FALLBACK', originalPropertyPostgresFallback);
   configureRoomPersistence(null);
   configureOperatorIncidentWorkflowPersistence(null);
+  configurePropertySnapshot(null);
   observability.resetObservability();
   roomEventStore.clearAll();
   for (const room of Object.values(rooms)) {
@@ -93,6 +101,10 @@ test('health and readiness expose runtime status without requiring database cred
   assert.equal(ready.data.ready, true);
   assert.equal(ready.data.checks.database.configured, false);
   assert.equal(ready.data.checks.database.required, false);
+  assert.equal(ready.data.checks.property_snapshot.ok, true);
+  assert.equal(ready.data.checks.property_snapshot.required_source, 'static');
+  assert.equal(ready.data.checks.property_snapshot.source_adapter, 'static-json-property-snapshot');
+  assert.ok(ready.data.checks.property_snapshot.count > 0);
 
   const disabledSql = Object.assign(async () => [], { isConfigured: false });
   await configureRoomPersistence({ mode: 'postgres', sql: disabledSql });
@@ -101,6 +113,69 @@ test('health and readiness expose runtime status without requiring database cred
   assert.equal(degraded.data.ready, false);
   assert.equal(degraded.data.checks.database.required, true);
   assert.equal(degraded.data.checks.room_persistence.ok, false);
+});
+
+test('readiness and ops metrics report the explicit Postgres property snapshot adapter', async () => {
+  process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE = 'postgres';
+  configurePropertySnapshot({
+    properties: [
+      {
+        property_id: 'pg-ready-1',
+        price: 725000,
+        address: '1 Readiness Row',
+        city: 'Oakland',
+        state: 'CA',
+        zip_code: '94607',
+        latitude: 37.8044,
+        longitude: -122.2712,
+        provider_source: 'PostGIS readiness fixture',
+        observed_at: '2026-05-24',
+      },
+    ],
+    manifest: {
+      schema_version: 'fairvalue.propertyDataManifest.v1',
+      dataset_id: 'postgres-readiness-fixture',
+      source_kind: 'static_provider_snapshot',
+      source_sha256: 'postgres-readiness-hash',
+      property_count: 1,
+      latest_observed_at: '2026-05-24',
+    },
+    kind: 'postgres-property-snapshot',
+    sourceAdapter: 'postgres-postgis-property-snapshot',
+  });
+
+  const ready = await request('/readyz');
+  assert.equal(ready.status, 200);
+  assert.equal(ready.data.checks.property_snapshot.ok, true);
+  assert.equal(ready.data.checks.property_snapshot.required_source, 'postgres');
+  assert.equal(ready.data.checks.property_snapshot.kind, 'postgres-property-snapshot');
+  assert.equal(ready.data.checks.property_snapshot.source_adapter, 'postgres-postgis-property-snapshot');
+  assert.equal(ready.data.checks.property_snapshot.count, 1);
+  assert.equal(ready.data.checks.property_snapshot.dataset_id, 'postgres-readiness-fixture');
+
+  const metrics = await request('/api/ops/metrics');
+  assert.equal(metrics.status, 200);
+  assert.equal(metrics.data.property_snapshot.ok, true);
+  assert.equal(metrics.data.property_snapshot.source_adapter, 'postgres-postgis-property-snapshot');
+  assert.equal(metrics.data.property_snapshot.source_sha256, 'postgres-readiness-hash');
+});
+
+test('readiness fails when Postgres property reads are required but a static adapter is loaded', async () => {
+  process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE = 'postgres';
+  process.env.FAIRVALUE_PROPERTY_QUERY_SOURCE = '';
+  process.env.FAIRVALUE_PROPERTY_POSTGRES_FALLBACK = '';
+  configurePropertySnapshot({
+    properties: [{ zpid: 101, streetAddress: 'Static Readiness St', price: 500000 }],
+    manifest: { dataset_id: 'static-readiness-fixture', source_sha256: 'static-readiness-hash' },
+    sourceAdapter: 'static-json-property-snapshot',
+  });
+
+  const ready = await request('/readyz');
+  assert.equal(ready.status, 503);
+  assert.equal(ready.data.ready, false);
+  assert.equal(ready.data.checks.property_snapshot.required_source, 'postgres');
+  assert.equal(ready.data.checks.property_snapshot.source_adapter, 'static-json-property-snapshot');
+  assert.equal(ready.data.checks.property_snapshot.ok, false);
 });
 
 test('ops metrics track requests, room lifecycle, and avoid room secret leakage', async () => {
@@ -149,6 +224,9 @@ test('ops metrics track requests, room lifecycle, and avoid room secret leakage'
   assert.equal(metrics.data.rooms.total_players, 1);
   assert.equal(metrics.data.database.configured, false);
   assert.equal(metrics.data.event_log.enabled, false);
+  assert.equal(metrics.data.property_snapshot.ok, true);
+  assert.equal(metrics.data.property_snapshot.source_adapter, 'static-json-property-snapshot');
+  assert.ok(metrics.data.property_snapshot.count > 0);
   assert.equal(metrics.data.replay_integrity.checks, 1);
   assert.equal(metrics.data.replay_integrity.failures, 0);
   assert.equal(JSON.stringify(metrics.data).includes(room.host_token), false);
@@ -311,6 +389,8 @@ test('prometheus metrics expose aggregate counters for external scrapers', async
   assert.match(metrics.text, /fairvalue_room_players 1/);
   assert.match(metrics.text, /fairvalue_database_configured 0/);
   assert.match(metrics.text, /fairvalue_room_event_log_enabled\{kind="json"\} 0/);
+  assert.match(metrics.text, /fairvalue_property_snapshot_loaded\{kind="json-property-snapshot",source_adapter="static-json-property-snapshot"\} 1/);
+  assert.match(metrics.text, /fairvalue_property_snapshot_rows\{kind="json-property-snapshot",source_adapter="static-json-property-snapshot"\} [1-9]/);
   assert.match(metrics.text, /fairvalue_replay_integrity_checks_total 0/);
   assert.match(metrics.text, /fairvalue_replay_integrity_failures_total 0/);
   assert.equal(metrics.text.includes(room.host_token), false);

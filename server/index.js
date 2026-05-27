@@ -1411,7 +1411,7 @@ app.get('/healthz', (req, res) => {
 });
 
 app.get('/readyz', (req, res) => {
-  const payload = observability.readiness({ roomPersistence, roomEventLog, sql });
+  const payload = observability.readiness({ roomPersistence, roomEventLog, propertySnapshot, sql });
   res.status(payload.ready ? 200 : 503).json(payload);
 });
 
@@ -1597,7 +1597,7 @@ app.post('/api/ai/intelligence/properties/:propertyId/generate', limitRequests('
 
 app.get('/api/ops/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
-  res.json(observability.snapshot({ rooms, roomPersistence, roomEventLog, sql }));
+  res.json(observability.snapshot({ rooms, roomPersistence, roomEventLog, propertySnapshot, sql }));
 });
 
 function buildCurrentOperatorIncidentQueue(filters = {}) {
@@ -1659,7 +1659,7 @@ app.get('/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
   res
     .type('text/plain; version=0.0.4; charset=utf-8')
-    .send(observability.prometheusMetrics({ rooms, roomPersistence, roomEventLog, sql }));
+    .send(observability.prometheusMetrics({ rooms, roomPersistence, roomEventLog, propertySnapshot, sql }));
 });
 
 app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, res) => {

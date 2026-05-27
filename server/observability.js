@@ -146,6 +146,63 @@ function eventLogSummary(roomEventLog) {
   };
 }
 
+function propertySnapshotMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  if (['postgres', 'postgis', 'database', 'db', 'neon'].includes(mode)) return 'postgres';
+  return 'static';
+}
+
+function propertyPostgresFallbackAllowed() {
+  const value = String(process.env.FAIRVALUE_PROPERTY_POSTGRES_FALLBACK || '').trim().toLowerCase();
+  return ['1', 'true', 'yes', 'on', 'static', 'json'].includes(value);
+}
+
+function requiredPropertySnapshotSource() {
+  const storeMode = propertySnapshotMode(process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE);
+  const querySourceMode = propertySnapshotMode(process.env.FAIRVALUE_PROPERTY_QUERY_SOURCE);
+  return querySourceMode === 'postgres' ? 'postgres' : storeMode;
+}
+
+function propertySnapshotSummary(propertySnapshot) {
+  const fallback = {
+    ok: false,
+    loaded: false,
+    kind: propertySnapshot?.kind || 'unknown',
+    source_adapter: propertySnapshot?.sourceAdapter || null,
+    count: 0,
+    dataset_id: null,
+    source_sha256: null,
+    reason: null,
+  };
+  if (!propertySnapshot || typeof propertySnapshot.status !== 'function') {
+    return {
+      ...fallback,
+      reason: 'property snapshot status is unavailable',
+    };
+  }
+
+  try {
+    const status = propertySnapshot.status();
+    const count = Number(status.count || 0);
+    return {
+      ok: Boolean(status.loaded) && count > 0,
+      loaded: Boolean(status.loaded),
+      kind: status.kind || propertySnapshot.kind || 'unknown',
+      source_adapter: status.source_adapter || propertySnapshot.sourceAdapter || null,
+      count,
+      dataset_id: status.provenance?.dataset_id || null,
+      source_sha256: status.provenance?.source_sha256 || null,
+      latest_observed_at: status.provenance?.latest_observed_at || null,
+      reason: count > 0 ? null : 'property snapshot is empty',
+    };
+  } catch (error) {
+    return {
+      ...fallback,
+      reason: error?.message || 'property snapshot failed to load',
+    };
+  }
+}
+
 function databaseSummary(sql) {
   return {
     configured: sql?.isConfigured !== false,
@@ -181,7 +238,7 @@ function line(name, value, labels = {}) {
   return `${prometheusMetricName(name)}${labelText} ${Number.isFinite(numeric) ? numeric : 0}`;
 }
 
-function snapshot({ rooms, roomPersistence, roomEventLog, sql } = {}) {
+function snapshot({ rooms, roomPersistence, roomEventLog, propertySnapshot, sql } = {}) {
   return {
     service: 'fairvalue',
     started_at: new Date(state.startedAtMs).toISOString(),
@@ -200,6 +257,7 @@ function snapshot({ rooms, roomPersistence, roomEventLog, sql } = {}) {
       last_failure: state.persistence.last_failure,
     },
     event_log: eventLogSummary(roomEventLog),
+    property_snapshot: propertySnapshotSummary(propertySnapshot),
     database: {
       ...databaseSummary(sql),
       errors: state.database.errors,
@@ -210,11 +268,17 @@ function snapshot({ rooms, roomPersistence, roomEventLog, sql } = {}) {
   };
 }
 
-function readiness({ roomPersistence, roomEventLog, sql } = {}) {
+function readiness({ roomPersistence, roomEventLog, propertySnapshot, sql } = {}) {
   const postgresPersistenceRequired = roomPersistence?.kind === 'postgres';
   const databaseRequired = postgresPersistenceRequired ||
     ['1', 'true', 'yes', 'on'].includes(String(process.env.FAIRVALUE_REQUIRE_DATABASE_URL || '').toLowerCase());
   const postgresEventLogRequired = postgresPersistenceRequired;
+  const propertyRequiredSource = requiredPropertySnapshotSource();
+  const propertySummary = propertySnapshotSummary(propertySnapshot);
+  const propertyAdapterOk = propertyRequiredSource !== 'postgres' ||
+    propertySummary.kind === 'postgres-property-snapshot' ||
+    propertySummary.source_adapter === 'postgres-postgis-property-snapshot' ||
+    (propertyPostgresFallbackAllowed() && propertySummary.source_adapter === 'static-json-property-snapshot-fallback');
 
   const checks = {
     process: {
@@ -235,6 +299,12 @@ function readiness({ roomPersistence, roomEventLog, sql } = {}) {
       required: postgresEventLogRequired,
       ...eventLogSummary(roomEventLog),
     },
+    property_snapshot: {
+      required_source: propertyRequiredSource,
+      fallback_allowed: propertyPostgresFallbackAllowed(),
+      ...propertySummary,
+      ok: propertySummary.ok && propertyAdapterOk,
+    },
   };
 
   const ready = Object.values(checks).every((check) => check.ok);
@@ -254,8 +324,8 @@ function health() {
   };
 }
 
-function prometheusMetrics({ rooms, roomPersistence, roomEventLog, sql } = {}) {
-  const metrics = snapshot({ rooms, roomPersistence, roomEventLog, sql });
+function prometheusMetrics({ rooms, roomPersistence, roomEventLog, propertySnapshot, sql } = {}) {
+  const metrics = snapshot({ rooms, roomPersistence, roomEventLog, propertySnapshot, sql });
   const lines = [
     '# HELP fairvalue_up FairValue process health indicator.',
     '# TYPE fairvalue_up gauge',
@@ -323,6 +393,18 @@ function prometheusMetrics({ rooms, roomPersistence, roomEventLog, sql } = {}) {
     '# HELP fairvalue_room_event_log_enabled Whether append-only room event persistence is enabled.',
     '# TYPE fairvalue_room_event_log_enabled gauge',
     line('fairvalue_room_event_log_enabled', metrics.event_log.enabled ? 1 : 0, { kind: metrics.event_log.kind }),
+    '# HELP fairvalue_property_snapshot_loaded Whether the configured property snapshot read adapter is loaded.',
+    '# TYPE fairvalue_property_snapshot_loaded gauge',
+    line('fairvalue_property_snapshot_loaded', metrics.property_snapshot.ok ? 1 : 0, {
+      kind: metrics.property_snapshot.kind,
+      source_adapter: metrics.property_snapshot.source_adapter,
+    }),
+    '# HELP fairvalue_property_snapshot_rows Number of rows in the configured property snapshot read adapter.',
+    '# TYPE fairvalue_property_snapshot_rows gauge',
+    line('fairvalue_property_snapshot_rows', metrics.property_snapshot.count, {
+      kind: metrics.property_snapshot.kind,
+      source_adapter: metrics.property_snapshot.source_adapter,
+    }),
     '# HELP fairvalue_ai_events_total AI degraded responses and integration errors.',
     '# TYPE fairvalue_ai_events_total counter',
     line('fairvalue_ai_events_total', metrics.ai.degraded_responses, { event: 'degraded_response' }),

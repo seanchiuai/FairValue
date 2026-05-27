@@ -142,6 +142,7 @@ function createPropertySnapshot({
   let loaded = false;
   let byId = new Map();
   let provenance = null;
+  let lastLoadInfo = null;
   const snapshotKind = kind || (Array.isArray(properties) ? 'memory-property-snapshot' : 'json-property-snapshot');
   const snapshotSourceAdapter = sourceAdapter || snapshotKind;
 
@@ -163,7 +164,15 @@ function createPropertySnapshot({
       provenance = manifestSummary(null);
     }
     loaded = true;
-    return { count: byId.size, filePath, manifestPath };
+    lastLoadInfo = {
+      count: byId.size,
+      filePath,
+      manifestPath,
+      kind: snapshotKind,
+      source_adapter: snapshotSourceAdapter,
+      provenance: JSON.parse(JSON.stringify(provenance)),
+    };
+    return { ...lastLoadInfo };
   }
 
   function ensureLoaded() {
@@ -179,6 +188,14 @@ function createPropertySnapshot({
   function allProperties() {
     ensureLoaded();
     return JSON.parse(JSON.stringify(Array.from(byId.values())));
+  }
+
+  function status() {
+    ensureLoaded();
+    return {
+      loaded,
+      ...JSON.parse(JSON.stringify(lastLoadInfo || {})),
+    };
   }
 
   function query({
@@ -294,6 +311,7 @@ function createPropertySnapshot({
     filePath,
     manifestPath,
     load,
+    status,
     getById,
     allProperties,
     query,
