@@ -6,6 +6,7 @@ import { useProperties } from '../data/properties';
 import { usePropertyWatchlist } from '../hooks/usePropertyWatchlist';
 import { useSession } from '../hooks/useSession';
 import { useUserReputation } from '../hooks/useUserReputation';
+import { useWatchlistAlerts, type WatchlistAlert } from '../hooks/useWatchlistAlerts';
 import { formatOutcomeLabel } from '../lib/roomMarketDisplay';
 import type { UserReputationRoom } from '../types';
 import './ProfilePage.css';
@@ -42,6 +43,14 @@ function roomScore(room: UserReputationRoom) {
   return `${room.correct_bets}/${room.bet_count} correct`;
 }
 
+function formatAlertType(alertType: WatchlistAlert['alert_type']) {
+  return alertType === 'price_below' ? 'Price below' : 'Price above';
+}
+
+function alertPropertyLabel(alert: WatchlistAlert) {
+  return alert.property?.address || `Property ${alert.property_id}`;
+}
+
 export default function ProfilePage() {
   const {
     nickname,
@@ -65,6 +74,13 @@ export default function ProfilePage() {
     removeProperty,
     updateProperty,
   } = usePropertyWatchlist({ userToken });
+  const {
+    watchlistAlerts,
+    watchlistAlertsLoading,
+    watchlistAlertsError,
+    refreshWatchlistAlerts,
+    acknowledgeWatchlistAlert,
+  } = useWatchlistAlerts(userToken);
 
   const marketFormatRows = useMemo(
     () => Object.entries(reputation?.market_formats || {})
@@ -82,13 +98,34 @@ export default function ProfilePage() {
     })),
     [propertyById, watchlistItems]
   );
+  const watchedPropertyIds = useMemo(
+    () => new Set(watchlistItems.map((item) => item.property_id)),
+    [watchlistItems]
+  );
+  const visibleWatchlistAlerts = useMemo(
+    () => watchlistAlerts.filter((alert) => watchedPropertyIds.has(alert.property_id)),
+    [watchedPropertyIds, watchlistAlerts]
+  );
   const recentRooms = reputation?.recent_rooms || [];
   const displayName = reputation?.nickname || nickname || 'FairValue player';
+  const readyAlertCount = useMemo(
+    () => visibleWatchlistAlerts.filter((alert) => alert.status === 'ready').length,
+    [visibleWatchlistAlerts]
+  );
 
   const handleRefresh = async () => {
     try {
       if (!identityReady) await ensureIdentity();
       await refreshReputation();
+    } catch {
+      // useSession owns the visible identity error state.
+    }
+  };
+
+  const handleAlertRefresh = async () => {
+    try {
+      if (!identityReady) await ensureIdentity();
+      await refreshWatchlistAlerts(true);
     } catch {
       // useSession owns the visible identity error state.
     }
@@ -318,6 +355,86 @@ export default function ProfilePage() {
             No watched properties yet.
           </div>
         )}
+      </section>
+
+      <section className="profile-page__panel" data-testid="profile-watchlist-alerts" aria-label="Watchlist price alerts">
+        <div className="profile-page__section-head">
+          <div className="profile-page__panel-title">
+            <ShieldCheck size={16} />
+            Price alert inbox
+          </div>
+          <div className="profile-page__section-actions">
+            <span>{readyAlertCount} ready · In-app queue</span>
+            <button
+              type="button"
+              className="profile-page__small-action"
+              disabled={identityLoading || watchlistAlertsLoading}
+              onClick={handleAlertRefresh}
+            >
+              <RefreshCw size={14} />
+              Evaluate
+            </button>
+          </div>
+        </div>
+
+        {watchlistAlertsError && (
+          <div className="profile-page__notice" role="status">
+            {watchlistAlertsError}
+          </div>
+        )}
+
+        {watchlistAlertsLoading && visibleWatchlistAlerts.length === 0 ? (
+          <div className="profile-page__empty">
+            Evaluating saved thresholds...
+          </div>
+        ) : visibleWatchlistAlerts.length > 0 ? (
+          <div className="profile-page__alert-list">
+            {visibleWatchlistAlerts.map((alert) => {
+              const label = alertPropertyLabel(alert);
+              return (
+                <article key={alert.alert_id} className="profile-page__alert-row">
+                  <div className="profile-page__alert-main">
+                    <strong>{label}</strong>
+                    <span>{formatAlertType(alert.alert_type)} · {formatDate(alert.triggered_at)}</span>
+                    {alert.message && <p>{alert.message}</p>}
+                  </div>
+                  <div>
+                    <span>Current</span>
+                    <strong>{formatMoney(alert.current_price)}</strong>
+                  </div>
+                  <div>
+                    <span>Threshold</span>
+                    <strong>{formatMoney(alert.threshold)}</strong>
+                  </div>
+                  <div>
+                    <span>Status</span>
+                    <strong>{alert.status === 'ready' ? 'Ready' : 'Acknowledged'}</strong>
+                  </div>
+                  {alert.status === 'ready' ? (
+                    <button
+                      type="button"
+                      className="profile-page__small-action"
+                      onClick={() => acknowledgeWatchlistAlert(alert.alert_id)}
+                      aria-label={`Acknowledge alert for ${label}`}
+                    >
+                      <ShieldCheck size={14} />
+                      Acknowledge
+                    </button>
+                  ) : (
+                    <span className="profile-page__watchlist-sync-note">Delivered in app</span>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="profile-page__empty">
+            No threshold crossings in the current property snapshot.
+          </div>
+        )}
+        <p className="profile-page__copy">
+          Alerts are queued for this private profile only. No email, SMS, push, or broker notifications are sent.
+        </p>
       </section>
     </main>
   );

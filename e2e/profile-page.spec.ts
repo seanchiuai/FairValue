@@ -13,6 +13,7 @@ type Room = {
 type RawProperty = {
   zpid?: number;
   streetAddress?: string;
+  price?: number;
   address?: {
     streetAddress?: string;
   };
@@ -55,6 +56,7 @@ async function firstBrowsableProperty(request: APIRequestContext) {
   return {
     id: String(property?.zpid),
     address,
+    price: Number(property?.price || 0),
   };
 }
 
@@ -128,7 +130,7 @@ test('signed-in profile route renders private prediction history from settled ro
   await expect(page.getByTestId('profile-watchlist')).toContainText('Signed sync');
   await expect(page.getByTestId('profile-watchlist')).toContainText(watchProperty.address);
   const noteLabel = new RegExp(`Watch note for ${escapeRegExp(watchProperty.address)}`);
-  const alertAboveLabel = new RegExp(`Alert above for ${escapeRegExp(watchProperty.address)}`);
+  const alertBelowLabel = new RegExp(`Alert below for ${escapeRegExp(watchProperty.address)}`);
   const noteSaved = page.waitForResponse((response) => (
     response.url().includes(`/api/me/watchlist/${watchProperty.id}`) &&
     response.request().method() === 'PUT' &&
@@ -141,16 +143,37 @@ test('signed-in profile route renders private prediction history from settled ro
     response.request().method() === 'PUT' &&
     response.status() === 200
   ));
-  await page.getByLabel(alertAboveLabel).fill('900000');
+  const alertThreshold = Math.max(1, watchProperty.price + 100000);
+  await page.getByLabel(alertBelowLabel).fill(String(alertThreshold));
   await alertSaved;
+  const evaluated = page.waitForResponse((response) => (
+    response.url().includes('/api/me/alerts/evaluate') &&
+    response.request().method() === 'POST' &&
+    response.status() === 200
+  ));
+  await page.getByRole('button', { name: 'Evaluate' }).click();
+  await evaluated;
+  await expect(page.getByTestId('profile-watchlist-alerts')).toContainText(watchProperty.address);
+  await expect(page.getByTestId('profile-watchlist-alerts')).toContainText('Price below');
+  await expect(page.getByTestId('profile-watchlist-alerts')).toContainText('Ready');
+  const acknowledged = page.waitForResponse((response) => (
+    response.url().includes('/api/me/alerts/') &&
+    response.request().method() === 'PATCH' &&
+    response.status() === 200
+  ));
+  await page.getByRole('button', { name: new RegExp(`Acknowledge alert for ${escapeRegExp(watchProperty.address)}`) }).click();
+  await acknowledged;
+  await expect(page.getByTestId('profile-watchlist-alerts')).toContainText('Acknowledged');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'My prediction profile' })).toBeVisible();
   await expect(page.getByLabel(noteLabel)).toHaveValue('Check the permit packet.');
-  await expect(page.getByLabel(alertAboveLabel)).toHaveValue('900000');
+  await expect(page.getByLabel(alertBelowLabel)).toHaveValue(String(alertThreshold));
+  await expect(page.getByTestId('profile-watchlist-alerts')).toContainText('Acknowledged');
   await page.getByRole('button', {
     name: new RegExp(`Remove ${escapeRegExp(watchProperty.address)} from watchlist`),
   }).click();
   await expect(page.getByTestId('profile-watchlist')).not.toContainText(watchProperty.address);
+  await expect(page.getByTestId('profile-watchlist-alerts')).not.toContainText(watchProperty.address);
   await expect(page.getByText(identity.user_id)).toHaveCount(0);
   await expect(page.getByText(identity.user_token)).toHaveCount(0);
 });

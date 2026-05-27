@@ -6,6 +6,7 @@ const os = require('node:os');
 const {
   server,
   configureUserProfilePersistence,
+  configurePropertySnapshot,
 } = require('../index');
 
 let baseUrl;
@@ -53,6 +54,7 @@ before(() => {
 
 afterEach(() => {
   configureUserProfilePersistence(null);
+  configurePropertySnapshot(null);
 });
 
 after(async () => {
@@ -120,4 +122,82 @@ test('signed-in users persist private watchlist notes and alert thresholds', asy
   });
   assert.equal(removed.status, 200);
   assert.equal(removed.data.watchlist.length, 0);
+});
+
+test('signed-in users get a deduped in-app alert queue from saved thresholds', async () => {
+  const profilePath = path.join(tempRoot, 'user-profile-alerts.json');
+  configureUserProfilePersistence({ filePath: profilePath });
+  configurePropertySnapshot({
+    properties: [
+      {
+        zpid: 12345,
+        streetAddress: '101 Alert Ave',
+        city: 'San Francisco',
+        state: 'CA',
+        zipcode: '94110',
+        price: 800000,
+        listingDataSource: 'Fixture MLS',
+        attributionInfo: { lastChecked: '2026-05-27' },
+      },
+    ],
+  });
+  const identity = await createIdentity();
+  const userHeaders = { 'X-FairValue-User-Token': identity.user_token };
+
+  const unauthenticated = await request('/api/me/alerts');
+  assert.equal(unauthenticated.status, 403);
+
+  const added = await request('/api/me/watchlist/12345', {
+    method: 'PUT',
+    headers: userHeaders,
+    body: {
+      note: 'Alert me if this starts to look cheap.',
+      alert_below: 850000,
+      alert_above: 900000,
+    },
+  });
+  assert.equal(added.status, 200);
+
+  const evaluated = await request('/api/me/alerts/evaluate', {
+    method: 'POST',
+    headers: userHeaders,
+  });
+  assert.equal(evaluated.status, 200);
+  assert.equal(evaluated.data.schema_version, 'fairvalue.userWatchlistAlerts.v1');
+  assert.equal(evaluated.data.alerts.length, 1);
+  assert.equal(evaluated.data.delivery_queue.length, 1);
+  assert.equal(evaluated.data.alerts[0].alert_type, 'price_below');
+  assert.equal(evaluated.data.alerts[0].property.address, '101 Alert Ave');
+  assert.equal(evaluated.data.alerts[0].current_price, 800000);
+  assert.equal(evaluated.data.alerts[0].threshold, 850000);
+  assert.equal(evaluated.data.alerts[0].status, 'ready');
+  assert.equal(JSON.stringify(evaluated.data).includes(identity.user_token), false);
+  const alertId = evaluated.data.alerts[0].alert_id;
+
+  const repeated = await request('/api/me/alerts/evaluate', {
+    method: 'POST',
+    headers: userHeaders,
+  });
+  assert.equal(repeated.status, 200);
+  assert.equal(repeated.data.alerts.length, 1);
+  assert.equal(repeated.data.alerts[0].alert_id, alertId);
+
+  const acknowledged = await request(`/api/me/alerts/${alertId}`, {
+    method: 'PATCH',
+    headers: userHeaders,
+  });
+  assert.equal(acknowledged.status, 200);
+  assert.equal(acknowledged.data.alerts[0].status, 'acknowledged');
+  assert.equal(acknowledged.data.delivery_queue.length, 0);
+
+  configureUserProfilePersistence({ filePath: profilePath });
+  const restored = await request('/api/me/alerts', { headers: userHeaders });
+  assert.equal(restored.status, 200);
+  assert.equal(restored.data.alerts[0].status, 'acknowledged');
+
+  const invalid = await request('/api/me/alerts/not%20valid', {
+    method: 'PATCH',
+    headers: userHeaders,
+  });
+  assert.equal(invalid.status, 400);
 });

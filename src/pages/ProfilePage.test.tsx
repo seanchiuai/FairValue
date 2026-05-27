@@ -86,6 +86,55 @@ describe('ProfilePage', () => {
           json: () => Promise.resolve(reputation),
         } as Response);
       }
+      if (url.includes('/api/me/watchlist')) {
+        expect(init?.headers).toMatchObject({ 'X-FairValue-User-Token': 'profile-token' });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            schema_version: 'fairvalue.userWatchlist.v1',
+            watchlist: [
+              {
+                property_id: '123',
+                added_at: 1779875000,
+                note: null,
+                alert_below: 850000,
+                alert_above: null,
+              },
+            ],
+          }),
+        } as Response);
+      }
+      if (url.includes('/api/me/alerts/evaluate') || url.includes('/api/me/alerts')) {
+        expect(init?.headers).toMatchObject({ 'X-FairValue-User-Token': 'profile-token' });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            schema_version: 'fairvalue.userWatchlistAlerts.v1',
+            alerts: [
+              {
+                alert_id: 'alrt_profile',
+                alert_type: 'price_below',
+                property_id: '123',
+                threshold: 850000,
+                current_price: 800000,
+                triggered_at: 1779876000,
+                status: 'ready',
+                delivery_channel: 'in_app_profile',
+                message: '101 Alert Ave is at or below $850,000 in the current snapshot ($800,000).',
+                property: {
+                  property_id: '123',
+                  address: '101 Alert Ave',
+                  city: 'San Francisco',
+                  state: 'CA',
+                  zip_code: '94110',
+                },
+              },
+            ],
+            delivery_queue: [{ alert_id: 'alrt_profile' }],
+            limitations: [],
+          }),
+        } as Response);
+      }
       if (url.includes('properties.json')) {
         return Promise.resolve({
           ok: true,
@@ -117,6 +166,9 @@ describe('ProfilePage', () => {
     expect(screen.getByTestId('profile-history')).toHaveTextContent('PRF1');
     expect(screen.getByTestId('profile-history')).toHaveTextContent('OVER');
     expect(screen.getByTestId('profile-history')).toHaveTextContent('1/1 correct');
+    expect(await screen.findByTestId('profile-watchlist-alerts')).toHaveTextContent('Price alert inbox');
+    expect(screen.getByTestId('profile-watchlist-alerts')).toHaveTextContent('101 Alert Ave');
+    expect(screen.getByTestId('profile-watchlist-alerts')).toHaveTextContent('Ready');
     expect(screen.queryByText('usr_profile_private')).not.toBeInTheDocument();
     expect(screen.queryByText('profile-token')).not.toBeInTheDocument();
 
