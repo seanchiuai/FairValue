@@ -272,6 +272,12 @@ test('settlement creates replayed reputation calibration without leaking session
 });
 
 test('market studio draft metadata is server-validated and preserved for audit', async () => {
+  const templates = await request('/api/market-templates');
+  assert.equal(templates.status, 200);
+  assert.equal(templates.data.schema_version, 'market-template-registry/v1');
+  assert.equal(templates.data.default_market_format, 'binary_over_under');
+  assert.equal(templates.data.templates.some((template) => template.market_format === 'range_price_band' && template.status === 'draft_only'), true);
+
   const invalidDraft = await request('/api/rooms', {
     method: 'POST',
     body: {
@@ -286,6 +292,23 @@ test('market studio draft metadata is server-validated and preserved for audit',
   });
   assert.equal(invalidDraft.status, 400);
   assert.match(invalidDraft.data.error, /Market draft address/);
+  assert.equal(Object.keys(rooms).length, 0);
+
+  const draftOnlyFormat = await request('/api/rooms', {
+    method: 'POST',
+    body: {
+      address: '3004 26th St',
+      asking_price: 800000,
+      market_draft: {
+        source_type: 'manual',
+        address: '3004 26th St',
+        asking_price: 800000,
+        market_format: 'range_price_band',
+      },
+    },
+  });
+  assert.equal(draftOnlyFormat.status, 400);
+  assert.match(draftOnlyFormat.data.error, /registered but not playable yet/);
   assert.equal(Object.keys(rooms).length, 0);
 
   const sourceText = [
@@ -331,6 +354,8 @@ test('market studio draft metadata is server-validated and preserved for audit',
   assert.equal(created.data.draft_audit.property_id, '440298192');
   assert.equal(created.data.draft_audit.validation.status, 'accepted');
   assert.equal(created.data.draft_audit.normalized_fields.address, '3004 26th St');
+  assert.equal(created.data.draft_audit.market_template.status, 'playable');
+  assert.equal(created.data.draft_audit.market_template.pricing_engine, 'lmsr_binary_v1');
   assert.equal(created.data.draft_audit.provenance.source, 'Local property dataset match');
   assert.equal(created.data.draft_audit.source_text_length, sourceText.length);
   assert.match(created.data.draft_audit.source_text_hash, /^[a-f0-9]{64}$/);

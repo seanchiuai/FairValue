@@ -1,0 +1,96 @@
+{
+  "schema_version": "market-template-registry/v1",
+  "default_market_format": "binary_over_under",
+  "templates": [
+    {
+      "market_format": "binary_over_under",
+      "label": "Binary over/under",
+      "status": "playable",
+      "summary": "Players forecast whether the settlement value lands at or above the asking price.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "lmsr_binary_v1",
+      "settlement_inputs": ["actual_price", "asking_price", "settlement_evidence"],
+      "settlement_rule": "OVER wins when actual_price >= asking_price; UNDER wins otherwise.",
+      "supported_surfaces": ["room_creation", "betting", "settlement", "event_replay", "public_verification"],
+      "limitations": [
+        "Simulation credits only.",
+        "The asking price is the only threshold in this market format."
+      ]
+    },
+    {
+      "market_format": "range_price_band",
+      "label": "Range price band",
+      "status": "draft_only",
+      "summary": "Players forecast which settlement price band the property lands in.",
+      "outcome_schema": {
+        "type": "range",
+        "outcomes": ["below_band", "inside_band", "above_band"]
+      },
+      "pricing_engine": "not_implemented",
+      "settlement_inputs": ["actual_price", "band_low", "band_high", "settlement_evidence"],
+      "settlement_rule": "Resolve to below_band, inside_band, or above_band using the configured price band.",
+      "supported_surfaces": ["market_studio_registry", "developer_api"],
+      "limitations": [
+        "Registered for schema planning only.",
+        "Room creation is blocked until a multi-outcome pricing engine exists."
+      ]
+    },
+    {
+      "market_format": "rent_yield_over_under",
+      "label": "Rent yield over/under",
+      "status": "draft_only",
+      "summary": "Players forecast whether annualized rent yield clears a configured threshold.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "not_implemented",
+      "settlement_inputs": ["annual_rent", "settlement_price", "yield_threshold", "settlement_evidence"],
+      "settlement_rule": "OVER wins when annual_rent / settlement_price >= yield_threshold.",
+      "supported_surfaces": ["market_studio_registry", "developer_api"],
+      "limitations": [
+        "Registered for schema planning only.",
+        "Rent and settlement-price evidence normalization is not implemented yet."
+      ]
+    },
+    {
+      "market_format": "time_on_market_over_under",
+      "label": "Time on market over/under",
+      "status": "draft_only",
+      "summary": "Players forecast whether days on market exceeds a configured threshold.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "not_implemented",
+      "settlement_inputs": ["listed_at", "contract_at", "days_threshold", "settlement_evidence"],
+      "settlement_rule": "OVER wins when measured days on market >= days_threshold.",
+      "supported_surfaces": ["market_studio_registry", "developer_api"],
+      "limitations": [
+        "Registered for schema planning only.",
+        "Listing lifecycle evidence ingestion is not implemented yet."
+      ]
+    },
+    {
+      "market_format": "renovation_budget_over_under",
+      "label": "Renovation budget over/under",
+      "status": "draft_only",
+      "summary": "Players forecast whether verified renovation cost exceeds a configured budget.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "not_implemented",
+      "settlement_inputs": ["verified_cost", "budget_threshold", "settlement_evidence"],
+      "settlement_rule": "OVER wins when verified_cost >= budget_threshold.",
+      "supported_surfaces": ["market_studio_registry", "developer_api"],
+      "limitations": [
+        "Registered for schema planning only.",
+        "Invoice, permit, and scope evidence normalization is not implemented yet."
+      ]
+    }
+  ]
+}

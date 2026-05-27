@@ -61,6 +61,18 @@ export interface MarketDraftAudit {
   };
   market_question: string;
   market_format: string;
+  market_template?: {
+    market_format: string;
+    label: string;
+    status: string;
+    pricing_engine: string;
+    outcome_schema: {
+      type: string;
+      outcomes: string[];
+    };
+    settlement_inputs: string[];
+    settlement_rule: string;
+  } | null;
   liquidity_b: number;
   settlement_rule: string;
   evidence_required: string[];

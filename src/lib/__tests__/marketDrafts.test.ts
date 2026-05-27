@@ -28,6 +28,7 @@ describe('market draft generation', () => {
     expect(draft.sqft).toBe(1640);
     expect(draft.home_type).toBe('Single Family');
     expect(draft.market_question).toBe('Will 1428 Dolores Street appraise above $1,250,000?');
+    expect(draft.market_format).toBe('binary_over_under');
     expect(draft.provenance.confidence).toBe('high');
   });
 
@@ -57,6 +58,23 @@ describe('market draft generation', () => {
     expect(invalid.valid).toBe(false);
     expect(invalid.issues).toContain('Property address is required.');
     expect(invalid.issues).toContain('Asking price must be greater than $0.');
+  });
+
+  it('validates registered market formats against the playable registry', () => {
+    const playable = validateMarketDraft({
+      address: '1428 Dolores Street',
+      asking_price: 1_250_000,
+      market_format: 'binary_over_under',
+    });
+    expect(playable.valid).toBe(true);
+
+    const draftOnly = validateMarketDraft({
+      address: '1428 Dolores Street',
+      asking_price: 1_250_000,
+      market_format: 'range_price_band',
+    });
+    expect(draftOnly.valid).toBe(false);
+    expect(draftOnly.issues).toContain('Market format is registered but not playable yet.');
   });
 
   it('records deterministic provenance, warnings, and settlement evidence', () => {

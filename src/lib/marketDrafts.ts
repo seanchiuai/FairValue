@@ -1,6 +1,8 @@
+import type { MarketFormat } from './marketTemplates';
+
 export type MarketDraftSourceType = 'pasted_listing' | 'manual' | 'csv_row' | 'address' | 'existing_property';
 
-export type MarketFormat = 'binary_over_under';
+export type { MarketFormat } from './marketTemplates';
 
 export interface MarketDraftProvenance {
   source: string;
@@ -39,6 +41,15 @@ export interface MarketDraftValidation {
 
 const MAX_ASKING_PRICE = 100_000_000;
 const DEFAULT_LIQUIDITY_B = 100;
+const DEFAULT_MARKET_FORMAT: MarketFormat = 'binary_over_under';
+const REGISTERED_MARKET_FORMATS = new Set<MarketFormat>([
+  'binary_over_under',
+  'range_price_band',
+  'rent_yield_over_under',
+  'time_on_market_over_under',
+  'renovation_budget_over_under',
+]);
+const PLAYABLE_MARKET_FORMATS = new Set<MarketFormat>(['binary_over_under']);
 
 const STREET_SUFFIX_PATTERN =
   'Street|St\\.?|Avenue|Ave\\.?|Road|Rd\\.?|Way|Boulevard|Blvd\\.?|Drive|Dr\\.?|Court|Ct\\.?|Lane|Ln\\.?|Place|Pl\\.?|Terrace|Ter\\.?|Circle|Cir\\.?|Highway|Hwy\\.?|Parkway|Pkwy\\.?|Loop|Square|Sq\\.?';
@@ -217,7 +228,7 @@ export function generateMarketDraft(sourceText: string, sourceType: MarketDraftS
     listing_description: clampListingDescription(source_text),
     provenance: createProvenance(addressParts.address, asking_price, facts),
     market_question: createMarketQuestion(addressParts.address, asking_price),
-    market_format: 'binary_over_under',
+    market_format: DEFAULT_MARKET_FORMAT,
     liquidity_b: DEFAULT_LIQUIDITY_B,
     settlement_rule: 'Settle using final sale price, appraisal, or host-provided valuation evidence.',
     evidence_required: createEvidenceChecklist(),
@@ -226,12 +237,19 @@ export function generateMarketDraft(sourceText: string, sourceType: MarketDraftS
   };
 }
 
-export function validateMarketDraft(draft: Pick<MarketDraft, 'address' | 'asking_price'>): MarketDraftValidation {
+export function validateMarketDraft(
+  draft: Pick<MarketDraft, 'address' | 'asking_price'> & Partial<Pick<MarketDraft, 'market_format'>>
+): MarketDraftValidation {
   const issues: string[] = [];
   if (!draft.address.trim()) issues.push('Property address is required.');
   if (!draft.asking_price || draft.asking_price <= 0) issues.push('Asking price must be greater than $0.');
   if (draft.asking_price && draft.asking_price > MAX_ASKING_PRICE) {
     issues.push('Asking price must be $100M or less.');
+  }
+  if (draft.market_format && !REGISTERED_MARKET_FORMATS.has(draft.market_format)) {
+    issues.push('Market format is not registered.');
+  } else if (draft.market_format && !PLAYABLE_MARKET_FORMATS.has(draft.market_format)) {
+    issues.push('Market format is registered but not playable yet.');
   }
   return {
     valid: issues.length === 0,

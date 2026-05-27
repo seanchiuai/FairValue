@@ -20,6 +20,12 @@ const { createRoomPersistence } = require('./roomPersistence');
 const { validateSettlementEvidencePayload } = require('./settlementEvidence');
 const { createPublicVerificationArtifact } = require('./publicVerification');
 const { createRoomReputationSummary } = require('./playerReputation');
+const {
+  DEFAULT_MARKET_FORMAT,
+  marketTemplateAuditProjection,
+  publicMarketTemplateRegistry,
+  validateMarketFormatForRoom,
+} = require('./marketTemplateRegistry');
 const observability = require('./observability');
 const {
   DEFAULT_B,
@@ -74,7 +80,6 @@ const REQUEST_ID_HEADER = 'x-request-id';
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const MARKET_DRAFT_SOURCE_TYPES = new Set(['pasted_listing', 'manual', 'csv_row', 'address', 'existing_property']);
-const MARKET_DRAFT_FORMATS = new Set(['binary_over_under']);
 const MARKET_DRAFT_CONFIDENCES = new Set(['low', 'medium', 'high']);
 const HOST_SETTABLE_ROOM_PHASES = new Set(['open', 'discussion', 'locked']);
 const MAX_ROOM_PHASE_TIMER_SECONDS = 3 * 60 * 60;
@@ -555,10 +560,9 @@ function validateMarketDraftAuditPayload(rawDraft, house) {
     return { error: 'Market draft asking price must match room asking price' };
   }
 
-  const marketFormat = sanitizeText(rawDraft.market_format, 60) || 'binary_over_under';
-  if (!MARKET_DRAFT_FORMATS.has(marketFormat)) {
-    return { error: 'Market draft format is invalid' };
-  }
+  const marketFormat = sanitizeText(rawDraft.market_format, 60) || DEFAULT_MARKET_FORMAT;
+  const marketFormatValidation = validateMarketFormatForRoom(marketFormat);
+  if (marketFormatValidation.error) return { error: marketFormatValidation.error };
 
   const provenance = rawDraft.provenance && typeof rawDraft.provenance === 'object'
     ? rawDraft.provenance
@@ -596,7 +600,8 @@ function validateMarketDraftAuditPayload(rawDraft, house) {
         matchedSignals,
       },
       market_question: sanitizeText(rawDraft.market_question, 180) || `Will ${address} appraise above $${askingPrice.toLocaleString()}?`,
-      market_format: marketFormat,
+      market_format: marketFormatValidation.value,
+      market_template: marketTemplateAuditProjection(marketFormatValidation.template),
       liquidity_b: liquidityB,
       settlement_rule: sanitizeText(rawDraft.settlement_rule, 240) || 'Settle using final sale price, appraisal, or host-provided valuation evidence.',
       evidence_required: evidenceRequired,
@@ -1083,6 +1088,10 @@ app.get('/healthz', (req, res) => {
 app.get('/readyz', (req, res) => {
   const payload = observability.readiness({ roomPersistence, roomEventLog, sql });
   res.status(payload.ready ? 200 : 503).json(payload);
+});
+
+app.get('/api/market-templates', (req, res) => {
+  res.json(publicMarketTemplateRegistry());
 });
 
 app.get('/api/ops/metrics', (req, res) => {
