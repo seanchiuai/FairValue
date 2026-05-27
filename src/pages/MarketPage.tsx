@@ -3,16 +3,12 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   MapPin,
-  ExternalLink,
-  Building2,
   Bed,
   Bath,
   Maximize,
-  Calendar,
   Home,
   DollarSign,
   Bookmark,
-  GraduationCap,
   Info,
   Database,
   ShieldCheck,
@@ -21,7 +17,6 @@ import {
   Gavel,
   AlertTriangle,
   ListChecks,
-  Scale,
   Sparkles,
   Target
 } from 'lucide-react';
@@ -543,7 +538,7 @@ const MarketPage: React.FC = () => {
               <div className="spec"><Maximize size={16} /><span><strong>{property.livingArea.toLocaleString()}</strong> sqft</span></div>
             )}
             {property.yearBuilt && (
-              <div className="spec"><Calendar size={16} /><span>Built <strong>{property.yearBuilt}</strong></span></div>
+              <div className="spec"><Home size={16} /><span>Built <strong>{property.yearBuilt}</strong></span></div>
             )}
             <div className="spec"><Home size={16} /><span>{typeLabel(property.homeType)}</span></div>
           </div>
@@ -555,7 +550,7 @@ const MarketPage: React.FC = () => {
 
           {property.brokerageName && (
             <div className="detail-broker">
-              <Building2 size={13} />
+              <Home size={13} />
               <span>Listed by {property.brokerageName}</span>
             </div>
           )}
@@ -844,7 +839,7 @@ const MarketPage: React.FC = () => {
             <h3><ListChecks size={16} /> Settlement checklist</h3>
             <ul>
               {intelligence.settlement_checklist.map((item) => (
-                <li key={item}><Scale size={14} aria-hidden="true" /> {item}</li>
+                <li key={item}><Gavel size={14} aria-hidden="true" /> {item}</li>
               ))}
             </ul>
           </div>
@@ -923,7 +918,7 @@ const MarketPage: React.FC = () => {
         {/* Schools */}
         {property.schools.length > 0 && (
           <div className="detail-section">
-            <h2 className="section-title"><GraduationCap size={18} /> Nearby Schools</h2>
+            <h2 className="section-title"><ListChecks size={18} /> Nearby Schools</h2>
             <div className="schools-list">
               {property.schools.map((school, i) => (
                 <div key={i} className="school-item">
@@ -969,7 +964,6 @@ const MarketPage: React.FC = () => {
         {/* Zillow Link */}
         <div className="detail-cta">
           <a href={property.hdpUrl} target="_blank" rel="noopener noreferrer" className="zillow-link">
-            <ExternalLink size={16} />
             View Full Listing on Zillow
           </a>
         </div>
