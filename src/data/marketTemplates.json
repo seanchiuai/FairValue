@@ -61,19 +61,21 @@
     {
       "market_format": "time_on_market_over_under",
       "label": "Time on market over/under",
-      "status": "draft_only",
+      "status": "playable",
       "summary": "Players forecast whether days on market exceeds a configured threshold.",
       "outcome_schema": {
         "type": "binary",
         "outcomes": ["over", "under"]
       },
-      "pricing_engine": "not_implemented",
-      "settlement_inputs": ["listed_at", "contract_at", "days_threshold", "settlement_evidence"],
-      "settlement_rule": "OVER wins when measured days on market >= days_threshold.",
-      "supported_surfaces": ["market_studio_registry", "developer_api"],
+      "pricing_engine": "lmsr_binary_v1",
+      "settlement_inputs": ["days_on_market", "listed_at", "contract_at", "days_threshold", "settlement_evidence"],
+      "settlement_rule": "OVER wins when measured days_on_market >= days_threshold.",
+      "supported_surfaces": ["room_creation_api", "betting", "settlement", "event_replay", "public_verification", "developer_api"],
       "limitations": [
-        "Registered for schema planning only.",
-        "Listing lifecycle evidence ingestion is not implemented yet."
+        "Simulation credits only.",
+        "The host must provide public-safe listing lifecycle evidence.",
+        "Listing lifecycle evidence ingestion is not automated yet.",
+        "AI bot trading remains disabled for time-on-market rooms."
       ]
     },
     {

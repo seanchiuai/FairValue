@@ -47,6 +47,37 @@ function formatScore(value: number | null | undefined) {
   return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}/100` : 'Unscored';
 }
 
+function settlementValue(settlement: SettleResult) {
+  const outcome = settlement.winning_outcome.toUpperCase();
+  if (Number.isFinite(settlement.days_on_market)) {
+    return `${outcome} at ${Math.round(Number(settlement.days_on_market))} days`;
+  }
+  if (Number.isFinite(settlement.rent_yield)) {
+    return `${outcome} at ${Math.round(Number(settlement.rent_yield) * 10000) / 100}% yield`;
+  }
+  if (Number.isFinite(settlement.verified_cost)) {
+    return `${outcome} at ${formatMoney(settlement.verified_cost)}`;
+  }
+  return `${outcome} at ${formatMoney(settlement.actual_price)}`;
+}
+
+function settlementSentence(settlement: SettleResult) {
+  return settlementValue(settlement).replace(' at ', ' won at ');
+}
+
+function settlementDetail(settlement: SettleResult, house: House) {
+  if (Number.isFinite(settlement.days_on_market)) {
+    return `Host-entered public lifecycle evidence reports ${Math.round(Number(settlement.days_on_market))} days on market against a ${Math.round(Number(settlement.days_threshold || 0))}-day threshold.`;
+  }
+  if (Number.isFinite(settlement.rent_yield)) {
+    return `Host-entered public rent evidence reports ${formatMoney(settlement.annual_rent)} annual rent against ${formatMoney(settlement.settlement_price || settlement.actual_price)} settlement price.`;
+  }
+  if (Number.isFinite(settlement.verified_cost)) {
+    return `Host-entered public renovation evidence reports ${formatMoney(settlement.verified_cost)} verified cost against a ${formatMoney(settlement.budget_threshold)} budget.`;
+  }
+  return `Host-entered public settlement value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`;
+}
+
 function recentBets(activity: ActivityEntry[]) {
   return activity
     .filter((entry) => entry.type === 'bet' && entry.outcome && typeof entry.wager === 'number')
@@ -97,7 +128,7 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
   const latestBets = recentBets(activity);
   const status: PublicRoomRecap['status'] = settled ? 'settled' : 'live';
   const settlementLine = settlement
-    ? `${settlement.winning_outcome.toUpperCase()} won at ${formatMoney(settlement.actual_price)}.`
+    ? `${settlementSentence(settlement)}.`
     : 'Settlement has not been recorded yet.';
   const reputation = settlement?.reputation_summary || null;
   const topReputationPlayer = reputation?.top_players?.[0];
@@ -123,8 +154,8 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
   if (settlement) {
     evidence.push({
       label: 'Settlement result',
-      value: `${settlement.winning_outcome.toUpperCase()} at ${formatMoney(settlement.actual_price)}`,
-      detail: `Host-entered public settlement value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`,
+      value: settlementValue(settlement),
+      detail: settlementDetail(settlement, house),
     });
     if (settlement.evidence_packet) {
       evidence.push({

@@ -4,10 +4,12 @@ import {
   isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
+  isTimeOnMarketMarket,
   leadingOutcome,
   rangeBandLabel,
   renovationBudgetThresholdLabel,
   rentYieldThresholdLabel,
+  timeOnMarketThresholdLabel,
 } from '../../lib/roomMarketDisplay';
 import type { House, Market, RoomMarketConfig } from '../../types';
 import './HostPropertySummary.css';
@@ -27,6 +29,7 @@ export default function HostPropertySummary({
 }: HostPropertySummaryProps) {
   const rangeRoom = isRangeMarket(marketFormat);
   const rentYieldRoom = isRentYieldMarket(marketFormat);
+  const timeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
   const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
   const leading = leadingOutcome(market, marketConfig);
   const probPercent = rangeRoom
@@ -52,6 +55,7 @@ export default function HostPropertySummary({
           {formatMarketLabel(marketFormat)}
           {rangeRoom ? ` · ${rangeBandLabel(marketConfig)}` : ''}
           {rentYieldRoom ? ` · Threshold ${rentYieldThresholdLabel(marketConfig)}` : ''}
+          {timeOnMarketRoom ? ` · Threshold ${timeOnMarketThresholdLabel(marketConfig)}` : ''}
           {renovationBudgetRoom ? ` · Budget ${renovationBudgetThresholdLabel(marketConfig)}` : ''}
         </div>
       </div>

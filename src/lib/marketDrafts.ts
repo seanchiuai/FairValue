@@ -53,6 +53,7 @@ const PLAYABLE_MARKET_FORMATS = new Set<MarketFormat>([
   'binary_over_under',
   'range_price_band',
   'rent_yield_over_under',
+  'time_on_market_over_under',
   'renovation_budget_over_under',
 ]);
 

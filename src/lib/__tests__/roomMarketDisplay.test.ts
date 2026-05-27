@@ -9,6 +9,8 @@ import {
   rentYieldSettlementOutcome,
   rentYieldThresholdLabel,
   roomOutcomeIds,
+  timeOnMarketSettlementOutcome,
+  timeOnMarketThresholdLabel,
 } from '../roomMarketDisplay';
 import type { Market, RoomMarketConfig } from '../../types';
 
@@ -52,6 +54,12 @@ const renovationBudgetConfig: RoomMarketConfig = {
   outcomes: ['over', 'under'],
 };
 
+const timeOnMarketConfig: RoomMarketConfig = {
+  market_format: 'time_on_market_over_under',
+  days_threshold: 45,
+  outcomes: ['over', 'under'],
+};
+
 describe('roomMarketDisplay', () => {
   it('labels and ranks range market outcomes', () => {
     expect(formatOutcomeLabel('inside_band')).toBe('Inside band');
@@ -76,5 +84,11 @@ describe('roomMarketDisplay', () => {
     expect(renovationBudgetThresholdLabel(renovationBudgetConfig)).toBe('$125,000');
     expect(renovationBudgetSettlementOutcome(140_000, renovationBudgetConfig)).toBe('over');
     expect(renovationBudgetSettlementOutcome(90_000, renovationBudgetConfig)).toBe('under');
+  });
+
+  it('labels and maps time on market settlement outcomes', () => {
+    expect(timeOnMarketThresholdLabel(timeOnMarketConfig)).toBe('45 days');
+    expect(timeOnMarketSettlementOutcome(60, timeOnMarketConfig)).toBe('over');
+    expect(timeOnMarketSettlementOutcome(21, timeOnMarketConfig)).toBe('under');
   });
 });

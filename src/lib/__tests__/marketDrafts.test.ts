@@ -94,8 +94,7 @@ describe('market draft generation', () => {
       asking_price: 1_250_000,
       market_format: 'time_on_market_over_under',
     });
-    expect(draftOnly.valid).toBe(false);
-    expect(draftOnly.issues).toContain('Market format is registered but not playable yet.');
+    expect(draftOnly.valid).toBe(true);
   });
 
   it('records deterministic provenance, warnings, and settlement evidence', () => {

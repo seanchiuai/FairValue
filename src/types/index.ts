@@ -37,6 +37,7 @@ export interface RoomMarketConfig {
   threshold_percent?: number;
   settlement_price_hint?: number;
   budget_threshold?: number;
+  days_threshold?: number;
   outcomes?: string[];
   liquidity_b?: number;
 }
@@ -258,6 +259,8 @@ export interface SettleResult {
   rent_yield?: number | null;
   verified_cost?: number | null;
   budget_threshold?: number | null;
+  days_on_market?: number | null;
+  days_threshold?: number | null;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
   reputation_summary?: RoomReputationSummary | null;
@@ -283,6 +286,13 @@ export interface PublicVerificationArtifact {
     winning_outcome: string;
     actual_price: number;
     evidence_packet_status: string;
+    settlement_price?: number | null;
+    annual_rent?: number | null;
+    rent_yield?: number | null;
+    verified_cost?: number | null;
+    budget_threshold?: number | null;
+    days_on_market?: number | null;
+    days_threshold?: number | null;
     evidence_packet_hash: string | null;
     evidence_item_count: number;
     reputation_schema_version?: string | null;
@@ -337,6 +347,13 @@ export type WsSettleMessage = {
   type: 'settle';
   winning_outcome: string;
   actual_price: number;
+  settlement_price?: number | null;
+  annual_rent?: number | null;
+  rent_yield?: number | null;
+  verified_cost?: number | null;
+  budget_threshold?: number | null;
+  days_on_market?: number | null;
+  days_threshold?: number | null;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
   reputation_summary?: RoomReputationSummary | null;

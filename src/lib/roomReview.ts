@@ -70,6 +70,50 @@ function winnerFor(actualPrice: number, askingPrice: number) {
   return actualPrice >= askingPrice ? 'over' : 'under';
 }
 
+function settlementValue(settlement: SettleResult) {
+  const outcome = settlement.winning_outcome.toUpperCase();
+  if (Number.isFinite(settlement.days_on_market)) {
+    return `${outcome} at ${Math.round(Number(settlement.days_on_market))} days`;
+  }
+  if (Number.isFinite(settlement.rent_yield)) {
+    return `${outcome} at ${Math.round(Number(settlement.rent_yield) * 10000) / 100}% yield`;
+  }
+  if (Number.isFinite(settlement.verified_cost)) {
+    return `${outcome} at ${formatMoney(settlement.verified_cost)}`;
+  }
+  return `${outcome} at ${formatMoney(settlement.actual_price)}`;
+}
+
+function settlementSentence(settlement: SettleResult) {
+  return settlementValue(settlement).replace(' at ', ' won at ');
+}
+
+function settlementDetail(settlement: SettleResult, house: House) {
+  if (Number.isFinite(settlement.days_on_market)) {
+    return `Lifecycle value is ${Math.round(Number(settlement.days_on_market))} days against a ${Math.round(Number(settlement.days_threshold || 0))}-day threshold.`;
+  }
+  if (Number.isFinite(settlement.rent_yield)) {
+    return `Rent-yield value uses ${formatMoney(settlement.annual_rent)} annual rent and ${formatMoney(settlement.settlement_price || settlement.actual_price)} settlement price.`;
+  }
+  if (Number.isFinite(settlement.verified_cost)) {
+    return `Renovation value is ${formatMoney(settlement.verified_cost)} verified cost against a ${formatMoney(settlement.budget_threshold)} budget.`;
+  }
+  return `Actual value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`;
+}
+
+function settlementIntegrityCheck(settlement: SettleResult, house: House) {
+  if (Number.isFinite(settlement.days_on_market)) {
+    return `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${Number(settlement.days_on_market) >= Number(settlement.days_threshold) ? 'matches' : 'does not match'} the days-on-market threshold.`;
+  }
+  if (Number.isFinite(settlement.rent_yield)) {
+    return `Settlement outcome ${settlement.winning_outcome.toUpperCase()} is tied to the recorded rent-yield evidence.`;
+  }
+  if (Number.isFinite(settlement.verified_cost)) {
+    return `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${Number(settlement.verified_cost) >= Number(settlement.budget_threshold) ? 'matches' : 'does not match'} the renovation-budget threshold.`;
+  }
+  return `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${winnerFor(settlement.actual_price, house.asking_price) === settlement.winning_outcome ? 'matches' : 'does not match'} the asking-price comparison.`;
+}
+
 function recentBets(activity: ActivityEntry[]) {
   return activity
     .filter((entry) => entry.type === 'bet' && entry.outcome && typeof entry.wager === 'number')
@@ -114,6 +158,9 @@ function eventDetail(event: RoomEvent) {
   }
   if (event.type === 'settlement_completed') {
     const settlement = payload.settlement || payload;
+    if (Number.isFinite(settlement.days_on_market)) {
+      return `${String(settlement.winning_outcome || payload.winning_outcome || 'unknown').toUpperCase()} won at ${Math.round(Number(settlement.days_on_market))} days.`;
+    }
     return `${String(settlement.winning_outcome || payload.winning_outcome || 'unknown').toUpperCase()} won at ${formatMoney(settlement.actual_price || payload.actual_price)}.`;
   }
   if (event.type === 'error') {
@@ -197,8 +244,8 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
   if (settlement) {
     evidence.push({
       label: 'Settlement evidence',
-      value: `${settlement.winning_outcome.toUpperCase()} at ${formatMoney(settlement.actual_price)}`,
-      detail: `Actual value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`,
+      value: settlementValue(settlement),
+      detail: settlementDetail(settlement, house),
     });
     if (settlement.evidence_packet) {
       evidence.push({
@@ -226,7 +273,7 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
       ? `Draft audit accepted from ${draftAudit.provenance.source}; raw pasted listing text is not stored.`
       : 'No draft audit envelope is attached to this room.',
     settlement
-      ? `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${winnerFor(settlement.actual_price, house.asking_price) === settlement.winning_outcome ? 'matches' : 'does not match'} the asking-price comparison.`
+      ? settlementIntegrityCheck(settlement, house)
       : 'Settlement has not been recorded yet.',
     settlement?.evidence_packet
       ? `Settlement evidence packet is ${settlement.evidence_packet.status.replace(/_/g, ' ')} with ${settlement.evidence_packet.items.length} public-safe metadata item${settlement.evidence_packet.items.length === 1 ? '' : 's'}.`
@@ -245,7 +292,7 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
       ? `Latest movement: ${latestBets.map((bet) => `${bet.nickname || 'player'} ${String(bet.outcome).toUpperCase()} ${formatMoney(bet.wager)}`).join('; ')}.`
       : 'No player bets have landed yet, so the room still needs evidence-backed opening movement.',
     settlement
-      ? `Settlement recap: ${settlement.winning_outcome.toUpperCase()} won at ${formatMoney(settlement.actual_price)}.`
+      ? `Settlement recap: ${settlementSentence(settlement)}.`
       : 'Settlement recap is pending until the host records an actual sale, appraisal, or signed valuation.',
     reputation
       ? `Calibration recap: ${reputation.eligible_player_count} player${reputation.eligible_player_count === 1 ? '' : 's'} averaged ${formatScore(reputation.average_calibration_score)} in this settled room.`
@@ -288,7 +335,7 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
       {
         label: 'Settlement',
         value: settlement ? settlement.winning_outcome.toUpperCase() : 'Pending',
-        detail: settlement ? `Actual value ${formatMoney(settlement.actual_price)}.` : 'Host has not settled this room.',
+        detail: settlement ? settlementDetail(settlement, house) : 'Host has not settled this room.',
         tone: settlement ? 'positive' : 'neutral',
       },
       {

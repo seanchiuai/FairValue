@@ -6,12 +6,15 @@ import {
   isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
+  isTimeOnMarketMarket,
   rangeBandLabel,
   rangeSettlementOutcome,
   renovationBudgetSettlementOutcome,
   renovationBudgetThresholdLabel,
   rentYieldSettlementOutcome,
   rentYieldThresholdLabel,
+  timeOnMarketSettlementOutcome,
+  timeOnMarketThresholdLabel,
 } from '../../lib/roomMarketDisplay';
 import { useToast } from '../../contexts/ToastContext';
 import TrustNotice from '../TrustNotice';
@@ -99,17 +102,22 @@ export default function SettleModal({
   }, [onClose]);
 
   const handleSettle = useCallback(async () => {
+    const rentYieldRoom = isRentYieldMarket(marketFormat);
+    const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
+    const timeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
     if (!actualPrice) {
-      setError('Actual price is required');
+      setError(timeOnMarketRoom ? 'Days on market is required' : 'Actual price is required');
       return;
     }
     const price = parseFloat(actualPrice.replace(/,/g, ''));
-    if (isNaN(price) || price <= 0 || price > 100_000_000) {
+    if (timeOnMarketRoom && (isNaN(price) || price <= 0 || price > 3650)) {
+      setError('Enter valid days on market (1 to 3,650)');
+      return;
+    }
+    if (!timeOnMarketRoom && (isNaN(price) || price <= 0 || price > 100_000_000)) {
       setError('Enter a valid actual price (up to $100M)');
       return;
     }
-    const rentYieldRoom = isRentYieldMarket(marketFormat);
-    const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
     const parsedAnnualRent = parseFloat(annualRent.replace(/,/g, ''));
     if (rentYieldRoom && (isNaN(parsedAnnualRent) || parsedAnnualRent <= 0 || parsedAnnualRent > 10_000_000)) {
       setError('Enter a valid annual rent (up to $10M)');
@@ -161,6 +169,7 @@ export default function SettleModal({
         body: JSON.stringify({
           actual_price: price,
           ...(rentYieldRoom ? { annual_rent: parsedAnnualRent } : {}),
+          ...(timeOnMarketRoom ? { days_on_market: price } : {}),
           ...(renovationBudgetRoom ? { verified_cost: price } : {}),
           ...(settlementEvidence ? { settlement_evidence: settlementEvidence } : {}),
         }),
@@ -215,12 +224,15 @@ export default function SettleModal({
   const parsedAnnualRent = parseFloat(annualRent.replace(/,/g, ''));
   const rangeRoom = isRangeMarket(marketFormat);
   const rentYieldRoom = isRentYieldMarket(marketFormat);
+  const timeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
   const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
   const settlementHint = actualPrice && !isNaN(parsedActualPrice)
     ? rentYieldRoom
       ? annualRent && !isNaN(parsedAnnualRent)
         ? `${formatOutcomeLabel(rentYieldSettlementOutcome(parsedAnnualRent, parsedActualPrice, marketConfig))} wins at ${Math.round((parsedAnnualRent / parsedActualPrice) * 10000) / 100}% yield`
         : `enter annual rent; threshold ${rentYieldThresholdLabel(marketConfig)}`
+      : timeOnMarketRoom
+        ? `${formatOutcomeLabel(timeOnMarketSettlementOutcome(parsedActualPrice, marketConfig))} wins vs ${timeOnMarketThresholdLabel(marketConfig)} threshold`
       : renovationBudgetRoom
         ? `${formatOutcomeLabel(renovationBudgetSettlementOutcome(parsedActualPrice, marketConfig))} wins vs ${renovationBudgetThresholdLabel(marketConfig)} budget`
       : rangeRoom
@@ -244,6 +256,8 @@ export default function SettleModal({
         <p id="settle-desc" style={s.desc}>
           {rentYieldRoom
             ? `Enter settlement price and annual rent to resolve against ${rentYieldThresholdLabel(marketConfig)} yield.`
+            : timeOnMarketRoom
+              ? `Enter days on market to resolve against the ${timeOnMarketThresholdLabel(marketConfig)} threshold.`
             : renovationBudgetRoom
               ? `Enter verified renovation cost to resolve against the ${renovationBudgetThresholdLabel(marketConfig)} budget.`
             : 'Enter the actual appraisal/sale price to determine the winner.'}
@@ -257,6 +271,7 @@ export default function SettleModal({
           points={[
             'Confirm against actual sale or appraisal evidence.',
             ...(rentYieldRoom ? ['Confirm annual rent with lease, rent roll, or public-safe rental evidence.'] : []),
+            ...(timeOnMarketRoom ? ['Confirm listing lifecycle dates or MLS status metadata before entering days on market.'] : []),
             ...(renovationBudgetRoom ? ['Confirm renovation cost with invoice, permit, or scope metadata.'] : []),
             'This value decides simulation-credit payouts only.',
             'The settlement is written into the room event history.',
@@ -264,7 +279,7 @@ export default function SettleModal({
         />
         <div style={s.field}>
           <label style={s.label} htmlFor="settle-actual-price">
-            {rentYieldRoom ? 'Settlement Price ($)' : renovationBudgetRoom ? 'Verified Cost ($)' : 'Actual Price ($)'}
+            {rentYieldRoom ? 'Settlement Price ($)' : timeOnMarketRoom ? 'Days on Market' : renovationBudgetRoom ? 'Verified Cost ($)' : 'Actual Price ($)'}
           </label>
           <input
             id="settle-actual-price"
@@ -272,10 +287,10 @@ export default function SettleModal({
             style={s.input}
             value={actualPrice}
             onChange={(e) => setActualPrice(e.target.value)}
-            aria-label={rentYieldRoom ? 'Settlement price' : renovationBudgetRoom ? 'Verified cost' : 'Actual price'}
+            aria-label={rentYieldRoom ? 'Settlement price' : timeOnMarketRoom ? 'Days on market' : renovationBudgetRoom ? 'Verified cost' : 'Actual price'}
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={error ? 'settle-error' : undefined}
-            placeholder="450,000"
+            placeholder={timeOnMarketRoom ? '42' : '450,000'}
             inputMode="numeric"
             aria-required="true"
           />

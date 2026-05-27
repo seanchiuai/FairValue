@@ -13,12 +13,14 @@ import {
   isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
+  isTimeOnMarketMarket,
   leadingOutcome,
   outcomeProbability,
   rangeBandLabel,
   rangeOutcomeDescription,
   renovationBudgetThresholdLabel,
   rentYieldThresholdLabel,
+  timeOnMarketThresholdLabel,
   roomOutcomeIds,
 } from '../lib/roomMarketDisplay';
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
@@ -226,6 +228,7 @@ export default function PlayerView() {
   const probPercent = Number.isFinite(market.prob_over) ? Math.round(market.prob_over * 100) : 0;
   const isRangeRoom = isRangeMarket(marketFormat);
   const isRentYieldRoom = isRentYieldMarket(marketFormat);
+  const isTimeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
   const isRenovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
   const isBinaryRoom = isBinaryMarket(marketFormat);
   const rangeOutcomes = isRangeRoom ? roomOutcomeIds(market, marketConfig) : [];
@@ -270,12 +273,16 @@ export default function PlayerView() {
             isRangeRoom
               ? `Range prices come from LMSR probabilities around ${rangeBandLabel(marketConfig)}, not an appraisal.`
               : isRentYieldRoom
-                ? `Rent-yield prices come from LMSR probabilities around ${rentYieldThresholdLabel(marketConfig)} annual yield, not a rent roll.`
+              ? `Rent-yield prices come from LMSR probabilities around ${rentYieldThresholdLabel(marketConfig)} annual yield, not a rent roll.`
+              : isTimeOnMarketRoom
+                ? `Time-on-market prices come from LMSR probabilities around ${timeOnMarketThresholdLabel(marketConfig)}, not an MLS lifecycle audit.`
                 : isRenovationBudgetRoom
                   ? `Renovation-budget prices come from LMSR probabilities around ${renovationBudgetThresholdLabel(marketConfig)}, not a construction estimate.`
               : 'Over/Under prices come from LMSR probability, not an appraisal.',
             isRentYieldRoom
               ? 'The host settles with settlement price and annual-rent evidence.'
+              : isTimeOnMarketRoom
+                ? 'The host settles with listing lifecycle dates or days-on-market evidence.'
               : isRenovationBudgetRoom
                 ? 'The host settles with public-safe renovation cost evidence.'
               : 'The host settles with actual sale or appraisal evidence.',
@@ -320,7 +327,7 @@ export default function PlayerView() {
               aria-valuenow={probPercent}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : isRenovationBudgetRoom ? 'going over renovation budget' : 'going over asking price'}`}
+              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : isTimeOnMarketRoom ? 'going over days threshold' : isRenovationBudgetRoom ? 'going over renovation budget' : 'going over asking price'}`}
             >
               <div
                 style={{

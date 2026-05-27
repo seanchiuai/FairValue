@@ -3,6 +3,7 @@ import type { Market, RoomMarketConfig } from '../types';
 export const BINARY_MARKET_FORMAT = 'binary_over_under';
 export const RANGE_PRICE_BAND_FORMAT = 'range_price_band';
 export const RENT_YIELD_MARKET_FORMAT = 'rent_yield_over_under';
+export const TIME_ON_MARKET_MARKET_FORMAT = 'time_on_market_over_under';
 export const RENOVATION_BUDGET_MARKET_FORMAT = 'renovation_budget_over_under';
 
 export function isRangeMarket(format?: string | null) {
@@ -10,11 +11,19 @@ export function isRangeMarket(format?: string | null) {
 }
 
 export function isBinaryMarket(format?: string | null) {
-  return !format || format === BINARY_MARKET_FORMAT || format === RENT_YIELD_MARKET_FORMAT || format === RENOVATION_BUDGET_MARKET_FORMAT;
+  return !format ||
+    format === BINARY_MARKET_FORMAT ||
+    format === RENT_YIELD_MARKET_FORMAT ||
+    format === TIME_ON_MARKET_MARKET_FORMAT ||
+    format === RENOVATION_BUDGET_MARKET_FORMAT;
 }
 
 export function isRentYieldMarket(format?: string | null) {
   return format === RENT_YIELD_MARKET_FORMAT;
+}
+
+export function isTimeOnMarketMarket(format?: string | null) {
+  return format === TIME_ON_MARKET_MARKET_FORMAT;
 }
 
 export function isRenovationBudgetMarket(format?: string | null) {
@@ -34,6 +43,7 @@ export function formatOutcomeLabel(outcome: string) {
 export function formatMarketLabel(format?: string | null) {
   if (format === RANGE_PRICE_BAND_FORMAT) return 'Range price band';
   if (format === RENT_YIELD_MARKET_FORMAT) return 'Rent yield over/under';
+  if (format === TIME_ON_MARKET_MARKET_FORMAT) return 'Time on market over/under';
   if (format === RENOVATION_BUDGET_MARKET_FORMAT) return 'Renovation budget over/under';
   return 'Over/Under';
 }
@@ -80,6 +90,20 @@ export function rentYieldSettlementOutcome(annualRent: number, settlementPrice: 
     return '';
   }
   return annualRent / settlementPrice >= threshold ? 'over' : 'under';
+}
+
+export function timeOnMarketThresholdLabel(config?: RoomMarketConfig | null) {
+  const threshold = Number(config?.days_threshold);
+  if (!Number.isFinite(threshold) || threshold <= 0) return 'configured days';
+  return `${Math.round(threshold)} days`;
+}
+
+export function timeOnMarketSettlementOutcome(daysOnMarket: number, config?: RoomMarketConfig | null) {
+  const threshold = Number(config?.days_threshold);
+  if (!Number.isFinite(threshold) || threshold <= 0 || !Number.isFinite(daysOnMarket) || daysOnMarket <= 0) {
+    return '';
+  }
+  return daysOnMarket >= threshold ? 'over' : 'under';
 }
 
 export function renovationBudgetThresholdLabel(config?: RoomMarketConfig | null) {

@@ -30,6 +30,12 @@ describe('market template registry', () => {
         pricing_engine: 'lmsr_binary_v1',
       })
     );
+    expect(getMarketTemplate('time_on_market_over_under')).toEqual(
+      expect.objectContaining({
+        status: 'playable',
+        pricing_engine: 'lmsr_binary_v1',
+      })
+    );
     expect(getMarketTemplate('renovation_budget_over_under')).toEqual(
       expect.objectContaining({
         status: 'playable',
@@ -40,6 +46,8 @@ describe('market template registry', () => {
     expect(isPlayableMarketFormat('range_price_band')).toBe(true);
     expect(isRegisteredMarketFormat('rent_yield_over_under')).toBe(true);
     expect(isPlayableMarketFormat('rent_yield_over_under')).toBe(true);
+    expect(isRegisteredMarketFormat('time_on_market_over_under')).toBe(true);
+    expect(isPlayableMarketFormat('time_on_market_over_under')).toBe(true);
     expect(isRegisteredMarketFormat('renovation_budget_over_under')).toBe(true);
     expect(isPlayableMarketFormat('renovation_budget_over_under')).toBe(true);
   });

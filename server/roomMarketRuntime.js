@@ -18,12 +18,19 @@ const {
 const BINARY_MARKET_FORMAT = 'binary_over_under';
 const RANGE_PRICE_BAND_FORMAT = 'range_price_band';
 const RENT_YIELD_FORMAT = 'rent_yield_over_under';
+const TIME_ON_MARKET_FORMAT = 'time_on_market_over_under';
 const RENOVATION_BUDGET_FORMAT = 'renovation_budget_over_under';
 const RANGE_OUTCOMES = Object.freeze(['below_band', 'inside_band', 'above_band']);
 const BINARY_OUTCOMES = Object.freeze(['over', 'under']);
-const BINARY_LMSR_FORMATS = new Set([BINARY_MARKET_FORMAT, RENT_YIELD_FORMAT, RENOVATION_BUDGET_FORMAT]);
+const BINARY_LMSR_FORMATS = new Set([
+  BINARY_MARKET_FORMAT,
+  RENT_YIELD_FORMAT,
+  TIME_ON_MARKET_FORMAT,
+  RENOVATION_BUDGET_FORMAT,
+]);
 const MAX_PRICE = 100_000_000;
 const MAX_ANNUAL_RENT = 10_000_000;
+const MAX_DAYS_ON_MARKET = 3_650;
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -44,6 +51,12 @@ function percentOrNull(value) {
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   const normalized = parsed > 1 ? parsed / 100 : parsed;
   return normalized > 0 && normalized <= 1 ? Math.round(normalized * 10000) / 10000 : null;
+}
+
+function positiveIntegerOrNull(value, max = MAX_DAYS_ON_MARKET) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > max) return null;
+  return Math.round(parsed);
 }
 
 function readRangeBound(rawDraft, keys) {
@@ -105,6 +118,29 @@ function createMarketConfigForRoom(format, house, rawDraft = {}, liquidityB = DE
         yield_threshold: yieldThreshold,
         threshold_percent: Math.round(yieldThreshold * 10000) / 100,
         settlement_price_hint: askingPrice,
+        outcomes: [...BINARY_OUTCOMES],
+        liquidity_b: liquidityB,
+      },
+    };
+  }
+
+  if (marketFormat === TIME_ON_MARKET_FORMAT) {
+    const rawThreshold = readFirstPresent(rawDraft, [
+      'days_threshold',
+      'time_on_market_days',
+      'dom_threshold',
+      'target_days',
+      'threshold',
+    ]);
+    const daysThreshold = rawThreshold === undefined || rawThreshold === null || rawThreshold === ''
+      ? 30
+      : positiveIntegerOrNull(rawThreshold);
+    if (!daysThreshold) return { error: 'Time-on-market threshold must be between 1 and 3,650 days' };
+    return {
+      value: {
+        schema_version: 'time-on-market-over-under-config/v1',
+        market_format: TIME_ON_MARKET_FORMAT,
+        days_threshold: daysThreshold,
         outcomes: [...BINARY_OUTCOMES],
         liquidity_b: liquidityB,
       },
@@ -278,6 +314,16 @@ function winningOutcomeForRoom(room, actualPrice) {
     if (!budgetThreshold) throw new Error('Renovation budget config is invalid');
     return verifiedCost >= budgetThreshold ? 'over' : 'under';
   }
+  if (marketFormatFrom(room) === TIME_ON_MARKET_FORMAT) {
+    const input = typeof actualPrice === 'object' && actualPrice !== null
+      ? actualPrice
+      : { days_on_market: actualPrice };
+    const daysOnMarket = positiveIntegerOrNull(input.days_on_market ?? input.actual_price);
+    const daysThreshold = positiveIntegerOrNull(marketConfigFrom(room)?.days_threshold);
+    if (!daysOnMarket) throw new Error('days_on_market must be positive');
+    if (!daysThreshold) throw new Error('Time-on-market config is invalid');
+    return daysOnMarket >= daysThreshold ? 'over' : 'under';
+  }
   if (isRangeMarket(room)) {
     const actual = Number(typeof actualPrice === 'object' && actualPrice !== null ? actualPrice.actual_price : actualPrice);
     const config = marketConfigFrom(room);
@@ -294,6 +340,13 @@ function winningOutcomeForRoom(room, actualPrice) {
 }
 
 function settlementMetricsForRoom(room, settlementInput) {
+  if (marketFormatFrom(room) === TIME_ON_MARKET_FORMAT) {
+    const daysOnMarket = positiveIntegerOrNull(settlementInput?.days_on_market ?? settlementInput?.actual_price);
+    return {
+      days_on_market: daysOnMarket,
+      days_threshold: positiveIntegerOrNull(marketConfigFrom(room)?.days_threshold),
+    };
+  }
   if (marketFormatFrom(room) === RENOVATION_BUDGET_FORMAT) {
     const verifiedCost = positiveNumberOrNull(settlementInput?.verified_cost ?? settlementInput?.actual_price);
     return {
@@ -329,6 +382,7 @@ module.exports = {
   BINARY_MARKET_FORMAT,
   RANGE_PRICE_BAND_FORMAT,
   RENT_YIELD_FORMAT,
+  TIME_ON_MARKET_FORMAT,
   RENOVATION_BUDGET_FORMAT,
   RANGE_OUTCOMES,
   createMarketConfigForRoom,

@@ -601,6 +601,21 @@ function parsePositiveNumber(value, max = Number.MAX_SAFE_INTEGER) {
   return parsed;
 }
 
+function parsePositiveInteger(value, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = parsePositiveNumber(value, max);
+  return parsed === null ? null : Math.round(parsed);
+}
+
+function daysBetweenDates(startValue, endValue) {
+  if (!startValue || !endValue) return null;
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  const startTime = start.getTime();
+  const endTime = end.getTime();
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) return null;
+  return Math.max(1, Math.ceil((endTime - startTime) / 86_400_000));
+}
+
 function normalizeDraftPropertyId(value) {
   const propertyId = sanitizeText(value, 80);
   return propertyId && /^[A-Za-z0-9._:-]+$/.test(propertyId) ? propertyId : null;
@@ -812,14 +827,24 @@ function validateBetPayload(body, room) {
 
 function validateSettlePayload(body, room = null) {
   const renovationBudgetRoom = room?.marketFormat === 'renovation_budget_over_under';
+  const timeOnMarketRoom = room?.marketFormat === 'time_on_market_over_under';
+  const dateDerivedDays = timeOnMarketRoom
+    ? daysBetweenDates(body?.listed_at, body?.contract_at ?? body?.pending_at ?? body?.settled_at)
+    : null;
   const rawActualPrice = renovationBudgetRoom
     ? body?.verified_cost ?? body?.actual_price
+    : timeOnMarketRoom
+      ? body?.days_on_market ?? body?.actual_days_on_market ?? dateDerivedDays ?? body?.actual_price
     : body?.actual_price ?? body?.settlement_price;
-  const actualPrice = parsePositiveNumber(rawActualPrice, MAX_ASKING_PRICE);
+  const actualPrice = timeOnMarketRoom
+    ? parsePositiveInteger(rawActualPrice, 3_650)
+    : parsePositiveNumber(rawActualPrice, MAX_ASKING_PRICE);
   if (actualPrice === null) {
     return {
       error: renovationBudgetRoom
         ? 'Verified renovation cost must be between $1 and $100M'
+        : timeOnMarketRoom
+          ? 'Days on market must be between 1 and 3,650'
         : 'Actual price must be between $1 and $100M',
     };
   }
@@ -831,6 +856,8 @@ function validateSettlePayload(body, room = null) {
     settlementInput.annual_rent = annualRent;
   } else if (renovationBudgetRoom) {
     settlementInput.verified_cost = actualPrice;
+  } else if (timeOnMarketRoom) {
+    settlementInput.days_on_market = actualPrice;
   }
   const rawEvidence = Object.prototype.hasOwnProperty.call(body || {}, 'settlement_evidence')
     ? body.settlement_evidence

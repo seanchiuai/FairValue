@@ -234,6 +234,28 @@ test('rent-yield public verification fixture is signed and pins yield settlement
   assert.equal(serialized.includes(fixtureSecret), false);
 });
 
+test('time-on-market public verification fixture is signed and pins days settlement shape', () => {
+  const fixturePath = path.join(__dirname, '../../docs/fixtures/public-room-verification-time-on-market-v1.json');
+  const artifact = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  const fixtureSecret = 'fixture-public-verification-secret-with-32-characters';
+
+  assert.equal(artifact.schema_version, 'public-room-verification/v1');
+  assert.equal(artifact.status, 'verified');
+  assert.equal(artifact.settlement.winning_outcome, 'over');
+  assert.equal(artifact.settlement.days_on_market, 52);
+  assert.equal(artifact.settlement.days_threshold, 45);
+  assert.equal(artifact.settlement.reputation_top_players[0].nickname, 'Clock Fixture');
+  assert.equal(artifact.replay.live_match, true);
+  assert.equal(artifact.signature.status, 'signed');
+  assert.equal(verifyPublicVerificationArtifactSignature(artifact, fixtureSecret), true);
+  assert.match(artifact.public_recap.digest_hash, /^[a-f0-9]{64}$/);
+  assert.match(artifact.settlement.evidence_packet_hash, /^[a-f0-9]{64}$/);
+  const serialized = JSON.stringify(artifact);
+  assert.equal(serialized.includes('host_token'), false);
+  assert.equal(serialized.includes('session_id'), false);
+  assert.equal(serialized.includes(fixtureSecret), false);
+});
+
 test('renovation-budget public verification fixture is signed and pins verified cost shape', () => {
   const fixturePath = path.join(__dirname, '../../docs/fixtures/public-room-verification-renovation-budget-v1.json');
   const artifact = JSON.parse(readFileSync(fixturePath, 'utf8'));
