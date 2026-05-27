@@ -1,6 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { House, SettlementEvidencePacket } from '../../types';
+import type { House, RoomMarketConfig, SettlementEvidencePacket } from '../../types';
 import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
+import {
+  formatOutcomeLabel,
+  isRangeMarket,
+  rangeBandLabel,
+  rangeSettlementOutcome,
+} from '../../lib/roomMarketDisplay';
 import { useToast } from '../../contexts/ToastContext';
 import TrustNotice from '../TrustNotice';
 
@@ -9,6 +15,8 @@ interface SettleModalProps {
   roomCode: string;
   hostToken: string;
   userToken?: string;
+  marketFormat?: string;
+  marketConfig?: RoomMarketConfig | null;
   onClose: () => void;
 }
 
@@ -51,7 +59,15 @@ async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
 }
 
-export default function SettleModal({ house, roomCode, hostToken, userToken, onClose }: SettleModalProps) {
+export default function SettleModal({
+  house,
+  roomCode,
+  hostToken,
+  userToken,
+  marketFormat,
+  marketConfig,
+  onClose,
+}: SettleModalProps) {
   const [actualPrice, setActualPrice] = useState('');
   const [evidenceType, setEvidenceType] = useState<EvidenceType>('sale_record');
   const [evidenceConfidence, setEvidenceConfidence] = useState<EvidenceConfidence>('medium');
@@ -141,7 +157,8 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
         return;
       }
       const hasValidSettlement =
-        (data.winning_outcome === 'over' || data.winning_outcome === 'under') &&
+        typeof data.winning_outcome === 'string' &&
+        data.winning_outcome.length > 0 &&
         typeof data.actual_price === 'number' &&
         Array.isArray(data.results);
       if (!hasValidSettlement) {
@@ -176,6 +193,16 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
     showToast,
   ]);
 
+  const parsedActualPrice = parseFloat(actualPrice.replace(/,/g, ''));
+  const rangeRoom = isRangeMarket(marketFormat);
+  const settlementHint = actualPrice && !isNaN(parsedActualPrice)
+    ? rangeRoom
+      ? `${formatOutcomeLabel(rangeSettlementOutcome(parsedActualPrice, marketConfig))} wins`
+      : parsedActualPrice >= house.asking_price
+        ? 'OVER wins'
+        : 'UNDER wins'
+    : 'enter a price';
+
   return (
     <div
       style={s.overlay}
@@ -189,6 +216,7 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
         <h3 id="settle-title" style={s.title}>Settle Market</h3>
         <p id="settle-desc" style={s.desc}>
           Enter the actual appraisal/sale price to determine the winner.
+          {rangeRoom ? ` Band: ${rangeBandLabel(marketConfig)}.` : ''}
         </p>
         <TrustNotice
           testId="settle-modal-trust-notice"
@@ -219,11 +247,7 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
         </div>
         <p style={s.hint}>
           Asking: ${house.asking_price.toLocaleString()} —{' '}
-          {actualPrice && !isNaN(parseFloat(actualPrice.replace(/,/g, '')))
-            ? parseFloat(actualPrice.replace(/,/g, '')) >= house.asking_price
-              ? 'OVER wins'
-              : 'UNDER wins'
-            : 'enter a price'}
+          {settlementHint}
         </p>
         <fieldset style={s.evidenceGroup}>
           <legend style={s.evidenceLegend}>Settlement Evidence Packet</legend>

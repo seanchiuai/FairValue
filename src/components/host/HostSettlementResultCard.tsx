@@ -1,4 +1,5 @@
 import { Trophy } from 'lucide-react';
+import { formatOutcomeLabel } from '../../lib/roomMarketDisplay';
 import type { SettleResult } from '../../types';
 import TrustNotice from '../TrustNotice';
 import './HostSettlementResultCard.css';
@@ -8,10 +9,12 @@ interface HostSettlementResultCardProps {
 }
 
 export default function HostSettlementResultCard({ settleResult }: HostSettlementResultCardProps) {
-  const outcome = settleResult.winning_outcome.toUpperCase();
+  const outcome = formatOutcomeLabel(settleResult.winning_outcome);
   const outcomeClass = settleResult.winning_outcome === 'over'
     ? 'host-settlement-result__outcome--over'
-    : 'host-settlement-result__outcome--under';
+    : settleResult.winning_outcome === 'under'
+      ? 'host-settlement-result__outcome--under'
+      : '';
   const evidencePacket = settleResult.evidence_packet;
 
   return (

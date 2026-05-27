@@ -12,12 +12,29 @@ export type { BotConfig, BotTradeResult } from '../lib/botEngine';
 export interface Market {
   prob_over: number;
   prob_under: number;
+  outcomes?: Array<{
+    id: string;
+    q: number;
+    probability: number;
+  }>;
+  probabilities?: Record<string, number>;
+  quantities?: Record<string, number>;
   q_over: number;
   q_under: number;
   total_trades: number;
   total_wagered: number;
   avg_bet_size: number;
   b: number;
+}
+
+export interface RoomMarketConfig {
+  schema_version?: string;
+  market_format?: string;
+  threshold_price?: number;
+  band_low?: number;
+  band_high?: number;
+  outcomes?: string[];
+  liquidity_b?: number;
 }
 
 export interface PlayerData {

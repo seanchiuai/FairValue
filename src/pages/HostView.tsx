@@ -5,6 +5,7 @@ import { useRoom } from '../hooks/useRoom';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
 import { generateRoomMarketIntelligence } from '../lib/marketIntelligence';
+import { isBinaryMarket, isRangeMarket } from '../lib/roomMarketDisplay';
 import { buildHostAuthHeaders, readHostToken } from '../lib/fairValueAuth';
 import CogneeChat from '../components/CogneeChat';
 import Leaderboard from '../components/host/Leaderboard';
@@ -51,6 +52,8 @@ export default function HostView() {
   const { sessionId, userToken, identityReady } = useSession();
   const {
     market,
+    marketFormat,
+    marketConfig,
     players,
     house,
     draftAudit,
@@ -98,7 +101,7 @@ export default function HostView() {
   const historyLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (!roomCode || !house) return;
+    if (!roomCode || !house || !isBinaryMarket(marketFormat)) return;
     fetch(`/api/markets/by-property/room-${roomCode}/chart`)
       .then((r) => r.ok ? r.json() : [])
       .then((data: Array<{ prob: number; time: string }>) => {
@@ -115,19 +118,23 @@ export default function HostView() {
         console.warn('Chart history unavailable');
         historyLoadedRef.current = true;
       });
-  }, [roomCode, house, loadHistory]);
+  }, [roomCode, house, marketFormat, loadHistory]);
 
   useEffect(() => {
-    if (!market || !house) return;
+    if (!market || !house || !isBinaryMarket(marketFormat)) return;
     if (!historyLoadedRef.current) return;
     addPoint({
       probOver: market.prob_over,
       fairValue: calculateImpliedPrice(market.prob_over, house.asking_price),
     });
-  }, [market, house, addPoint]);
+  }, [market, marketFormat, house, addPoint]);
 
   const handleToggleAI = useCallback(async () => {
     if (!roomCode) return;
+    if (isRangeMarket(marketFormat)) {
+      showToast('AI bot is not available for range rooms yet.', 'error');
+      return;
+    }
     if (!hasHostAuthority) {
       showToast('Host authority is missing for this room.', 'error');
       return;
@@ -151,7 +158,7 @@ export default function HostView() {
     } catch {
       showToast('Unable to toggle AI bot', 'error');
     }
-  }, [roomCode, hasHostAuthority, hostAuthHeaders, setAiEnabled, showToast]);
+  }, [roomCode, marketFormat, hasHostAuthority, hostAuthHeaders, setAiEnabled, showToast]);
 
   const handleRoomPhaseChange = useCallback(async (
     nextPhase: 'open' | 'discussion' | 'locked',
@@ -218,10 +225,10 @@ export default function HostView() {
     [players]
   );
   const roomIntelligence = useMemo(
-    () => house && market
+    () => house && market && isBinaryMarket(marketFormat)
       ? generateRoomMarketIntelligence({ house, market, players, activity, draftAudit })
       : null,
-    [house, market, players, activity, draftAudit]
+    [house, market, marketFormat, players, activity, draftAudit]
   );
 
   if (loading) {
@@ -291,6 +298,8 @@ export default function HostView() {
                 roomCode={roomCode}
                 house={house}
                 market={market}
+                marketFormat={marketFormat}
+                marketConfig={marketConfig}
                 phase={phase}
                 players={players}
                 intelligence={roomIntelligence}
@@ -312,11 +321,21 @@ export default function HostView() {
                 <HostSettlementResultCard settleResult={settleResult} />
               )}
 
-              <HostMarketChartPanel market={market} chartRef={chartRef} />
+              <HostMarketChartPanel
+                market={market}
+                marketFormat={marketFormat}
+                marketConfig={marketConfig}
+                chartRef={chartRef}
+              />
             </>
           ) : (
             <>
-              <HostPropertySummary house={house} probOver={market.prob_over} />
+              <HostPropertySummary
+                house={house}
+                market={market}
+                marketFormat={marketFormat}
+                marketConfig={marketConfig}
+              />
 
               <HostPhaseControl
                 phase={phase}
@@ -343,15 +362,22 @@ export default function HostView() {
                 <HostSettlementResultCard settleResult={settleResult} />
               )}
 
-              <HostMarketChartPanel market={market} chartRef={chartRef} />
-
-              <CogneeChat
-                propertyId={roomCode || ''}
-                askingPrice={house.asking_price}
+              <HostMarketChartPanel
                 market={market}
-                activity={activity}
-                players={players}
+                marketFormat={marketFormat}
+                marketConfig={marketConfig}
+                chartRef={chartRef}
               />
+
+              {isBinaryMarket(marketFormat) && (
+                <CogneeChat
+                  propertyId={roomCode || ''}
+                  askingPrice={house.asking_price}
+                  market={market}
+                  activity={activity}
+                  players={players}
+                />
+              )}
             </>
           )}
         </div>
@@ -371,6 +397,8 @@ export default function HostView() {
           roomCode={roomCode || ''}
           hostToken={hostToken}
           userToken={canUseHostIdentity ? userToken : ''}
+          marketFormat={marketFormat}
+          marketConfig={marketConfig}
           onClose={closeSettleModal}
         />
       )}

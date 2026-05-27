@@ -1,8 +1,19 @@
-import type { ActivityEntry, House, Market, MarketDraftAudit, PlayerData, RoomPhase, SettleResult } from '../types';
+import type {
+  ActivityEntry,
+  House,
+  Market,
+  MarketDraftAudit,
+  PlayerData,
+  RoomMarketConfig,
+  RoomPhase,
+  SettleResult,
+} from '../types';
 
 export type RoomMutationResponse = {
   error?: string;
   market?: Market;
+  market_format?: string;
+  market_config?: RoomMarketConfig | null;
   players?: PlayerData[];
   player?: PlayerData;
   house?: House;

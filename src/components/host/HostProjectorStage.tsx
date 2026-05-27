@@ -2,13 +2,21 @@ import { Clock3, Radio, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { RoomMarketIntelligence } from '../../lib/marketIntelligence';
 import { calculateImpliedPrice } from '../../lib/lmsr';
-import type { House, Market, PlayerData, RoomPhase, SettleResult } from '../../types';
+import {
+  formatOutcomeLabel,
+  isRangeMarket,
+  leadingOutcome,
+  rangeBandLabel,
+} from '../../lib/roomMarketDisplay';
+import type { House, Market, PlayerData, RoomMarketConfig, RoomPhase, SettleResult } from '../../types';
 import './HostProjectorStage.css';
 
 interface HostProjectorStageProps {
   roomCode?: string;
   house: House;
   market: Market;
+  marketFormat: string;
+  marketConfig: RoomMarketConfig | null;
   phase: RoomPhase | null;
   players: PlayerData[];
   intelligence: RoomMarketIntelligence | null;
@@ -35,7 +43,7 @@ function cueForPhase({
   settleResult,
 }: Pick<HostProjectorStageProps, 'phase' | 'intelligence' | 'settled' | 'settleResult'>) {
   if (settled && settleResult) {
-    return `Settlement complete: ${settleResult.winning_outcome.toUpperCase()} wins at ${formatMoney(settleResult.actual_price)}.`;
+    return `Settlement complete: ${formatOutcomeLabel(settleResult.winning_outcome)} wins at ${formatMoney(settleResult.actual_price)}.`;
   }
   if (phase?.status === 'locked') {
     return 'Betting is locked. Ask each side for final evidence before settlement.';
@@ -50,6 +58,8 @@ export default function HostProjectorStage({
   roomCode,
   house,
   market,
+  marketFormat,
+  marketConfig,
   phase,
   players,
   intelligence,
@@ -62,8 +72,13 @@ export default function HostProjectorStage({
   const phaseLabel = settled ? 'Settled' : phase?.label || 'Betting open';
   const timerEndsAt = phase?.timer_ends_at || null;
   const remainingSeconds = timerEndsAt ? Math.max(0, timerEndsAt - nowSeconds) : 0;
+  const rangeRoom = isRangeMarket(marketFormat);
+  const rangeLeader = leadingOutcome(market, marketConfig);
   const probOver = Number.isFinite(market.prob_over) ? market.prob_over : 0.5;
   const impliedValue = calculateImpliedPrice(probOver, house.asking_price);
+  const consensusLabel = rangeRoom
+    ? `${Math.round(rangeLeader.probability * 100)}% ${formatOutcomeLabel(rangeLeader.id)}`
+    : `${Math.round(probOver * 100)}% OVER`;
   const hostCue = cueForPhase({ phase, intelligence, settled, settleResult });
   const scriptLines = useMemo(
     () => intelligence?.host_script.slice(0, 3) || [
@@ -103,11 +118,11 @@ export default function HostProjectorStage({
       <div className="host-projector-stage__scoreboard">
         <div className="host-projector-stage__metric">
           <span className="host-projector-stage__label">Consensus</span>
-          <strong>{Math.round(probOver * 100)}% OVER</strong>
+          <strong>{consensusLabel}</strong>
         </div>
         <div className="host-projector-stage__metric">
-          <span className="host-projector-stage__label">Implied Value</span>
-          <strong>{formatMoney(impliedValue)}</strong>
+          <span className="host-projector-stage__label">{rangeRoom ? 'Settlement Band' : 'Implied Value'}</span>
+          <strong>{rangeRoom ? rangeBandLabel(marketConfig) : formatMoney(impliedValue)}</strong>
         </div>
         <div className="host-projector-stage__metric">
           <span className="host-projector-stage__label">Volume</span>

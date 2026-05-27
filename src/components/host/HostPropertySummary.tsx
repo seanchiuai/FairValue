@@ -1,14 +1,35 @@
-import type { House } from '../../types';
+import {
+  formatMarketLabel,
+  formatOutcomeLabel,
+  isRangeMarket,
+  leadingOutcome,
+  rangeBandLabel,
+} from '../../lib/roomMarketDisplay';
+import type { House, Market, RoomMarketConfig } from '../../types';
 import './HostPropertySummary.css';
 
 interface HostPropertySummaryProps {
   house: House;
-  probOver: number;
+  market: Market;
+  marketFormat: string;
+  marketConfig: RoomMarketConfig | null;
 }
 
-export default function HostPropertySummary({ house, probOver }: HostPropertySummaryProps) {
-  const probPercent = Math.round(probOver * 100);
-  const outcomeClass = probPercent >= 50 ? 'host-property-summary__prob--over' : 'host-property-summary__prob--under';
+export default function HostPropertySummary({
+  house,
+  market,
+  marketFormat,
+  marketConfig,
+}: HostPropertySummaryProps) {
+  const rangeRoom = isRangeMarket(marketFormat);
+  const leading = leadingOutcome(market, marketConfig);
+  const probPercent = rangeRoom
+    ? Math.round(leading.probability * 100)
+    : Math.round(market.prob_over * 100);
+  const outcomeClass = !rangeRoom && probPercent < 50
+    ? 'host-property-summary__prob--under'
+    : 'host-property-summary__prob--over';
+  const label = rangeRoom ? formatOutcomeLabel(leading.id) : 'think OVER';
 
   return (
     <section
@@ -21,10 +42,14 @@ export default function HostPropertySummary({ house, probOver }: HostPropertySum
         <div className="host-property-summary__price">
           Asking: <strong>${house.asking_price.toLocaleString()}</strong>
         </div>
+        <div className="host-property-summary__price">
+          {formatMarketLabel(marketFormat)}
+          {rangeRoom ? ` · ${rangeBandLabel(marketConfig)}` : ''}
+        </div>
       </div>
       <div className="host-property-summary__probability">
         <span className={`host-property-summary__prob ${outcomeClass}`}>{probPercent}%</span>
-        <span className="host-property-summary__label">think OVER</span>
+        <span className="host-property-summary__label">{label}</span>
       </div>
     </section>
   );

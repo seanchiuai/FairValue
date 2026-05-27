@@ -1,0 +1,81 @@
+import type { Market, RoomMarketConfig } from '../types';
+
+export const BINARY_MARKET_FORMAT = 'binary_over_under';
+export const RANGE_PRICE_BAND_FORMAT = 'range_price_band';
+
+export function isRangeMarket(format?: string | null) {
+  return format === RANGE_PRICE_BAND_FORMAT;
+}
+
+export function isBinaryMarket(format?: string | null) {
+  return !format || format === BINARY_MARKET_FORMAT;
+}
+
+export function formatOutcomeLabel(outcome: string) {
+  const normalized = String(outcome || '').trim().toLowerCase();
+  if (normalized === 'over') return 'OVER';
+  if (normalized === 'under') return 'UNDER';
+  if (normalized === 'below_band') return 'Below band';
+  if (normalized === 'inside_band') return 'Inside band';
+  if (normalized === 'above_band') return 'Above band';
+  return normalized.replace(/[_:-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export function formatMarketLabel(format?: string | null) {
+  if (format === RANGE_PRICE_BAND_FORMAT) return 'Range price band';
+  return 'Over/Under';
+}
+
+export function formatMoney(value?: number | null) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return '$0';
+  return `$${Math.round(parsed).toLocaleString()}`;
+}
+
+export function rangeBandLabel(config?: RoomMarketConfig | null) {
+  if (!config || !Number.isFinite(config.band_low) || !Number.isFinite(config.band_high)) {
+    return 'configured band';
+  }
+  return `${formatMoney(config.band_low)}-${formatMoney(config.band_high)}`;
+}
+
+export function rangeOutcomeDescription(outcome: string, config?: RoomMarketConfig | null) {
+  if (!config || !Number.isFinite(config.band_low) || !Number.isFinite(config.band_high)) {
+    return '';
+  }
+  if (outcome === 'below_band') return `< ${formatMoney(config.band_low)}`;
+  if (outcome === 'inside_band') return rangeBandLabel(config);
+  if (outcome === 'above_band') return `> ${formatMoney(config.band_high)}`;
+  return '';
+}
+
+export function rangeSettlementOutcome(actualPrice: number, config?: RoomMarketConfig | null) {
+  if (!config || !Number.isFinite(config.band_low) || !Number.isFinite(config.band_high)) return '';
+  if (actualPrice < Number(config.band_low)) return 'below_band';
+  if (actualPrice <= Number(config.band_high)) return 'inside_band';
+  return 'above_band';
+}
+
+export function roomOutcomeIds(market: Market | null, config?: RoomMarketConfig | null) {
+  if (Array.isArray(market?.outcomes) && market.outcomes.length > 0) {
+    return market.outcomes.map((outcome) => outcome.id);
+  }
+  if (Array.isArray(config?.outcomes) && config.outcomes.length > 0) return config.outcomes;
+  return ['over', 'under'];
+}
+
+export function outcomeProbability(market: Market | null, outcome: string) {
+  if (!market) return 0;
+  if (outcome === 'over' && Number.isFinite(market.prob_over)) return market.prob_over;
+  if (outcome === 'under' && Number.isFinite(market.prob_under)) return market.prob_under;
+  const fromMap = market.probabilities?.[outcome];
+  if (Number.isFinite(fromMap)) return Number(fromMap);
+  const fromList = market.outcomes?.find((item) => item.id === outcome)?.probability;
+  return Number.isFinite(fromList) ? Number(fromList) : 0;
+}
+
+export function leadingOutcome(market: Market | null, config?: RoomMarketConfig | null) {
+  return roomOutcomeIds(market, config)
+    .map((id) => ({ id, probability: outcomeProbability(market, id) }))
+    .sort((left, right) => right.probability - left.probability)[0] || { id: 'over', probability: 0.5 };
+}

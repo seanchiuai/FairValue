@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Share2, Trophy } from 'lucide-react';
+import { formatOutcomeLabel } from '../../lib/roomMarketDisplay';
 import type { SettleResult } from '../../types';
 import TrustNotice from '../TrustNotice';
 import './PlayerSettlementResultCard.css';
@@ -13,10 +14,12 @@ export default function PlayerSettlementResultCard({
   roomCode,
   settleResult,
 }: PlayerSettlementResultCardProps) {
-  const outcome = settleResult.winning_outcome.toUpperCase();
+  const outcome = formatOutcomeLabel(settleResult.winning_outcome);
   const outcomeClass = settleResult.winning_outcome === 'over'
     ? 'player-settlement-result__outcome--over'
-    : 'player-settlement-result__outcome--under';
+    : settleResult.winning_outcome === 'under'
+      ? 'player-settlement-result__outcome--under'
+      : '';
   const evidencePacket = settleResult.evidence_packet;
 
   return (

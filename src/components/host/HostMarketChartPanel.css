@@ -56,6 +56,51 @@
   height: 300px;
 }
 
+.host-market-chart__outcomes {
+  display: grid;
+  gap: 12px;
+}
+
+.host-market-chart__outcome-row {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.host-market-chart__outcome-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.host-market-chart__outcome-header strong {
+  color: var(--accent-primary);
+}
+
+.host-market-chart__outcome-track {
+  height: 8px;
+  overflow: hidden;
+  background: var(--bg-primary);
+  border-radius: 999px;
+}
+
+.host-market-chart__outcome-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 999px;
+}
+
+.host-market-chart__outcome-description {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .host-market-chart__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

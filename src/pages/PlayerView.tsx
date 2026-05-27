@@ -6,6 +6,17 @@ import { useUserReputation } from '../hooks/useUserReputation';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
 import { generatePlayerBetPreview } from '../lib/playerBetPreview';
+import {
+  formatMoney,
+  formatOutcomeLabel,
+  isBinaryMarket,
+  isRangeMarket,
+  leadingOutcome,
+  outcomeProbability,
+  rangeBandLabel,
+  rangeOutcomeDescription,
+  roomOutcomeIds,
+} from '../lib/roomMarketDisplay';
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
@@ -36,6 +47,8 @@ export default function PlayerView() {
   } = useSession();
   const {
     market,
+    marketFormat,
+    marketConfig,
     myPlayer,
     house,
     activity,
@@ -60,7 +73,7 @@ export default function PlayerView() {
 
   // Fetch chart history on mount
   useEffect(() => {
-    if (!roomCode || !house) return;
+    if (!roomCode || !house || !isBinaryMarket(marketFormat)) return;
     fetch(`/api/markets/by-property/room-${roomCode}/chart`)
       .then((r) => r.ok ? r.json() : [])
       .then((data: Array<{ prob: number; time: string }>) => {
@@ -77,16 +90,16 @@ export default function PlayerView() {
         console.warn('Chart history unavailable');
         historyLoadedRef.current = true;
       });
-  }, [roomCode, house, loadHistory]);
+  }, [roomCode, house, marketFormat, loadHistory]);
 
   useEffect(() => {
-    if (!market || !house) return;
+    if (!market || !house || !isBinaryMarket(marketFormat)) return;
     if (!historyLoadedRef.current) return;
     addPoint({
       probOver: market.prob_over,
       fairValue: calculateImpliedPrice(market.prob_over, house.asking_price),
     });
-  }, [market, house, addPoint]);
+  }, [market, marketFormat, house, addPoint]);
 
   useEffect(() => {
     if (!settled || !userToken) return;
@@ -106,7 +119,7 @@ export default function PlayerView() {
   if (connectionState === 'connected') wasConnectedRef.current = true;
 
   const betPreview = useMemo(() => {
-    if (!house || !market || !myPlayer) return null;
+    if (!house || !market || !myPlayer || !isBinaryMarket(marketFormat)) return null;
     return generatePlayerBetPreview({
       house,
       market,
@@ -114,9 +127,9 @@ export default function PlayerView() {
       wager,
       activity,
     });
-  }, [activity, house, market, myPlayer, wager]);
+  }, [activity, house, market, marketFormat, myPlayer, wager]);
 
-  const handleBet = async (outcome: 'over' | 'under') => {
+  const handleBet = async (outcome: string) => {
     if (betting) return;
     if (!wager || wager <= 0) {
       const message = 'Enter a wager greater than $0';
@@ -206,7 +219,11 @@ export default function PlayerView() {
     );
   }
 
-  const probPercent = Math.round(market.prob_over * 100);
+  const probPercent = Number.isFinite(market.prob_over) ? Math.round(market.prob_over * 100) : 0;
+  const isRangeRoom = isRangeMarket(marketFormat);
+  const isBinaryRoom = isBinaryMarket(marketFormat);
+  const rangeOutcomes = isRangeRoom ? roomOutcomeIds(market, marketConfig) : [];
+  const leadingRangeOutcome = isRangeRoom ? leadingOutcome(market, marketConfig) : null;
   const showReputationPanel = Boolean(
     userToken &&
     (settled || reputationLoading || reputationError || (reputation && reputation.rooms_played > 0))
@@ -244,13 +261,27 @@ export default function PlayerView() {
           tone="dark"
           points={[
             'Your balance and wagers are simulation credits only.',
-            'Over/Under prices come from LMSR probability, not an appraisal.',
+            isRangeRoom
+              ? `Range prices come from LMSR probabilities around ${rangeBandLabel(marketConfig)}, not an appraisal.`
+              : 'Over/Under prices come from LMSR probability, not an appraisal.',
             'The host settles with actual sale or appraisal evidence.',
           ]}
         />
       </div>
 
       {!settled && betPreview && <PreBetIntelligenceCard preview={betPreview} />}
+
+      {!settled && isRangeRoom && leadingRangeOutcome && (
+        <div style={s.rangeReadCard} data-testid="player-range-read">
+          <span style={s.rangeReadKicker}>Range market</span>
+          <strong style={s.rangeReadHeadline}>
+            {formatOutcomeLabel(leadingRangeOutcome.id)} leads at {Math.round(leadingRangeOutcome.probability * 100)}%
+          </strong>
+          <span style={s.rangeReadDetail}>
+            Settlement band: {rangeBandLabel(marketConfig)}
+          </span>
+        </div>
+      )}
 
       {settled && settleResult && (
         <PlayerSettlementResultCard roomCode={roomCode} settleResult={settleResult} />
@@ -266,7 +297,7 @@ export default function PlayerView() {
       )}
 
       {/* Market State */}
-      {!settled && (
+      {!settled && isBinaryRoom && (
         <>
           <div style={s.probContainer}>
             <div
@@ -337,6 +368,47 @@ export default function PlayerView() {
         </>
       )}
 
+      {!settled && isRangeRoom && (
+        <>
+          <div style={s.rangeMarketCard} data-testid="player-range-market">
+            <div style={s.rangeMarketTitle}>Outcome probabilities</div>
+            {rangeOutcomes.map((outcome) => {
+              const probability = outcomeProbability(market, outcome);
+              const percent = Math.round(probability * 100);
+              return (
+                <div key={outcome} style={s.rangeOutcomeRow}>
+                  <div style={s.rangeOutcomeHeader}>
+                    <span style={s.rangeOutcomeName}>{formatOutcomeLabel(outcome)}</span>
+                    <span style={s.rangeOutcomePercent}>{percent}%</span>
+                  </div>
+                  <div style={s.rangeOutcomeTrack} aria-hidden="true">
+                    <div style={{ ...s.rangeOutcomeFill, width: `${percent}%` }} />
+                  </div>
+                  <div style={s.rangeOutcomeDescription}>{rangeOutcomeDescription(outcome, marketConfig)}</div>
+                </div>
+              );
+            })}
+            <div style={s.rangeMarketMeta}>
+              {market.total_trades} trade{market.total_trades === 1 ? '' : 's'} · {formatMoney(market.total_wagered)} volume
+            </div>
+          </div>
+
+          {myPlayer && myPlayer.bets.length > 0 && (
+            <div style={s.positionsCard} data-testid="player-positions">
+              <div style={s.positionsTitle}>My Positions</div>
+              {myPlayer.bets.map((bet, i) => (
+                <div key={i} style={s.positionRow}>
+                  <span style={s.positionOutcome}>{formatOutcomeLabel(bet.outcome)}</span>
+                  <span style={s.positionWager}>${bet.wager.toFixed(0)}</span>
+                  <span style={s.positionProb}>@ {Math.round(bet.prob_at_entry * 100)}%</span>
+                  {bet.reason && <span style={s.positionReason}>{bet.reason}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Bet Panel (sticky bottom) */}
       {!settled && (
         <div style={s.betPanel}>
@@ -392,24 +464,40 @@ export default function PlayerView() {
             />
           </div>
           <div style={s.betButtons}>
-            <button
-              style={{ ...s.betBtn, ...s.overBtn, opacity: betting ? 0.6 : 1 }}
-              onClick={() => handleBet('over')}
-              disabled={betting}
-              aria-label={`Bet $${wager} on OVER`}
-            >
-              <TrendingUp size={20} />
-              OVER
-            </button>
-            <button
-              style={{ ...s.betBtn, ...s.underBtn, opacity: betting ? 0.6 : 1 }}
-              onClick={() => handleBet('under')}
-              aria-label={`Bet $${wager} on UNDER`}
-              disabled={betting}
-            >
-              <TrendingDown size={20} />
-              UNDER
-            </button>
+            {isRangeRoom ? (
+              rangeOutcomes.map((outcome) => (
+                <button
+                  key={outcome}
+                  style={{ ...s.betBtn, ...s.rangeBetBtn, opacity: betting ? 0.6 : 1 }}
+                  onClick={() => handleBet(outcome)}
+                  aria-label={`Bet $${wager} on ${formatOutcomeLabel(outcome)}`}
+                  disabled={betting}
+                >
+                  {formatOutcomeLabel(outcome)}
+                </button>
+              ))
+            ) : (
+              <>
+                <button
+                  style={{ ...s.betBtn, ...s.overBtn, opacity: betting ? 0.6 : 1 }}
+                  onClick={() => handleBet('over')}
+                  disabled={betting}
+                  aria-label={`Bet $${wager} on OVER`}
+                >
+                  <TrendingUp size={20} />
+                  OVER
+                </button>
+                <button
+                  style={{ ...s.betBtn, ...s.underBtn, opacity: betting ? 0.6 : 1 }}
+                  onClick={() => handleBet('under')}
+                  aria-label={`Bet $${wager} on UNDER`}
+                  disabled={betting}
+                >
+                  <TrendingDown size={20} />
+                  UNDER
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -585,6 +673,84 @@ const s: Record<string, React.CSSProperties> = {
     lineHeight: 1.35,
     overflowWrap: 'anywhere',
   },
+  rangeReadCard: {
+    display: 'grid',
+    gap: 4,
+    margin: '0 16px 12px',
+    padding: 12,
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+  },
+  rangeReadKicker: {
+    color: 'var(--text-muted)',
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: 'uppercase',
+  },
+  rangeReadHeadline: {
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    lineHeight: 1.25,
+  },
+  rangeReadDetail: {
+    color: 'var(--text-secondary)',
+    fontSize: 12,
+  },
+  rangeMarketCard: {
+    display: 'grid',
+    gap: 10,
+    margin: '0 16px 12px',
+    padding: 14,
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+  },
+  rangeMarketTitle: {
+    color: 'var(--text-muted)',
+    fontSize: 11,
+    fontWeight: 800,
+    textTransform: 'uppercase',
+  },
+  rangeOutcomeRow: {
+    display: 'grid',
+    gap: 5,
+  },
+  rangeOutcomeHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  rangeOutcomeName: {
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  rangeOutcomePercent: {
+    color: 'var(--accent-primary)',
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  rangeOutcomeTrack: {
+    height: 7,
+    overflow: 'hidden',
+    background: 'var(--bg-input)',
+    borderRadius: 4,
+  },
+  rangeOutcomeFill: {
+    height: '100%',
+    background: 'var(--accent-primary)',
+    borderRadius: 4,
+    transition: 'width 0.3s ease',
+  },
+  rangeOutcomeDescription: {
+    color: 'var(--text-muted)',
+    fontSize: 11,
+  },
+  rangeMarketMeta: {
+    color: 'var(--text-muted)',
+    fontSize: 11,
+  },
   betPanel: {
     position: 'fixed',
     bottom: 0,
@@ -658,6 +824,12 @@ const s: Record<string, React.CSSProperties> = {
   },
   underBtn: {
     background: 'var(--accent-danger)',
+  },
+  rangeBetBtn: {
+    background: 'var(--accent-primary)',
+    fontSize: 13,
+    paddingRight: 8,
+    paddingLeft: 8,
   },
   roomTrustWrap: {
     margin: '0 16px 12px',
