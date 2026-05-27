@@ -10,6 +10,7 @@ function baseProductionEnv(overrides = {}) {
     FAIRVALUE_ROOM_PERSISTENCE: 'on',
     FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS: '30',
     FAIRVALUE_IDENTITY_SECRET: 'identity-secret-with-at-least-thirty-two-characters',
+    FAIRVALUE_PUBLIC_VERIFICATION_SECRET: 'public-verification-secret-with-thirty-two-chars',
     FAIRVALUE_OPS_TOKEN: 'ops-token-with-at-least-24-chars',
     FAIRVALUE_REQUIRE_DATABASE_URL: '1',
     ...overrides,
@@ -29,6 +30,7 @@ test('production readiness rejects local defaults and does not echo secret value
     FAIRVALUE_ROOM_STORE: 'json',
     FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS: '0',
     FAIRVALUE_IDENTITY_SECRET: 'tiny-secret-value',
+    FAIRVALUE_PUBLIC_VERIFICATION_SECRET: 'tiny-public-secret',
     FAIRVALUE_OPS_TOKEN: 'tiny-token',
   });
 
@@ -39,12 +41,23 @@ test('production readiness rejects local defaults and does not echo secret value
     'identity_secret',
     'ops_token',
     'postgres_retention',
+    'public_verification_secret',
     'room_store_postgres',
   ]);
 
   const serialized = JSON.stringify(report);
   assert.equal(serialized.includes(env.FAIRVALUE_IDENTITY_SECRET), false);
+  assert.equal(serialized.includes(env.FAIRVALUE_PUBLIC_VERIFICATION_SECRET), false);
   assert.equal(serialized.includes(env.FAIRVALUE_OPS_TOKEN), false);
+});
+
+test('production readiness requires a dedicated public verification signing secret', () => {
+  const report = buildProductionReadinessReport(baseProductionEnv({
+    FAIRVALUE_PUBLIC_VERIFICATION_SECRET: '',
+  }));
+
+  assert.equal(report.ok, false);
+  assert.deepEqual(failedIds(report), ['public_verification_secret']);
 });
 
 test('production readiness accepts durable Postgres config with optional AI warning', () => {

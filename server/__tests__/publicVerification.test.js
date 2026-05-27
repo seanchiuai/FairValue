@@ -1,7 +1,12 @@
 const { after, afterEach, before, test } = require('node:test');
 const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const path = require('node:path');
 const { server, rooms, configureRoomPersistence, roomEventStore } = require('../index');
-const { createPublicVerificationArtifact } = require('../publicVerification');
+const {
+  createPublicVerificationArtifact,
+  verifyPublicVerificationArtifactSignature,
+} = require('../publicVerification');
 
 let baseUrl;
 let previousVerificationSecret;
@@ -158,4 +163,22 @@ test('public verification module marks local artifacts honestly when no signing 
   assert.equal(artifact.signature.value, null);
   assert.match(artifact.signature.payload_hash, /^[a-f0-9]{64}$/);
   assert.match(artifact.signature.reason, /FAIRVALUE_PUBLIC_VERIFICATION_SECRET/);
+});
+
+test('public verification fixture is signed and safe for external consumers', () => {
+  const fixturePath = path.join(__dirname, '../../docs/fixtures/public-room-verification-v1.json');
+  const artifact = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  const fixtureSecret = 'fixture-public-verification-secret-with-32-characters';
+
+  assert.equal(artifact.schema_version, 'public-room-verification/v1');
+  assert.equal(artifact.room_code, 'FVX1');
+  assert.equal(artifact.status, 'verified');
+  assert.equal(artifact.signature.status, 'signed');
+  assert.equal(verifyPublicVerificationArtifactSignature(artifact, fixtureSecret), true);
+  assert.match(artifact.public_recap.digest_hash, /^[a-f0-9]{64}$/);
+  assert.match(artifact.settlement.evidence_packet_hash, /^[a-f0-9]{64}$/);
+  const serialized = JSON.stringify(artifact);
+  assert.equal(serialized.includes('host_token'), false);
+  assert.equal(serialized.includes('session_id'), false);
+  assert.equal(serialized.includes(fixtureSecret), false);
 });

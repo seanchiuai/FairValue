@@ -146,6 +146,23 @@ function attachSignature(artifact, env = process.env) {
   };
 }
 
+function verificationPayload(artifact) {
+  const { signature, ...payload } = artifact || {};
+  return payload;
+}
+
+function verifyPublicVerificationArtifactSignature(artifact, secret) {
+  const signingSecret = String(secret || '').trim();
+  if (!artifact?.signature || artifact.signature.status !== 'signed' || !signingSecret) {
+    return false;
+  }
+
+  const payload = verificationPayload(artifact);
+  const payloadHash = hashJson(payload);
+  const expectedValue = crypto.createHmac('sha256', signingSecret).update(stableJson(payload)).digest('hex');
+  return artifact.signature.payload_hash === payloadHash && artifact.signature.value === expectedValue;
+}
+
 function createPublicVerificationArtifact(room, events, options = {}) {
   const replay = replayRoomEvents(events);
   const integrityReport = options.integrityReport || createReplayIntegrityReport(room, events);
@@ -209,4 +226,5 @@ module.exports = {
   publicLiveProjection,
   publicReplayProjection,
   resolveSigningSecret,
+  verifyPublicVerificationArtifactSignature,
 };

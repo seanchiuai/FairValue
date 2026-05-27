@@ -8,13 +8,14 @@ import {
   RoomArtifactFooter,
   RoomArtifactGrid,
   RoomArtifactHeader,
+  RoomArtifactJsonExport,
   RoomArtifactLoading,
   RoomArtifactPage,
   RoomArtifactPanel,
   RoomArtifactTimeline,
 } from '../components/roomArtifact/RoomArtifact';
+import { usePublicVerificationArtifact } from '../hooks/usePublicVerificationArtifact';
 import { generatePublicRoomRecap } from '../lib/publicRoomRecap';
-import type { PublicVerificationArtifact } from '../types';
 import {
   getRoomStateError,
   readRoomMutationResponse,
@@ -24,10 +25,13 @@ import {
 export default function RoomRecapPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const [roomState, setRoomState] = useState<RoomMutationResponse | null>(null);
-  const [verification, setVerification] = useState<PublicVerificationArtifact | null>(null);
-  const [verificationError, setVerificationError] = useState('');
   const [loadingState, setLoadingState] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const {
+    artifact: verification,
+    error: verificationError,
+    loading: verificationLoading,
+  } = usePublicVerificationArtifact(roomCode, Boolean(roomState?.settled));
 
   useEffect(() => {
     if (!roomCode) return;
@@ -57,36 +61,6 @@ export default function RoomRecapPage() {
       cancelled = true;
     };
   }, [roomCode]);
-
-  useEffect(() => {
-    if (!roomCode || !roomState?.settled) {
-      setVerification(null);
-      setVerificationError('');
-      return;
-    }
-
-    let cancelled = false;
-    setVerification(null);
-    setVerificationError('');
-
-    fetch(`/api/rooms/${roomCode}/public-verification`)
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
-        if (cancelled) return;
-        if (!response.ok || data.error) {
-          setVerificationError(data.error || 'Public verification unavailable');
-          return;
-        }
-        setVerification(data as PublicVerificationArtifact);
-      })
-      .catch(() => {
-        if (!cancelled) setVerificationError('Public verification unavailable');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [roomCode, roomState?.settled]);
 
   const recap = useMemo(() => {
     if (!roomCode || !roomState?.house || !roomState.market || !Array.isArray(roomState.players)) {
@@ -182,10 +156,20 @@ export default function RoomRecapPage() {
             testId="room-public-verification"
           >
             {verification ? (
-              <RoomArtifactEvidenceList items={verificationEvidence} />
+              <>
+                <RoomArtifactEvidenceList items={verificationEvidence} />
+                <RoomArtifactJsonExport
+                  artifact={verification}
+                  filename={`fairvalue-${verification.room_code}-public-verification.json`}
+                  testId="public-verification-export"
+                  copyTestId="public-verification-copy"
+                  downloadTestId="public-verification-download"
+                  statusTestId="public-verification-export-status"
+                />
+              </>
             ) : (
               <p className="room-artifact-empty">
-                {verificationError || 'Generating public verification digest...'}
+                {verificationLoading ? 'Generating public verification digest...' : verificationError || 'Public verification unavailable'}
               </p>
             )}
           </RoomArtifactPanel>

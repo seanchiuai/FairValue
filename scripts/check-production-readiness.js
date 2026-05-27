@@ -43,6 +43,7 @@ function buildProductionReadinessReport(env = process.env) {
   const roomStore = normalized(env.FAIRVALUE_ROOM_STORE || 'json').toLowerCase();
   const roomPersistence = normalized(env.FAIRVALUE_ROOM_PERSISTENCE || 'on').toLowerCase();
   const identitySecret = normalized(env.FAIRVALUE_IDENTITY_SECRET);
+  const publicVerificationSecret = normalized(env.FAIRVALUE_PUBLIC_VERIFICATION_SECRET);
   const opsToken = normalized(env.FAIRVALUE_OPS_TOKEN);
   const cogneeKey = normalized(env.COGNEE_API_KEY);
 
@@ -89,6 +90,12 @@ function buildProductionReadinessReport(env = process.env) {
     id: 'ops_token',
     ok: isStrongSecret(opsToken, 24),
     message: 'FAIRVALUE_OPS_TOKEN must be set to protect /api/ops/metrics before exposing the backend.',
+  }));
+
+  checks.push(createCheck({
+    id: 'public_verification_secret',
+    ok: isStrongSecret(publicVerificationSecret),
+    message: 'FAIRVALUE_PUBLIC_VERIFICATION_SECRET must be set to emit signed public room verification artifacts before deployment.',
   }));
 
   checks.push(createCheck({

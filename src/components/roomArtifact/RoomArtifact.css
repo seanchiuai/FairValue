@@ -218,6 +218,50 @@
   line-height: 1.45;
 }
 
+.room-artifact-export {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 8px;
+}
+
+.room-artifact-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.room-artifact-export-button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(75, 163, 255, 0.1);
+  color: var(--accent-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.room-artifact-export-button:hover,
+.room-artifact-export-button:focus-visible {
+  border-color: var(--accent-primary);
+  background: rgba(75, 163, 255, 0.16);
+}
+
+.room-artifact-export-status {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .room-artifact-list {
   margin: 0;
   padding-left: 18px;

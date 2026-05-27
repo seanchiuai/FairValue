@@ -120,7 +120,9 @@ Browser (React)
 
 `POST /api/rooms/:code/settle` accepts `actual_price` plus an optional `settlement_evidence` packet. The packet may include a public-safe summary and up to six metadata items of type `sale_record`, `appraisal`, `signed_valuation`, `mls_update`, `permit_record`, `rental_outcome`, `insurer_notice`, `public_record`, or `host_attestation`, each with source/reference metadata, confidence, observed date, and notes. The server sanitizes text, rejects unsupported item types, never stores private document contents, and creates a low-confidence host-attestation packet when no metadata is supplied. Settlement responses, room state, WebSocket settlement broadcasts, replay, operator review, and public recaps all carry the normalized `evidence_packet`.
 
-`GET /api/rooms/:code/public-verification` is public and available after settlement. It returns a share-safe `public-room-verification/v1` artifact with event counts, replay/live hashes, public recap digest hash, settlement evidence packet hash, replay parity status, trust limitations, and a signature when `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` or a non-default `FAIRVALUE_IDENTITY_SECRET` is configured. It does not return host tokens, user tokens, player session IDs, private evidence documents, or host-only event logs.
+`GET /api/rooms/:code/public-verification` is public and available after settlement. It returns a share-safe `public-room-verification/v1` artifact with event counts, replay/live hashes, public recap digest hash, settlement evidence packet hash, replay parity status, trust limitations, and a signature when `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` or a non-default `FAIRVALUE_IDENTITY_SECRET` is configured. It does not return host tokens, user tokens, player session IDs, private evidence documents, or host-only event logs. The public recap and settled host review surfaces can copy or download the same JSON artifact for external audit, newsletter, SDK, or webhook consumers.
+
+A signed example artifact lives at `docs/fixtures/public-room-verification-v1.json` so future SDK, webhook, and embed consumers can lock against the export shape without needing live room credentials.
 
 The `/recap/:roomCode` route is frontend-only and reads the public state endpoint plus the settled-room public verification endpoint. It does not request `/api/rooms/:code/events`, does not require or send host authority, and is covered by token-leakage checks.
 
@@ -178,7 +180,7 @@ cp .env.example .env
 - `FAIRVALUE_LIVE_POSTGRES_DRIVER=postgres` can force the live readiness script to use a plain Postgres TCP client; otherwise it uses the app's Neon serverless driver for Neon hosts and the Postgres client for localhost.
 - `FAIRVALUE_OPS_TOKEN` protects `/api/ops/metrics`. Local development allows metrics without a token, but production requires this value and accepts either `Authorization: Bearer <token>` or `X-FairValue-Ops-Token`.
 - `FAIRVALUE_IDENTITY_SECRET` signs anonymous browser identities used for durable player sessions and host authority. Set a stable private value anywhere rooms need to survive server restarts.
-- `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` signs public settled-room verification artifacts. If unset, the public endpoint still returns deterministic hashes but marks the artifact as an unsigned local digest.
+- `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` signs public settled-room verification artifacts. If unset, the public endpoint still returns deterministic hashes but marks the artifact as an unsigned local digest. Production readiness requires this value so shareable public artifacts do not ship unsigned.
 
 Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, bet idempotency receipts, and optional Market Studio draft audit envelopes; AI bot intervals are not auto-resumed after a backend restart. Draft audits intentionally keep source-text hashes and lengths, not raw pasted listing text. Local JSON retention prunes settled rooms only; active rooms and rooms without a room-specific timestamp are kept. Postgres retention is opt-in and prunes settled rows only. If `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, local JSON snapshots are saved as encrypted envelopes; existing plaintext snapshots still load and are rewritten encrypted on the next save. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually.
 
@@ -210,7 +212,7 @@ For a deployment environment gate, run:
 npm run check:production
 ```
 
-This prints a JSON report and exits non-zero until production-critical variables are set: `DATABASE_URL`, `FAIRVALUE_ROOM_STORE=postgres`, positive `FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS`, non-default `FAIRVALUE_IDENTITY_SECRET`, enabled room persistence, and `FAIRVALUE_OPS_TOKEN`. Missing `COGNEE_API_KEY` is reported as a warning because the AI analyst can intentionally run degraded.
+This prints a JSON report and exits non-zero until production-critical variables are set: `DATABASE_URL`, `FAIRVALUE_ROOM_STORE=postgres`, positive `FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS`, non-default `FAIRVALUE_IDENTITY_SECRET`, `FAIRVALUE_PUBLIC_VERIFICATION_SECRET`, enabled room persistence, and `FAIRVALUE_OPS_TOKEN`. Missing `COGNEE_API_KEY` is reported as a warning because the AI analyst can intentionally run degraded.
 
 For browser flow coverage, run:
 

@@ -16,6 +16,7 @@ import {
   RoomArtifactFooter,
   RoomArtifactGrid,
   RoomArtifactHeader,
+  RoomArtifactJsonExport,
   RoomArtifactLoading,
   RoomArtifactMetricGrid,
   RoomArtifactNotice,
@@ -24,6 +25,7 @@ import {
   RoomArtifactTimeline,
   type RoomArtifactStatusTone,
 } from '../components/roomArtifact/RoomArtifact';
+import { usePublicVerificationArtifact } from '../hooks/usePublicVerificationArtifact';
 import { useSession } from '../hooks/useSession';
 import { buildHostAuthHeaders, readHostToken } from '../lib/fairValueAuth';
 import { generateRoomReview } from '../lib/roomReview';
@@ -53,6 +55,11 @@ export default function RoomReviewPage() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [eventsError, setEventsError] = useState('');
+  const {
+    artifact: publicVerification,
+    error: publicVerificationError,
+    loading: publicVerificationLoading,
+  } = usePublicVerificationArtifact(roomCode, Boolean(roomState?.settled));
 
   const hostToken = useMemo(() => readHostToken(roomCode), [roomCode]);
   const canUseHostIdentity = Boolean(
@@ -176,6 +183,25 @@ export default function RoomReviewPage() {
     label: item.label,
     detail: item.detail,
   }));
+  const publicVerificationEvidence = publicVerification ? [
+    {
+      label: 'Replay digest',
+      value: publicVerification.replay.live_match ? 'Replay matches live state' : 'Replay mismatch detected',
+      detail: `Replay hash ${publicVerification.replay.replay_hash.slice(0, 12)}... over ${publicVerification.event_stream.event_count} canonical event${publicVerification.event_stream.event_count === 1 ? '' : 's'}.`,
+    },
+    {
+      label: 'Public recap digest',
+      value: publicVerification.public_recap.digest_hash.slice(0, 12) + '...',
+      detail: `Settlement evidence hash ${publicVerification.settlement?.evidence_packet_hash?.slice(0, 12) || 'missing'}... is included in the public artifact.`,
+    },
+    {
+      label: 'Signature',
+      value: publicVerification.signature.status === 'signed' ? 'Signed HMAC-SHA256' : 'Unsigned local digest',
+      detail: publicVerification.signature.status === 'signed'
+        ? `Payload hash ${publicVerification.signature.payload_hash.slice(0, 12)}... signed with ${publicVerification.signature.key_hint}.`
+        : publicVerification.signature.reason || 'Local artifact hash only; configure a signing secret to emit signatures.',
+    },
+  ] : [];
 
   return (
     <RoomArtifactPage testId="room-review-page">
@@ -227,6 +253,33 @@ export default function RoomReviewPage() {
         >
           <RoomArtifactBulletList items={review.integrity_checks} />
         </RoomArtifactPanel>
+
+        {review.status === 'settled' && (
+          <RoomArtifactPanel
+            icon={<ShieldCheck size={17} aria-hidden="true" />}
+            title="Public verification export"
+            ariaLabel="Public verification export"
+            testId="room-review-public-verification"
+          >
+            {publicVerification ? (
+              <>
+                <RoomArtifactEvidenceList items={publicVerificationEvidence} />
+                <RoomArtifactJsonExport
+                  artifact={publicVerification}
+                  filename={`fairvalue-${publicVerification.room_code}-public-verification.json`}
+                  testId="room-review-public-verification-export"
+                  copyTestId="room-review-public-verification-copy"
+                  downloadTestId="room-review-public-verification-download"
+                  statusTestId="room-review-public-verification-export-status"
+                />
+              </>
+            ) : (
+              <p className="room-artifact-empty">
+                {publicVerificationLoading ? 'Generating public verification digest...' : publicVerificationError || 'Public verification unavailable'}
+              </p>
+            )}
+          </RoomArtifactPanel>
+        )}
 
         <RoomArtifactPanel
           icon={<FileSearch size={17} aria-hidden="true" />}

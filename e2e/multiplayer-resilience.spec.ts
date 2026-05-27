@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import WebSocket from 'ws';
 
 const hostViewport = { width: 1440, height: 900 };
@@ -220,6 +221,20 @@ test('public recap route summarizes settled rooms without host-only audit data',
   await expect(page.getByTestId('room-public-verification')).toContainText('Replay digest');
   await expect(page.getByTestId('room-public-verification')).toContainText('Replay matches live state');
   await expect(page.getByTestId('room-public-verification')).toContainText('Settlement evidence hash');
+  await expect(page.getByTestId('public-verification-copy')).toBeVisible();
+  await page.getByTestId('public-verification-copy').click();
+  await expect(page.getByTestId('public-verification-export-status')).toContainText('Verification JSON copied');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByTestId('public-verification-download').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(`fairvalue-${roomCode}-public-verification.json`);
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const downloadedArtifact = JSON.parse(await readFile(downloadPath!, 'utf8'));
+  expect(downloadedArtifact.schema_version).toBe('public-room-verification/v1');
+  expect(downloadedArtifact.room_code).toBe(roomCode);
+  expect(JSON.stringify(downloadedArtifact)).not.toContain(hostToken);
+  expect(JSON.stringify(downloadedArtifact)).not.toContain(recapPlayer);
   await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('Host-only event log is not included');
   await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('host tokens/user tokens are never shown');
   await expect(page.getByTestId('room-public-recap-page')).not.toContainText(hostToken);
@@ -527,6 +542,8 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
     await expect(host.getByTestId('room-review-evidence')).toContainText('Settlement evidence');
     await expect(host.getByTestId('room-review-evidence')).toContainText('$735,000');
     await expect(host.getByTestId('room-review-integrity')).toContainText('Settlement outcome OVER matches');
+    await expect(host.getByTestId('room-review-public-verification')).toContainText('Replay matches live state');
+    await expect(host.getByTestId('room-review-public-verification-download')).toBeVisible();
     await expect(host.getByTestId('room-review-timeline')).toContainText('Settlement completed');
     await expectNoSeriousAxeViolations(host, 'settled operator review');
 

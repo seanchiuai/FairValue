@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Clipboard, Download } from 'lucide-react';
 import './RoomArtifact.css';
 
 export type RoomArtifactStatusTone = 'live' | 'ready' | 'settled';
@@ -180,6 +180,95 @@ export function RoomArtifactEvidenceList({ items }: { items: RoomArtifactEvidenc
           <p className="room-artifact-evidence-detail">{item.detail}</p>
         </article>
       ))}
+    </div>
+  );
+}
+
+function copyTextFallback(text: string) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  if (!copied) throw new Error('copy command failed');
+}
+
+export function RoomArtifactJsonExport({
+  artifact,
+  filename,
+  testId,
+  copyTestId,
+  downloadTestId,
+  statusTestId,
+}: {
+  artifact: unknown;
+  filename: string;
+  testId?: string;
+  copyTestId?: string;
+  downloadTestId?: string;
+  statusTestId?: string;
+}) {
+  const [status, setStatus] = useState('Verification JSON ready.');
+  const artifactJson = useMemo(() => JSON.stringify(artifact, null, 2), [artifact]);
+
+  async function handleCopy() {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(artifactJson);
+      } else {
+        copyTextFallback(artifactJson);
+      }
+      setStatus('Verification JSON copied.');
+    } catch {
+      try {
+        copyTextFallback(artifactJson);
+        setStatus('Verification JSON copied.');
+      } catch {
+        setStatus('Copy unavailable. Download JSON instead.');
+      }
+    }
+  }
+
+  function handleDownload() {
+    const blob = new Blob([artifactJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    setStatus('Verification JSON download started.');
+  }
+
+  return (
+    <div className="room-artifact-export" data-testid={testId}>
+      <div className="room-artifact-export-actions">
+        <button
+          type="button"
+          className="room-artifact-export-button"
+          onClick={handleCopy}
+          data-testid={copyTestId}
+        >
+          <Clipboard size={15} aria-hidden="true" /> Copy JSON
+        </button>
+        <button
+          type="button"
+          className="room-artifact-export-button"
+          onClick={handleDownload}
+          data-testid={downloadTestId}
+        >
+          <Download size={15} aria-hidden="true" /> Download JSON
+        </button>
+      </div>
+      <p className="room-artifact-export-status" role="status" aria-live="polite" data-testid={statusTestId}>
+        {status}
+      </p>
     </div>
   );
 }
