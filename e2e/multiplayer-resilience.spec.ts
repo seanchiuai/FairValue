@@ -494,6 +494,35 @@ test('market detail explains simulated market mechanics and data provenance', as
   }
 });
 
+test('operator incident console renders redacted workflow queue', async ({ page, request }) => {
+  const { room_code: roomCode, host_token: hostToken } = await createRoom(request);
+  await settleByApi(request, roomCode, hostToken, property.actualPrice);
+
+  await page.goto('/ops/incidents');
+  const list = page.getByTestId('operator-incidents-list');
+  await expect(page.getByTestId('operator-incidents-page')).toContainText('Operator incidents');
+  await expect(list).toContainText(roomCode, { timeout: 15_000 });
+
+  const incidentCard = list.getByRole('button').filter({ hasText: roomCode }).first();
+  await incidentCard.click();
+
+  const detail = page.getByTestId('operator-incident-detail');
+  await expect(detail).toContainText('settled without external evidence metadata');
+  await expect(detail).toContainText('Host-attested default packets still need operator review.');
+
+  await page.getByTestId('operator-incident-status-select').selectOption('investigating');
+  await page.getByTestId('operator-incident-assignee').fill('Ops Desk');
+  await page.getByTestId('operator-incident-note').fill('Check host_token=abcdefghijklmnopqrstuvwxyz1234567890 before recap.');
+  await page.getByTestId('operator-incident-update').click();
+
+  await expect(page.getByTestId('operator-incident-save-message')).toContainText('Workflow saved.');
+  await expect(detail).toContainText('investigating');
+  await expect(detail).toContainText('Ops Desk');
+  await expect(page.getByTestId('operator-incident-timeline')).toContainText('host_token=[redacted-token]');
+  await expect(page.getByTestId('operator-incident-note')).toHaveValue('');
+  await expect(detail).not.toContainText('abcdefghijklmnopqrstuvwxyz1234567890');
+});
+
 test('multiplayer room entry and settlement recaps carry trust language', async ({
   browser,
 }: {
