@@ -1,10 +1,13 @@
 const { after, afterEach, before, test } = require('node:test');
 const assert = require('node:assert/strict');
+const http = require('node:http');
 const {
   REQUIRED_ANALYST_ROLES,
   buildPropertyIntelligenceProviderContract,
+  buildLocalStructuredMarketIntelligence,
   validateStructuredMarketIntelligenceOutput,
   buildStructuredIntelligenceProviderEnvelope,
+  executeStructuredIntelligenceProvider,
 } = require('../structuredIntelligenceAdapter');
 const {
   server,
@@ -12,6 +15,14 @@ const {
 } = require('../index');
 
 let baseUrl;
+const originalProviderUrl = process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_URL;
+const originalProviderApiKey = process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_API_KEY;
+const originalProviderName = process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_NAME;
+
+function restoreEnv(name, value) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
 
 function listen() {
   return new Promise((resolve) => {
@@ -29,10 +40,27 @@ function close() {
   });
 }
 
-async function request(pathname) {
-  const res = await fetch(`${baseUrl}${pathname}`);
+async function request(pathname, { method = 'GET', body } = {}) {
+  const res = await fetch(`${baseUrl}${pathname}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
   const data = await res.json();
   return { status: res.status, data };
+}
+
+function listenMockProvider(handler) {
+  const mock = http.createServer(handler);
+  return new Promise((resolve) => {
+    mock.listen(0, '127.0.0.1', () => {
+      const address = mock.address();
+      resolve({
+        url: `http://127.0.0.1:${address.port}/intelligence`,
+        close: () => new Promise((done, reject) => mock.close((error) => (error ? reject(error) : done()))),
+      });
+    });
+  });
 }
 
 function fixtureProperty() {
@@ -88,6 +116,9 @@ before(() => listen());
 
 afterEach(() => {
   configurePropertySnapshot(null);
+  restoreEnv('FAIRVALUE_INTELLIGENCE_PROVIDER_URL', originalProviderUrl);
+  restoreEnv('FAIRVALUE_INTELLIGENCE_PROVIDER_API_KEY', originalProviderApiKey);
+  restoreEnv('FAIRVALUE_INTELLIGENCE_PROVIDER_NAME', originalProviderName);
 });
 
 after(() => close());
@@ -141,6 +172,98 @@ test('provider envelope falls back locally when output fails the adapter contrac
   assert.match(envelope.request_hash, /^[a-f0-9]{64}$/);
 });
 
+test('local structured intelligence fallback emits the required market intelligence schema', () => {
+  const contract = buildPropertyIntelligenceProviderContract({
+    property: fixtureProperty(),
+    provenance: fixtureProvenance(),
+  });
+  const local = buildLocalStructuredMarketIntelligence(contract);
+
+  assert.equal(local.analysis_schema_version, 'fairvalue.marketIntelligence.v2');
+  assert.equal(local.confidence, 'medium');
+  assert.deepEqual(local.analyst_cases.map((item) => item.role), REQUIRED_ANALYST_ROLES);
+  assert.match(local.summary, /No external intelligence provider was called/);
+  assert.match(local.settlement_checklist.join(' '), /Final sale price/);
+});
+
+test('structured intelligence execution posts the contract behind server credentials and validates output', async () => {
+  let providerRequest;
+  const mock = await listenMockProvider((req, res) => {
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      providerRequest = {
+        authorization: req.headers.authorization,
+        contractSchema: req.headers['x-fairvalue-contract-schema'],
+        requestHash: req.headers['x-fairvalue-request-hash'],
+        body: JSON.parse(raw),
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ intelligence: validProviderOutput() }));
+    });
+  });
+
+  try {
+    const envelope = await executeStructuredIntelligenceProvider({
+      property: fixtureProperty(),
+      provenance: fixtureProvenance(),
+      providerOptions: {
+        providerUrl: mock.url,
+        apiKey: 'server-side-provider-key',
+        providerName: 'FixtureAI',
+      },
+    });
+
+    assert.equal(envelope.provider_status, 'provider_backed');
+    assert.equal(envelope.provider_name, 'FixtureAI');
+    assert.equal(envelope.provider_attempt.status, 'completed');
+    assert.equal(envelope.validation.accepted, true);
+    assert.equal(envelope.citations[0].id, 'comp-1');
+    assert.equal(providerRequest.authorization, 'Bearer server-side-provider-key');
+    assert.equal(providerRequest.contractSchema, 'fairvalue.propertyIntelligenceProviderContract.v1');
+    assert.equal(providerRequest.requestHash, providerRequest.body.request_hash);
+    assert.equal(providerRequest.body.schema_version, 'fairvalue.structuredIntelligenceProviderRequest.v1');
+    assert.equal(JSON.stringify(envelope).includes('server-side-provider-key'), false);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('structured intelligence execution falls back when provider is unavailable or rejected', async () => {
+  const skipped = await executeStructuredIntelligenceProvider({
+    property: fixtureProperty(),
+    provenance: fixtureProvenance(),
+    providerOptions: {},
+  });
+
+  assert.equal(skipped.provider_status, 'local_fallback');
+  assert.equal(skipped.provider_attempt.status, 'skipped');
+  assert.equal(skipped.intelligence.analysis_schema_version, 'fairvalue.marketIntelligence.v2');
+
+  const mock = await listenMockProvider((req, res) => {
+    req.resume();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ intelligence: { analysis_schema_version: 'wrong' } }));
+  });
+  try {
+    const rejected = await executeStructuredIntelligenceProvider({
+      property: fixtureProperty(),
+      provenance: fixtureProvenance(),
+      providerOptions: {
+        providerUrl: mock.url,
+        apiKey: 'server-side-provider-key',
+        providerName: 'RejectedAI',
+      },
+    });
+    assert.equal(rejected.provider_status, 'local_fallback');
+    assert.equal(rejected.provider_attempt.status, 'rejected');
+    assert.match(rejected.validation.issues.join(' '), /analysis_schema_version/);
+    assert.equal(rejected.intelligence.analysis_schema_version, 'fairvalue.marketIntelligence.v2');
+  } finally {
+    await mock.close();
+  }
+});
+
 test('property intelligence contract endpoint exposes provider-ready instructions without provider secrets', async () => {
   configurePropertySnapshot({
     properties: [
@@ -177,5 +300,44 @@ test('property intelligence contract endpoint exposes provider-ready instruction
   assert.equal(JSON.stringify(response.data).includes('streetView'), false);
 
   const missing = await request('/api/ai/intelligence/properties/missing/contract');
+  assert.equal(missing.status, 404);
+});
+
+test('property intelligence generation endpoint returns local fallback without provider secrets', async () => {
+  configurePropertySnapshot({
+    properties: [
+      {
+        zpid: 101,
+        streetAddress: '10 Query St',
+        city: 'Oakland',
+        state: 'CA',
+        zipcode: '94607',
+        price: 700000,
+        homeStatus: 'FOR_SALE',
+        listingDataSource: 'Fixture MLS',
+        attributionInfo: { lastUpdated: '2026-05-20' },
+      },
+    ],
+    manifest: {
+      schema_version: 'fairvalue.propertyDataManifest.v1',
+      dataset_id: 'fixture-property-snapshot',
+      source_kind: 'static_provider_snapshot',
+      source_files: [{ sha256: 'fixture-source-hash' }],
+      property_count: 1,
+      provider_summary: [{ provider: 'Fixture MLS', count: 1 }],
+      freshness: { latest_observed_at: '2026-05-22' },
+    },
+  });
+  process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_API_KEY = 'server-side-secret-that-must-not-render';
+
+  const response = await request('/api/ai/intelligence/properties/101/generate', { method: 'POST' });
+  assert.equal(response.status, 200);
+  assert.equal(response.data.schema_version, 'fairvalue.structuredIntelligenceAdapter.v1');
+  assert.equal(response.data.provider_status, 'local_fallback');
+  assert.equal(response.data.provider_attempt.status, 'skipped');
+  assert.equal(response.data.intelligence.analysis_schema_version, 'fairvalue.marketIntelligence.v2');
+  assert.equal(JSON.stringify(response.data).includes('server-side-secret-that-must-not-render'), false);
+
+  const missing = await request('/api/ai/intelligence/properties/missing/generate', { method: 'POST' });
   assert.equal(missing.status, 404);
 });

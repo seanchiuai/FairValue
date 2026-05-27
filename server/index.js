@@ -26,7 +26,10 @@ const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
 const { createPropertySnapshot } = require('./propertySnapshot');
 const { buildOperatorIncidentQueue } = require('./operatorIncidentQueue');
 const { createOperatorIncidentWorkflowStore } = require('./operatorIncidentWorkflowStore');
-const { buildPropertyIntelligenceProviderContract } = require('./structuredIntelligenceAdapter');
+const {
+  buildPropertyIntelligenceProviderContract,
+  executeStructuredIntelligenceProvider,
+} = require('./structuredIntelligenceAdapter');
 const {
   DEFAULT_MARKET_FORMAT,
   marketTemplateAuditProjection,
@@ -199,6 +202,14 @@ function resolveOperatorIncidentWorkflowOptions() {
   const filePath = process.env.FAIRVALUE_OPERATOR_INCIDENT_WORKFLOW_PATH ||
     (require.main === module ? path.join(process.cwd(), '.fairvalue', 'operator-incidents.json') : null);
   return { filePath };
+}
+
+function resolveStructuredIntelligenceProviderOptions() {
+  return {
+    providerUrl: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_URL || '',
+    apiKey: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_API_KEY || '',
+    providerName: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_NAME || 'external_property_intelligence_provider',
+  };
 }
 
 function createRoomEventLog(options = {}) {
@@ -1335,6 +1346,21 @@ app.get('/api/ai/intelligence/properties/:propertyId/contract', limitRequests('a
     property,
     provenance: result.provenance,
   }));
+});
+
+app.post('/api/ai/intelligence/properties/:propertyId/generate', limitRequests('ai:intelligence', { max: 60 }), async (req, res) => {
+  const property = propertySnapshot.getById(req.params.propertyId);
+  if (!property) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  const result = propertySnapshot.query({ ids: [property.property_id], limit: 1 });
+  const envelope = await executeStructuredIntelligenceProvider({
+    property,
+    provenance: result.provenance,
+    providerOptions: resolveStructuredIntelligenceProviderOptions(),
+  });
+  res.json(envelope);
 });
 
 app.get('/api/ops/metrics', (req, res) => {
