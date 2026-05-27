@@ -3,6 +3,8 @@ import type { House, RoomMarketConfig, SettlementEvidencePacket } from '../../ty
 import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
 import {
   formatOutcomeLabel,
+  formatMoney,
+  isNeighborhoodPriceMomentumMarket,
   isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
@@ -105,8 +107,15 @@ export default function SettleModal({
     const rentYieldRoom = isRentYieldMarket(marketFormat);
     const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
     const timeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
+    const neighborhoodPriceMomentumRoom = isNeighborhoodPriceMomentumMarket(marketFormat);
     if (!actualPrice) {
-      setError(timeOnMarketRoom ? 'Days on market is required' : 'Actual price is required');
+      setError(
+        timeOnMarketRoom
+          ? 'Days on market is required'
+          : neighborhoodPriceMomentumRoom
+            ? 'Future median price is required'
+            : 'Actual price is required'
+      );
       return;
     }
     const price = parseFloat(actualPrice.replace(/,/g, ''));
@@ -115,7 +124,7 @@ export default function SettleModal({
       return;
     }
     if (!timeOnMarketRoom && (isNaN(price) || price <= 0 || price > 100_000_000)) {
-      setError('Enter a valid actual price (up to $100M)');
+      setError(neighborhoodPriceMomentumRoom ? 'Enter a valid future median price (up to $100M)' : 'Enter a valid actual price (up to $100M)');
       return;
     }
     const parsedAnnualRent = parseFloat(annualRent.replace(/,/g, ''));
@@ -171,6 +180,7 @@ export default function SettleModal({
           ...(rentYieldRoom ? { annual_rent: parsedAnnualRent } : {}),
           ...(timeOnMarketRoom ? { days_on_market: price } : {}),
           ...(renovationBudgetRoom ? { verified_cost: price } : {}),
+          ...(neighborhoodPriceMomentumRoom ? { future_median_price: price } : {}),
           ...(settlementEvidence ? { settlement_evidence: settlementEvidence } : {}),
         }),
       });
@@ -226,6 +236,7 @@ export default function SettleModal({
   const rentYieldRoom = isRentYieldMarket(marketFormat);
   const timeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
   const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
+  const neighborhoodPriceMomentumRoom = isNeighborhoodPriceMomentumMarket(marketFormat);
   const settlementHint = actualPrice && !isNaN(parsedActualPrice)
     ? rentYieldRoom
       ? annualRent && !isNaN(parsedAnnualRent)
@@ -235,6 +246,8 @@ export default function SettleModal({
         ? `${formatOutcomeLabel(timeOnMarketSettlementOutcome(parsedActualPrice, marketConfig))} wins vs ${timeOnMarketThresholdLabel(marketConfig)} threshold`
       : renovationBudgetRoom
         ? `${formatOutcomeLabel(renovationBudgetSettlementOutcome(parsedActualPrice, marketConfig))} wins vs ${renovationBudgetThresholdLabel(marketConfig)} budget`
+      : neighborhoodPriceMomentumRoom
+        ? `${formatOutcomeLabel(parsedActualPrice >= Number(marketConfig?.price_momentum_threshold) ? 'over' : 'under')} wins vs ${formatMoney(marketConfig?.price_momentum_threshold)} threshold`
       : rangeRoom
       ? `${formatOutcomeLabel(rangeSettlementOutcome(parsedActualPrice, marketConfig))} wins`
       : parsedActualPrice >= house.asking_price
@@ -260,6 +273,8 @@ export default function SettleModal({
               ? `Enter days on market to resolve against the ${timeOnMarketThresholdLabel(marketConfig)} threshold.`
             : renovationBudgetRoom
               ? `Enter verified renovation cost to resolve against the ${renovationBudgetThresholdLabel(marketConfig)} budget.`
+            : neighborhoodPriceMomentumRoom
+              ? `Enter future ZIP median price for the ${formatMoney(marketConfig?.price_momentum_threshold)} threshold.`
             : 'Enter the actual appraisal/sale price to determine the winner.'}
           {rangeRoom ? ` Band: ${rangeBandLabel(marketConfig)}.` : ''}
         </p>
@@ -273,13 +288,14 @@ export default function SettleModal({
             ...(rentYieldRoom ? ['Confirm annual rent with lease, rent roll, or public-safe rental evidence.'] : []),
             ...(timeOnMarketRoom ? ['Confirm listing lifecycle dates or MLS status metadata before entering days on market.'] : []),
             ...(renovationBudgetRoom ? ['Confirm renovation cost with invoice, permit, or scope metadata.'] : []),
+            ...(neighborhoodPriceMomentumRoom ? ['Confirm future ZIP aggregate snapshot metadata.'] : []),
             'This value decides simulation-credit payouts only.',
             'The settlement is written into the room event history.',
           ]}
         />
         <div style={s.field}>
           <label style={s.label} htmlFor="settle-actual-price">
-            {rentYieldRoom ? 'Settlement Price ($)' : timeOnMarketRoom ? 'Days on Market' : renovationBudgetRoom ? 'Verified Cost ($)' : 'Actual Price ($)'}
+            {rentYieldRoom ? 'Settlement Price ($)' : timeOnMarketRoom ? 'Days on Market' : renovationBudgetRoom ? 'Verified Cost ($)' : neighborhoodPriceMomentumRoom ? 'Future ZIP Median Price ($)' : 'Actual Price ($)'}
           </label>
           <input
             id="settle-actual-price"
@@ -287,10 +303,10 @@ export default function SettleModal({
             style={s.input}
             value={actualPrice}
             onChange={(e) => setActualPrice(e.target.value)}
-            aria-label={rentYieldRoom ? 'Settlement price' : timeOnMarketRoom ? 'Days on market' : renovationBudgetRoom ? 'Verified cost' : 'Actual price'}
+            aria-label={rentYieldRoom ? 'Settlement price' : timeOnMarketRoom ? 'Days on market' : renovationBudgetRoom ? 'Verified cost' : neighborhoodPriceMomentumRoom ? 'Future ZIP median price' : 'Actual price'}
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={error ? 'settle-error' : undefined}
-            placeholder={timeOnMarketRoom ? '42' : '450,000'}
+            placeholder={timeOnMarketRoom ? '42' : neighborhoodPriceMomentumRoom ? '980,000' : '450,000'}
             inputMode="numeric"
             aria-required="true"
           />

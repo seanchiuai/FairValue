@@ -10,6 +10,7 @@ import {
   formatMoney,
   formatOutcomeLabel,
   isBinaryMarket,
+  isNeighborhoodPriceMomentumMarket,
   isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
@@ -230,6 +231,7 @@ export default function PlayerView() {
   const isRentYieldRoom = isRentYieldMarket(marketFormat);
   const isTimeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
   const isRenovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
+  const isNeighborhoodPriceMomentumRoom = isNeighborhoodPriceMomentumMarket(marketFormat);
   const isBinaryRoom = isBinaryMarket(marketFormat);
   const rangeOutcomes = isRangeRoom ? roomOutcomeIds(market, marketConfig) : [];
   const leadingRangeOutcome = isRangeRoom ? leadingOutcome(market, marketConfig) : null;
@@ -278,6 +280,8 @@ export default function PlayerView() {
                 ? `Time-on-market prices come from LMSR probabilities around ${timeOnMarketThresholdLabel(marketConfig)}, not an MLS lifecycle audit.`
                 : isRenovationBudgetRoom
                   ? `Renovation-budget prices come from LMSR probabilities around ${renovationBudgetThresholdLabel(marketConfig)}, not a construction estimate.`
+                : isNeighborhoodPriceMomentumRoom
+                  ? `Neighborhood price-momentum prices track ${formatMoney(marketConfig?.price_momentum_threshold)} future ZIP median, not an appraisal.`
               : 'Over/Under prices come from LMSR probability, not an appraisal.',
             isRentYieldRoom
               ? 'The host settles with settlement price and annual-rent evidence.'
@@ -285,6 +289,8 @@ export default function PlayerView() {
                 ? 'The host settles with listing lifecycle dates or days-on-market evidence.'
               : isRenovationBudgetRoom
                 ? 'The host settles with public-safe renovation cost evidence.'
+              : isNeighborhoodPriceMomentumRoom
+                ? 'The host settles with public-safe ZIP median evidence.'
               : 'The host settles with actual sale or appraisal evidence.',
           ]}
         />
@@ -327,7 +333,7 @@ export default function PlayerView() {
               aria-valuenow={probPercent}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : isTimeOnMarketRoom ? 'going over days threshold' : isRenovationBudgetRoom ? 'going over renovation budget' : 'going over asking price'}`}
+              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : isTimeOnMarketRoom ? 'going over days threshold' : isRenovationBudgetRoom ? 'going over renovation budget' : isNeighborhoodPriceMomentumRoom ? 'going over ZIP median threshold' : 'going over asking price'}`}
             >
               <div
                 style={{

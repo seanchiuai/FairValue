@@ -96,6 +96,13 @@ describe('market draft generation', () => {
     });
     expect(timeOnMarket.valid).toBe(true);
 
+    const neighborhoodPriceMomentum = validateMarketDraft({
+      address: '1428 Dolores Street',
+      asking_price: 1_250_000,
+      market_format: 'neighborhood_price_momentum_over_under',
+    });
+    expect(neighborhoodPriceMomentum.valid).toBe(true);
+
     const draftOnly = validateMarketDraft({
       address: '1428 Dolores Street',
       asking_price: 1_250_000,

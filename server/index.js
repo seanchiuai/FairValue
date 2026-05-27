@@ -752,7 +752,7 @@ function validateMarketDraftAuditPayload(rawDraft, house) {
         confidence,
         matchedSignals,
       },
-      market_question: sanitizeText(rawDraft.market_question, 180) || `Will ${address} appraise above $${askingPrice.toLocaleString()}?`,
+      market_question: sanitizeText(rawDraft.market_question || rawDraft.question, 180) || `Will ${address} appraise above $${askingPrice.toLocaleString()}?`,
       market_format: marketFormatValidation.value,
       market_template: marketTemplateAuditProjection(marketFormatValidation.template),
       market_config: marketConfig.value,
@@ -885,6 +885,7 @@ function validateBetPayload(body, room) {
 function validateSettlePayload(body, room = null) {
   const renovationBudgetRoom = room?.marketFormat === 'renovation_budget_over_under';
   const timeOnMarketRoom = room?.marketFormat === 'time_on_market_over_under';
+  const neighborhoodPriceMomentumRoom = room?.marketFormat === 'neighborhood_price_momentum_over_under';
   const dateDerivedDays = timeOnMarketRoom
     ? daysBetweenDates(body?.listed_at, body?.contract_at ?? body?.pending_at ?? body?.settled_at)
     : null;
@@ -892,7 +893,9 @@ function validateSettlePayload(body, room = null) {
     ? body?.verified_cost ?? body?.actual_price
     : timeOnMarketRoom
       ? body?.days_on_market ?? body?.actual_days_on_market ?? dateDerivedDays ?? body?.actual_price
-    : body?.actual_price ?? body?.settlement_price;
+      : neighborhoodPriceMomentumRoom
+        ? body?.future_median_price ?? body?.actual_price ?? body?.settlement_price
+        : body?.actual_price ?? body?.settlement_price;
   const actualPrice = timeOnMarketRoom
     ? parsePositiveInteger(rawActualPrice, 3_650)
     : parsePositiveNumber(rawActualPrice, MAX_ASKING_PRICE);
@@ -902,7 +905,9 @@ function validateSettlePayload(body, room = null) {
         ? 'Verified renovation cost must be between $1 and $100M'
         : timeOnMarketRoom
           ? 'Days on market must be between 1 and 3,650'
-        : 'Actual price must be between $1 and $100M',
+          : neighborhoodPriceMomentumRoom
+            ? 'Future median price must be between $1 and $100M'
+            : 'Actual price must be between $1 and $100M',
     };
   }
   const settlementInput = { actual_price: actualPrice };
@@ -915,6 +920,8 @@ function validateSettlePayload(body, room = null) {
     settlementInput.verified_cost = actualPrice;
   } else if (timeOnMarketRoom) {
     settlementInput.days_on_market = actualPrice;
+  } else if (neighborhoodPriceMomentumRoom) {
+    settlementInput.future_median_price = actualPrice;
   }
   const rawEvidence = Object.prototype.hasOwnProperty.call(body || {}, 'settlement_evidence')
     ? body.settlement_evidence

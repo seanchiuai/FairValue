@@ -195,18 +195,20 @@ test('neighborhood API builds static zip entities with aggregate metrics and pro
   const priceMomentum = drafts.data.drafts.find(
     (draft) => draft.market_format === 'neighborhood_price_momentum_over_under'
   );
-  assert.equal(priceMomentum.template_status, 'draft_only');
-  assert.equal(priceMomentum.pricing_engine, 'pending_neighborhood_market_engine');
+  assert.equal(priceMomentum.template_status, 'playable');
+  assert.equal(priceMomentum.pricing_engine, 'lmsr_binary_v1');
   assert.equal(priceMomentum.baseline.value, 950000);
+  assert.equal(priceMomentum.default_config.baseline_median_price, 950000);
   assert.equal(priceMomentum.default_config.price_momentum_threshold, 978500);
-  assert.match(priceMomentum.trust_notice, /Draft-only scenario contract/);
+  assert.match(priceMomentum.trust_notice, /Playable simulation-credit/);
   const rentYield = drafts.data.drafts.find(
     (draft) => draft.market_format === 'neighborhood_rent_yield_over_under'
   );
+  assert.equal(rentYield.template_status, 'draft_only');
   assert.equal(rentYield.baseline.value, 0.05);
   assert.equal(rentYield.default_config.yield_threshold, 0.055);
   assert.equal(drafts.data.provenance.source_sha256, 'fixture-source-hash');
-  assert.match(drafts.data.limitations.join(' '), /not playable rooms/);
+  assert.match(drafts.data.limitations.join(' '), /other neighborhood scenario contracts remain draft-only/);
 
   const missing = await request('/api/neighborhoods/99999');
   assert.equal(missing.status, 404);

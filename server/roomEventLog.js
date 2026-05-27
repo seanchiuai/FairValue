@@ -524,6 +524,12 @@ function roomEventToActivity(event) {
       return {
         type: 'settle',
         actual_price: payload.actual_price,
+        future_median_price: Number.isFinite(Number(payload.settlement?.future_median_price ?? payload.future_median_price))
+          ? Number(payload.settlement?.future_median_price ?? payload.future_median_price)
+          : null,
+        price_momentum_threshold: Number.isFinite(Number(payload.settlement?.price_momentum_threshold ?? payload.price_momentum_threshold))
+          ? Number(payload.settlement?.price_momentum_threshold ?? payload.price_momentum_threshold)
+          : null,
         winning_outcome: payload.winning_outcome,
         timestamp: event.timestamp,
         event_sequence: event.sequence,

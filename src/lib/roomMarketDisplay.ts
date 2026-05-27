@@ -5,6 +5,7 @@ export const RANGE_PRICE_BAND_FORMAT = 'range_price_band';
 export const RENT_YIELD_MARKET_FORMAT = 'rent_yield_over_under';
 export const TIME_ON_MARKET_MARKET_FORMAT = 'time_on_market_over_under';
 export const RENOVATION_BUDGET_MARKET_FORMAT = 'renovation_budget_over_under';
+export const NEIGHBORHOOD_PRICE_MOMENTUM_MARKET_FORMAT = 'neighborhood_price_momentum_over_under';
 
 export function isRangeMarket(format?: string | null) {
   return format === RANGE_PRICE_BAND_FORMAT;
@@ -15,7 +16,8 @@ export function isBinaryMarket(format?: string | null) {
     format === BINARY_MARKET_FORMAT ||
     format === RENT_YIELD_MARKET_FORMAT ||
     format === TIME_ON_MARKET_MARKET_FORMAT ||
-    format === RENOVATION_BUDGET_MARKET_FORMAT;
+    format === RENOVATION_BUDGET_MARKET_FORMAT ||
+    format === NEIGHBORHOOD_PRICE_MOMENTUM_MARKET_FORMAT;
 }
 
 export function isRentYieldMarket(format?: string | null) {
@@ -28,6 +30,10 @@ export function isTimeOnMarketMarket(format?: string | null) {
 
 export function isRenovationBudgetMarket(format?: string | null) {
   return format === RENOVATION_BUDGET_MARKET_FORMAT;
+}
+
+export function isNeighborhoodPriceMomentumMarket(format?: string | null) {
+  return format === NEIGHBORHOOD_PRICE_MOMENTUM_MARKET_FORMAT;
 }
 
 export function formatOutcomeLabel(outcome: string) {
@@ -45,6 +51,7 @@ export function formatMarketLabel(format?: string | null) {
   if (format === RENT_YIELD_MARKET_FORMAT) return 'Rent yield over/under';
   if (format === TIME_ON_MARKET_MARKET_FORMAT) return 'Time on market over/under';
   if (format === RENOVATION_BUDGET_MARKET_FORMAT) return 'Renovation budget over/under';
+  if (format === NEIGHBORHOOD_PRICE_MOMENTUM_MARKET_FORMAT) return 'Neighborhood price momentum';
   return 'Over/Under';
 }
 
@@ -118,6 +125,20 @@ export function renovationBudgetSettlementOutcome(verifiedCost: number, config?:
     return '';
   }
   return verifiedCost >= threshold ? 'over' : 'under';
+}
+
+export function neighborhoodPriceMomentumThresholdLabel(config?: RoomMarketConfig | null) {
+  const threshold = Number(config?.price_momentum_threshold);
+  if (!Number.isFinite(threshold) || threshold <= 0) return 'configured median price';
+  return formatMoney(threshold);
+}
+
+export function neighborhoodPriceMomentumSettlementOutcome(futureMedianPrice: number, config?: RoomMarketConfig | null) {
+  const threshold = Number(config?.price_momentum_threshold);
+  if (!Number.isFinite(threshold) || threshold <= 0 || !Number.isFinite(futureMedianPrice) || futureMedianPrice <= 0) {
+    return '';
+  }
+  return futureMedianPrice >= threshold ? 'over' : 'under';
 }
 
 export function roomOutcomeIds(market: Market | null, config?: RoomMarketConfig | null) {

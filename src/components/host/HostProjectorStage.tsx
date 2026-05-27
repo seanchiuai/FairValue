@@ -43,7 +43,10 @@ function cueForPhase({
   settleResult,
 }: Pick<HostProjectorStageProps, 'phase' | 'intelligence' | 'settled' | 'settleResult'>) {
   if (settled && settleResult) {
-    return `Settlement complete: ${formatOutcomeLabel(settleResult.winning_outcome)} wins at ${formatMoney(settleResult.actual_price)}.`;
+    const settlementLabel = Number.isFinite(settleResult.future_median_price)
+      ? `future ZIP median ${formatMoney(Number(settleResult.future_median_price))}`
+      : formatMoney(settleResult.actual_price);
+    return `Settlement complete: ${formatOutcomeLabel(settleResult.winning_outcome)} wins at ${settlementLabel}.`;
   }
   if (phase?.status === 'locked') {
     return 'Betting is locked. Ask each side for final evidence before settlement.';

@@ -39,8 +39,11 @@ function neighborhoodName(entity) {
 
 function buildDraft({ entity, marketFormat, label, question, baseline, defaultConfig, sourceMetrics, evidenceRequired }) {
   const template = getMarketTemplate(marketFormat);
-  if (!template || template.status !== 'draft_only') return null;
+  if (!template || !['draft_only', 'playable'].includes(template.status)) return null;
   const seed = { baseline, default_config: defaultConfig };
+  const trustNotice = template.status === 'playable'
+    ? 'Playable simulation-credit scenario contract. Settlement still requires provider-backed ZIP aggregate evidence before the host should resolve it.'
+    : 'Draft-only scenario contract. FairValue will not accept live bets on this format until provider-backed neighborhood evidence, pricing, replay, and settlement workflows exist.';
   return {
     draft_id: createDraftId(entity, marketFormat, seed),
     market_format: marketFormat,
@@ -54,7 +57,7 @@ function buildDraft({ entity, marketFormat, label, question, baseline, defaultCo
     source_metrics: cloneJson(sourceMetrics),
     evidence_required: [...evidenceRequired],
     settlement_rule: template.settlement_rule,
-    trust_notice: 'Draft-only scenario contract. FairValue will not accept live bets on this format until provider-backed neighborhood evidence, pricing, replay, and settlement workflows exist.',
+    trust_notice: trustNotice,
     limitations: [
       ...template.limitations,
       ...(Array.isArray(entity?.limitations) ? entity.limitations : []),
@@ -83,6 +86,7 @@ function buildPriceMomentumDraft(entity) {
     },
     defaultConfig: {
       comparison_window: 'next_provider_snapshot_90_days',
+      baseline_median_price: medianPrice,
       price_momentum_threshold: thresholdPrice,
       threshold_percent: thresholdPercent,
       minimum_provider_properties: Math.max(4, Math.min(Number(entity.property_count || 0), 12)),
@@ -197,7 +201,7 @@ function buildNeighborhoodMarketDrafts({ entity, provenance = null, nowSeconds =
     drafts,
     provenance: cloneJson(provenance || {}),
     limitations: [
-      'These are draft-only neighborhood scenario contracts, not playable rooms.',
+      'Price-momentum can be promoted into a simulation-credit room; the other neighborhood scenario contracts remain draft-only.',
       'They use static ZIP-code aggregate baselines and require future provider-backed evidence before settlement.',
       'They are not appraisals, investment advice, lending decisions, or formal neighborhood-boundary definitions.',
     ],

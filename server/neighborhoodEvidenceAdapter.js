@@ -161,7 +161,7 @@ function buildNeighborhoodEvidenceProviderContract({ entity, drafts = [], proven
     ],
     limitations: [
       'The contract is a provider adapter boundary; the contract endpoint alone is not a live provider call.',
-      'Accepted evidence can unblock evidence review but does not make draft-only market formats playable without pricing, replay, and settlement workflows.',
+      'Accepted evidence can support settlement review for playable neighborhood formats; draft-only formats still need their own pricing, replay, and settlement workflows.',
     ],
   };
   return {
@@ -178,24 +178,29 @@ function buildLocalNeighborhoodEvidence(contract = {}) {
     provider_snapshot_id: null,
     observed_at: entity.latest_observed_at || contract.provenance?.latest_observed_at || null,
     citations: [],
-    draft_evidence: (contract.draft_contracts || []).map((draft) => ({
-      market_format: draft.market_format,
-      status: 'insufficient',
-      observed_value: null,
-      observed_property_count: entity.property_count || 0,
-      evidence: [
-        'Only the static FairValue baseline is available locally.',
-        'A future provider-backed aggregate snapshot is required before this draft can become settlement-ready.',
-      ],
-      settlement_note: 'Provider-backed neighborhood evidence is not configured, so this draft remains blocked from playable-room promotion.',
-      limitations: [
-        'Local fallback is a gap assessment, not settlement evidence.',
-        'Static ZIP aggregates are not official neighborhood, parcel, school, or appraisal boundaries.',
-      ],
-    })),
+    draft_evidence: (contract.draft_contracts || []).map((draft) => {
+      const playable = draft.template_status === 'playable';
+      return {
+        market_format: draft.market_format,
+        status: 'insufficient',
+        observed_value: null,
+        observed_property_count: entity.property_count || 0,
+        evidence: [
+          'Only the static FairValue baseline is available locally.',
+          'A future provider-backed aggregate snapshot is required before settlement-ready evidence can be accepted.',
+        ],
+        settlement_note: playable
+          ? 'Provider-backed neighborhood evidence is not configured, so this playable simulation-credit format is not settlement-ready.'
+          : 'Provider-backed neighborhood evidence is not configured, so this draft remains blocked from playable-room promotion.',
+        limitations: [
+          'Local fallback is a gap assessment, not settlement evidence.',
+          'Static ZIP aggregates are not official neighborhood, parcel, school, or appraisal boundaries.',
+        ],
+      };
+    }),
     limitations: [
       'No external neighborhood evidence provider was called.',
-      'Draft-only market formats remain blocked until provider evidence, pricing, replay, and settlement paths are implemented.',
+      'Playable neighborhood formats still need provider-backed settlement evidence; draft-only formats remain blocked from room creation.',
     ],
   };
 }
@@ -265,8 +270,10 @@ function buildPlayabilityAssessment(contract, evidence, accepted) {
       evidence_status: row?.status || 'insufficient',
       status: evidenceReady ? 'evidence_adapter_ready' : 'blocked',
       blockers: evidenceReady
-        ? ['Pricing, replay, room creation, and settlement workflows are still required before playable promotion.']
-        : ['Provider-backed settlement evidence is not accepted for this draft yet.'],
+        ? draft.template_status === 'playable'
+          ? ['Host must still review cited provider snapshot metadata before settlement.']
+          : ['Pricing, replay, room creation, and settlement workflows are still required before playable promotion.']
+        : ['Provider-backed settlement evidence is not accepted for this scenario yet.'],
     };
   });
 }
@@ -299,10 +306,10 @@ function buildNeighborhoodEvidenceEnvelope({
     citations: accepted ? validation.citations : [],
     playability_assessment: buildPlayabilityAssessment(contract, evidence, accepted),
     limitations: accepted
-      ? ['Provider evidence passed adapter checks, but draft markets still require pricing, replay, and settlement implementation before live betting.']
+      ? ['Provider evidence passed adapter checks; playable neighborhood rooms still require host settlement review of cited aggregate snapshots.']
       : [
           'Provider evidence was absent or rejected by the adapter.',
-          'Draft neighborhood markets remain non-playable until provider-backed evidence and market workflows exist.',
+          'Playable neighborhood formats remain settlement-unready without provider-backed evidence; draft-only neighborhood formats remain non-playable.',
         ],
   };
 }

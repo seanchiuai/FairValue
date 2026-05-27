@@ -20,6 +20,7 @@ const RANGE_PRICE_BAND_FORMAT = 'range_price_band';
 const RENT_YIELD_FORMAT = 'rent_yield_over_under';
 const TIME_ON_MARKET_FORMAT = 'time_on_market_over_under';
 const RENOVATION_BUDGET_FORMAT = 'renovation_budget_over_under';
+const NEIGHBORHOOD_PRICE_MOMENTUM_FORMAT = 'neighborhood_price_momentum_over_under';
 const RANGE_OUTCOMES = Object.freeze(['below_band', 'inside_band', 'above_band']);
 const BINARY_OUTCOMES = Object.freeze(['over', 'under']);
 const BINARY_LMSR_FORMATS = new Set([
@@ -27,6 +28,7 @@ const BINARY_LMSR_FORMATS = new Set([
   RENT_YIELD_FORMAT,
   TIME_ON_MARKET_FORMAT,
   RENOVATION_BUDGET_FORMAT,
+  NEIGHBORHOOD_PRICE_MOMENTUM_FORMAT,
 ]);
 const MAX_PRICE = 100_000_000;
 const MAX_ANNUAL_RENT = 10_000_000;
@@ -84,6 +86,19 @@ function defaultRangeConfig(askingPrice) {
 function readFirstPresent(rawDraft, keys) {
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(rawDraft || {}, key)) return rawDraft[key];
+  }
+  return undefined;
+}
+
+function readFirstPresentDeep(rawDraft, keys, nestedKeys = []) {
+  const directValue = readFirstPresent(rawDraft, keys);
+  if (directValue !== undefined) return directValue;
+  for (const nestedKey of nestedKeys) {
+    const nested = rawDraft?.[nestedKey];
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      const nestedValue = readFirstPresent(nested, keys);
+      if (nestedValue !== undefined) return nestedValue;
+    }
   }
   return undefined;
 }
@@ -165,6 +180,39 @@ function createMarketConfigForRoom(format, house, rawDraft = {}, liquidityB = DE
         schema_version: 'renovation-budget-over-under-config/v1',
         market_format: RENOVATION_BUDGET_FORMAT,
         budget_threshold: roundMoney(budgetThreshold),
+        outcomes: [...BINARY_OUTCOMES],
+        liquidity_b: liquidityB,
+      },
+    };
+  }
+
+  if (marketFormat === NEIGHBORHOOD_PRICE_MOMENTUM_FORMAT) {
+    const rawThreshold = readFirstPresentDeep(rawDraft, [
+      'price_momentum_threshold',
+      'future_median_price_threshold',
+      'median_price_threshold',
+      'threshold',
+    ], ['default_config']);
+    const baselineMedian = positiveNumberOrNull(readFirstPresentDeep(rawDraft, [
+      'baseline_median_price',
+      'baseline_price',
+      'current_median_price',
+      'median_price',
+      'value',
+    ], ['default_config', 'baseline', 'source_metrics']));
+    const defaultThreshold = roundMoney((baselineMedian || askingPrice) * 1.03);
+    const thresholdPrice = rawThreshold === undefined || rawThreshold === null || rawThreshold === ''
+      ? defaultThreshold
+      : positiveNumberOrNull(rawThreshold);
+    if (!thresholdPrice) return { error: 'Neighborhood price-momentum threshold must be between $1 and $100M' };
+    return {
+      value: {
+        schema_version: 'neighborhood-price-momentum-over-under-config/v1',
+        market_format: NEIGHBORHOOD_PRICE_MOMENTUM_FORMAT,
+        baseline_median_price: baselineMedian,
+        price_momentum_threshold: roundMoney(thresholdPrice),
+        comparison_window: String(rawDraft.comparison_window || rawDraft.default_config?.comparison_window || 'next_provider_snapshot_90_days').slice(0, 80),
+        zip_code: String(rawDraft.zip || rawDraft.zip_code || rawDraft.default_config?.zip_code || '').slice(0, 20) || null,
         outcomes: [...BINARY_OUTCOMES],
         liquidity_b: liquidityB,
       },
@@ -324,6 +372,16 @@ function winningOutcomeForRoom(room, actualPrice) {
     if (!daysThreshold) throw new Error('Time-on-market config is invalid');
     return daysOnMarket >= daysThreshold ? 'over' : 'under';
   }
+  if (marketFormatFrom(room) === NEIGHBORHOOD_PRICE_MOMENTUM_FORMAT) {
+    const input = typeof actualPrice === 'object' && actualPrice !== null
+      ? actualPrice
+      : { future_median_price: actualPrice };
+    const futureMedianPrice = positiveNumberOrNull(input.future_median_price ?? input.actual_price);
+    const threshold = positiveNumberOrNull(marketConfigFrom(room)?.price_momentum_threshold);
+    if (!futureMedianPrice) throw new Error('future_median_price must be positive');
+    if (!threshold) throw new Error('Neighborhood price-momentum config is invalid');
+    return futureMedianPrice >= threshold ? 'over' : 'under';
+  }
   if (isRangeMarket(room)) {
     const actual = Number(typeof actualPrice === 'object' && actualPrice !== null ? actualPrice.actual_price : actualPrice);
     const config = marketConfigFrom(room);
@@ -352,6 +410,19 @@ function settlementMetricsForRoom(room, settlementInput) {
     return {
       verified_cost: verifiedCost,
       budget_threshold: positiveNumberOrNull(marketConfigFrom(room)?.budget_threshold),
+    };
+  }
+  if (marketFormatFrom(room) === NEIGHBORHOOD_PRICE_MOMENTUM_FORMAT) {
+    const futureMedianPrice = positiveNumberOrNull(settlementInput?.future_median_price ?? settlementInput?.actual_price);
+    const baselineMedianPrice = positiveNumberOrNull(marketConfigFrom(room)?.baseline_median_price);
+    const threshold = positiveNumberOrNull(marketConfigFrom(room)?.price_momentum_threshold);
+    return {
+      future_median_price: futureMedianPrice,
+      baseline_median_price: baselineMedianPrice,
+      price_momentum_threshold: threshold,
+      price_momentum_return: baselineMedianPrice && futureMedianPrice
+        ? Math.round(((futureMedianPrice - baselineMedianPrice) / baselineMedianPrice) * 10000) / 10000
+        : null,
     };
   }
   if (marketFormatFrom(room) !== RENT_YIELD_FORMAT) return {};
@@ -384,6 +455,7 @@ module.exports = {
   RENT_YIELD_FORMAT,
   TIME_ON_MARKET_FORMAT,
   RENOVATION_BUDGET_FORMAT,
+  NEIGHBORHOOD_PRICE_MOMENTUM_FORMAT,
   RANGE_OUTCOMES,
   createMarketConfigForRoom,
   createInitialMarketState,

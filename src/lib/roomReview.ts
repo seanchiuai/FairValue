@@ -90,6 +90,9 @@ function settlementValue(settlement: SettleResult) {
   if (Number.isFinite(settlement.verified_cost)) {
     return `${outcome} at ${formatMoney(settlement.verified_cost)}`;
   }
+  if (Number.isFinite(settlement.future_median_price)) {
+    return `${outcome} at ${formatMoney(settlement.future_median_price)}`;
+  }
   return `${outcome} at ${formatMoney(settlement.actual_price)}`;
 }
 
@@ -107,6 +110,9 @@ function settlementDetail(settlement: SettleResult, house: House) {
   if (Number.isFinite(settlement.verified_cost)) {
     return `Renovation value is ${formatMoney(settlement.verified_cost)} verified cost against a ${formatMoney(settlement.budget_threshold)} budget.`;
   }
+  if (Number.isFinite(settlement.future_median_price)) {
+    return `ZIP median is ${formatMoney(settlement.future_median_price)} against a ${formatMoney(settlement.price_momentum_threshold)} threshold.`;
+  }
   return `Actual value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`;
 }
 
@@ -119,6 +125,9 @@ function settlementIntegrityCheck(settlement: SettleResult, house: House) {
   }
   if (Number.isFinite(settlement.verified_cost)) {
     return `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${Number(settlement.verified_cost) >= Number(settlement.budget_threshold) ? 'matches' : 'does not match'} the renovation-budget threshold.`;
+  }
+  if (Number.isFinite(settlement.future_median_price)) {
+    return `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${Number(settlement.future_median_price) >= Number(settlement.price_momentum_threshold) ? 'matches' : 'does not match'} the neighborhood price-momentum threshold.`;
   }
   return `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${winnerFor(settlement.actual_price, house.asking_price) === settlement.winning_outcome ? 'matches' : 'does not match'} the asking-price comparison.`;
 }

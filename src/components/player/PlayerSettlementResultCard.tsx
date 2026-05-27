@@ -24,6 +24,7 @@ export default function PlayerSettlementResultCard({
   const hasRentYield = Number.isFinite(settleResult.rent_yield);
   const hasTimeOnMarket = Number.isFinite(settleResult.days_on_market);
   const hasRenovationBudget = Number.isFinite(settleResult.verified_cost);
+  const hasNeighborhoodMomentum = Number.isFinite(settleResult.future_median_price);
   const rentYieldPercent = hasRentYield ? `${Math.round(Number(settleResult.rent_yield) * 10000) / 100}%` : '';
 
   return (
@@ -37,6 +38,8 @@ export default function PlayerSettlementResultCard({
             ? `Days on market: ${Number(settleResult.days_on_market || 0).toLocaleString()} · Threshold: ${Number(settleResult.days_threshold || 0).toLocaleString()} days`
           : hasRenovationBudget
             ? `Verified cost: $${Number(settleResult.verified_cost || 0).toLocaleString()} · Budget: $${Number(settleResult.budget_threshold || 0).toLocaleString()}`
+          : hasNeighborhoodMomentum
+            ? `Future ZIP median: $${Number(settleResult.future_median_price || 0).toLocaleString()} · Threshold: $${Number(settleResult.price_momentum_threshold || 0).toLocaleString()}`
           : `Actual price: $${settleResult.actual_price.toLocaleString()}`}
       </div>
       <div className={`player-settlement-result__outcome ${outcomeClass}`}>
@@ -62,6 +65,8 @@ export default function PlayerSettlementResultCard({
               ? 'Days on market and threshold are host-entered lifecycle evidence, not a FairValue MLS audit.'
             : hasRenovationBudget
               ? 'Verified cost and budget threshold are host-entered evidence, not a FairValue construction audit.'
+            : hasNeighborhoodMomentum
+              ? 'Future ZIP median and threshold are host-entered aggregate evidence, not an appraisal or official boundary.'
             : 'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
           evidencePacket
             ? 'Evidence metadata is public-safe and does not include private documents.'

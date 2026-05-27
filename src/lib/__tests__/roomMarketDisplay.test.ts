@@ -91,4 +91,5 @@ describe('roomMarketDisplay', () => {
     expect(timeOnMarketSettlementOutcome(60, timeOnMarketConfig)).toBe('over');
     expect(timeOnMarketSettlementOutcome(21, timeOnMarketConfig)).toBe('under');
   });
+
 });

@@ -58,6 +58,7 @@ const PLAYABLE_MARKET_FORMATS = new Set<MarketFormat>([
   'rent_yield_over_under',
   'time_on_market_over_under',
   'renovation_budget_over_under',
+  'neighborhood_price_momentum_over_under',
 ]);
 
 const STREET_SUFFIX_PATTERN =

@@ -38,6 +38,10 @@ export interface RoomMarketConfig {
   settlement_price_hint?: number;
   budget_threshold?: number;
   days_threshold?: number;
+  baseline_median_price?: number | null;
+  price_momentum_threshold?: number;
+  comparison_window?: string | null;
+  zip_code?: string | null;
   outcomes?: string[];
   liquidity_b?: number;
 }
@@ -127,6 +131,8 @@ export interface ActivityEntry {
   reason?: string | null;
   timestamp: number;
   actual_price?: number;
+  future_median_price?: number | null;
+  price_momentum_threshold?: number | null;
   winning_outcome?: string;
   phase_status?: string;
   phase_label?: string;
@@ -261,6 +267,10 @@ export interface SettleResult {
   budget_threshold?: number | null;
   days_on_market?: number | null;
   days_threshold?: number | null;
+  future_median_price?: number | null;
+  baseline_median_price?: number | null;
+  price_momentum_threshold?: number | null;
+  price_momentum_return?: number | null;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
   reputation_summary?: RoomReputationSummary | null;
@@ -293,6 +303,10 @@ export interface PublicVerificationArtifact {
     budget_threshold?: number | null;
     days_on_market?: number | null;
     days_threshold?: number | null;
+    future_median_price?: number | null;
+    baseline_median_price?: number | null;
+    price_momentum_threshold?: number | null;
+    price_momentum_return?: number | null;
     evidence_packet_hash: string | null;
     evidence_item_count: number;
     reputation_schema_version?: string | null;
@@ -354,6 +368,10 @@ export type WsSettleMessage = {
   budget_threshold?: number | null;
   days_on_market?: number | null;
   days_threshold?: number | null;
+  future_median_price?: number | null;
+  baseline_median_price?: number | null;
+  price_momentum_threshold?: number | null;
+  price_momentum_return?: number | null;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
   reputation_summary?: RoomReputationSummary | null;

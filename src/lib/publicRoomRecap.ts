@@ -58,6 +58,9 @@ function settlementValue(settlement: SettleResult) {
   if (Number.isFinite(settlement.verified_cost)) {
     return `${outcome} at ${formatMoney(settlement.verified_cost)}`;
   }
+  if (Number.isFinite(settlement.future_median_price)) {
+    return `${outcome} at ${formatMoney(settlement.future_median_price)}`;
+  }
   return `${outcome} at ${formatMoney(settlement.actual_price)}`;
 }
 
@@ -74,6 +77,9 @@ function settlementDetail(settlement: SettleResult, house: House) {
   }
   if (Number.isFinite(settlement.verified_cost)) {
     return `Host-entered public renovation evidence reports ${formatMoney(settlement.verified_cost)} verified cost against a ${formatMoney(settlement.budget_threshold)} budget.`;
+  }
+  if (Number.isFinite(settlement.future_median_price)) {
+    return `Host-entered ZIP median is ${formatMoney(settlement.future_median_price)} against a ${formatMoney(settlement.price_momentum_threshold)} threshold.`;
   }
   return `Host-entered public settlement value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`;
 }

@@ -44,8 +44,8 @@ describe('market template registry', () => {
     );
     expect(getMarketTemplate('neighborhood_price_momentum_over_under')).toEqual(
       expect.objectContaining({
-        status: 'draft_only',
-        pricing_engine: 'pending_neighborhood_market_engine',
+        status: 'playable',
+        pricing_engine: 'lmsr_binary_v1',
       })
     );
     expect(getMarketTemplate('neighborhood_rent_yield_over_under')).toEqual(
@@ -68,6 +68,8 @@ describe('market template registry', () => {
     expect(isPlayableMarketFormat('time_on_market_over_under')).toBe(true);
     expect(isRegisteredMarketFormat('renovation_budget_over_under')).toBe(true);
     expect(isPlayableMarketFormat('renovation_budget_over_under')).toBe(true);
+    expect(isRegisteredMarketFormat('neighborhood_price_momentum_over_under')).toBe(true);
+    expect(isPlayableMarketFormat('neighborhood_price_momentum_over_under')).toBe(true);
     expect(isRegisteredMarketFormat('neighborhood_outperformance_over_under')).toBe(true);
     expect(isPlayableMarketFormat('neighborhood_outperformance_over_under')).toBe(false);
   });

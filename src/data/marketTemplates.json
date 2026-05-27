@@ -100,20 +100,21 @@
     {
       "market_format": "neighborhood_price_momentum_over_under",
       "label": "Neighborhood price momentum over/under",
-      "status": "draft_only",
-      "summary": "Draft contract for forecasting whether a ZIP-code neighborhood median price clears a configured future threshold.",
+      "status": "playable",
+      "summary": "Players forecast whether a ZIP-code neighborhood median price clears a configured future threshold.",
       "outcome_schema": {
         "type": "binary",
         "outcomes": ["over", "under"]
       },
-      "pricing_engine": "pending_neighborhood_market_engine",
+      "pricing_engine": "lmsr_binary_v1",
       "settlement_inputs": ["baseline_median_price", "future_median_price", "price_momentum_threshold", "comparison_window", "provider_snapshot", "settlement_evidence"],
       "settlement_rule": "OVER wins when verified future_median_price is at or above the configured price_momentum_threshold for the selected ZIP-code comparison window; UNDER wins otherwise.",
-      "supported_surfaces": ["template_registry", "neighborhood_market_drafts", "developer_api", "settlement_design"],
+      "supported_surfaces": ["room_creation_api", "betting", "settlement", "event_replay", "public_verification", "developer_api", "neighborhood_market_drafts"],
       "limitations": [
-        "Draft-only: blocked from room creation until neighborhood market pricing, evidence ingestion, and settlement review are implemented.",
+        "Simulation credits only.",
         "The current baseline can be generated only from FairValue static ZIP-code aggregates.",
-        "Settlement would require future provider-backed neighborhood snapshots, not manual claims or property-level anecdotes."
+        "Settlement requires public-safe future provider-backed neighborhood snapshot metadata, not manual claims or property-level anecdotes.",
+        "AI bot trading remains disabled for neighborhood price-momentum rooms."
       ]
     },
     {

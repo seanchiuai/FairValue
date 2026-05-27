@@ -113,7 +113,7 @@ type StructuredIntelligenceEnvelope = {
 type NeighborhoodMarketDraft = {
   draft_id: string;
   market_format: string;
-  template_status: 'draft_only';
+  template_status: 'draft_only' | 'playable';
   template_label: string;
   pricing_engine: string;
   label: string;
@@ -482,6 +482,9 @@ const MarketPage: React.FC = () => {
     if (config.outperformance_threshold != null) return formatDraftValue('return', Number(config.outperformance_threshold));
     return formatDraftValue('median_price', Number(config.price_momentum_threshold));
   };
+  const draftStatusLabel = (draft: NeighborhoodMarketDraft) => (
+    draft.template_status === 'playable' ? 'Playable' : 'Draft only'
+  );
   const draftCards = neighborhoodDrafts?.drafts || [];
 
   return (
@@ -692,11 +695,11 @@ const MarketPage: React.FC = () => {
                 {draftCards.length
                   ? `${neighborhoodDrafts?.label || property.zipCode} has ${draftCards.length} static ZIP scenario contracts generated for future market design.`
                   : neighborhoodDraftsLoading
-                    ? 'Loading draft-only neighborhood scenario contracts from the local property snapshot.'
+                    ? 'Loading neighborhood scenario contracts from the local property snapshot.'
                     : neighborhoodDraftsError || 'No neighborhood scenario contracts are available for this ZIP code.'}
               </p>
             </div>
-            <span className="neighborhood-drafts-pill">Draft only</span>
+            <span className="neighborhood-drafts-pill">Playable + draft</span>
           </div>
 
           {draftCards.length > 0 && (
@@ -708,7 +711,7 @@ const MarketPage: React.FC = () => {
                     <article key={draft.draft_id} className="neighborhood-draft-card">
                       <div className="neighborhood-draft-top">
                         <span className="neighborhood-draft-label">{draft.template_label}</span>
-                        <span className="neighborhood-draft-status">{draft.template_status.replace(/_/g, ' ')}</span>
+                        <span className="neighborhood-draft-status">{draftStatusLabel(draft)}</span>
                       </div>
                       <p className="neighborhood-draft-question">{draft.question}</p>
                       <div className="neighborhood-draft-facts">
@@ -731,7 +734,15 @@ const MarketPage: React.FC = () => {
                       </p>
                       <div className={`neighborhood-evidence-status ${hasProviderEvidence ? 'provider' : ''}`}>
                         <span className="neighborhood-evidence-label">{hasProviderEvidence ? 'Provider' : 'Evidence gap'}</span>
-                        <span className="neighborhood-evidence-detail">blocked from playable-room promotion</span>
+                        <span className="neighborhood-evidence-detail">
+                          {hasProviderEvidence
+                            ? draft.template_status === 'playable'
+                              ? 'provider snapshot ready for settlement review'
+                              : 'provider evidence ready; pricing workflow still blocked'
+                            : draft.template_status === 'playable'
+                              ? 'provider evidence required before settlement'
+                              : 'blocked from playable-room promotion'}
+                        </span>
                       </div>
                       <p className="neighborhood-draft-rule">{draft.settlement_rule}</p>
                     </article>
@@ -739,7 +750,7 @@ const MarketPage: React.FC = () => {
                 })}
               </div>
               <p className="neighborhood-drafts-limitation">
-                {neighborhoodDrafts?.limitations?.[0] || 'These are draft-only scenario contracts, not playable rooms.'}
+                {neighborhoodDrafts?.limitations?.[0] || 'Price-momentum is playable; the other neighborhood contracts remain draft-only.'}
               </p>
             </>
           )}

@@ -10,7 +10,7 @@ const {
   validateMarketFormatForRoom,
 } = require('../marketTemplateRegistry');
 
-test('market template registry exposes playable binary/range/rent-yield/time/renovation formats', () => {
+test('market template registry exposes playable binary/range/rent-yield/time/renovation/neighborhood formats', () => {
   const registry = publicMarketTemplateRegistry();
   assert.equal(registry.schema_version, 'market-template-registry/v1');
   assert.equal(registry.default_market_format, 'binary_over_under');
@@ -33,8 +33,9 @@ test('market template registry exposes playable binary/range/rent-yield/time/ren
   assert.equal(isPlayableMarketFormat('renovation_budget_over_under'), true);
   assert.equal(getMarketTemplate('renovation_budget_over_under').pricing_engine, 'lmsr_binary_v1');
   assert.equal(isRegisteredMarketFormat('neighborhood_price_momentum_over_under'), true);
-  assert.equal(isPlayableMarketFormat('neighborhood_price_momentum_over_under'), false);
-  assert.equal(getMarketTemplate('neighborhood_price_momentum_over_under').status, 'draft_only');
+  assert.equal(isPlayableMarketFormat('neighborhood_price_momentum_over_under'), true);
+  assert.equal(getMarketTemplate('neighborhood_price_momentum_over_under').status, 'playable');
+  assert.equal(getMarketTemplate('neighborhood_price_momentum_over_under').pricing_engine, 'lmsr_binary_v1');
   assert.equal(isRegisteredMarketFormat('neighborhood_rent_yield_over_under'), true);
   assert.equal(isPlayableMarketFormat('neighborhood_rent_yield_over_under'), false);
   assert.equal(isRegisteredMarketFormat('neighborhood_outperformance_over_under'), true);
@@ -64,6 +65,10 @@ test('room market format validation accepts playable real-estate market formats'
   const renovation = validateMarketFormatForRoom('renovation_budget_over_under');
   assert.equal(renovation.value, 'renovation_budget_over_under');
   assert.equal(renovation.template.status, 'playable');
+
+  const neighborhood = validateMarketFormatForRoom('neighborhood_price_momentum_over_under');
+  assert.equal(neighborhood.value, 'neighborhood_price_momentum_over_under');
+  assert.equal(neighborhood.template.status, 'playable');
 
   const missing = validateMarketFormatForRoom('weather_derivative');
   assert.equal(missing.error, 'Market draft format is not registered');
