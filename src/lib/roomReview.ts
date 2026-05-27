@@ -191,6 +191,13 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
       value: `${settlement.winning_outcome.toUpperCase()} at ${formatMoney(settlement.actual_price)}`,
       detail: `Actual value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`,
     });
+    if (settlement.evidence_packet) {
+      evidence.push({
+        label: 'Settlement evidence packet',
+        value: `${settlement.evidence_packet.items.length} public item${settlement.evidence_packet.items.length === 1 ? '' : 's'}`,
+        detail: `${settlement.evidence_packet.summary} Sources: ${settlement.evidence_packet.items.map((item) => `${item.label} (${item.confidence})`).join('; ')}.`,
+      });
+    }
   }
 
   const integrityChecks = [
@@ -203,6 +210,9 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
     settlement
       ? `Settlement outcome ${settlement.winning_outcome.toUpperCase()} ${winnerFor(settlement.actual_price, house.asking_price) === settlement.winning_outcome ? 'matches' : 'does not match'} the asking-price comparison.`
       : 'Settlement has not been recorded yet.',
+    settlement?.evidence_packet
+      ? `Settlement evidence packet is ${settlement.evidence_packet.status.replace(/_/g, ' ')} with ${settlement.evidence_packet.items.length} public-safe metadata item${settlement.evidence_packet.items.length === 1 ? '' : 's'}.`
+      : 'Settlement evidence packet has not been recorded yet.',
     'All balances and payouts are simulation credits only.',
   ];
 

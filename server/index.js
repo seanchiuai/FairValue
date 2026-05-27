@@ -11,7 +11,9 @@ const {
   replayRoomEvents,
   roomEventToActivity,
 } = require('./roomEventLog');
+const { createReplayIntegrityReport } = require('./replayIntegrity');
 const { createRoomPersistence } = require('./roomPersistence');
+const { validateSettlementEvidencePayload } = require('./settlementEvidence');
 const observability = require('./observability');
 const {
   DEFAULT_B,
@@ -609,7 +611,12 @@ function validateBetPayload(body) {
 function validateSettlePayload(body) {
   const actualPrice = parsePositiveNumber(body?.actual_price, MAX_ASKING_PRICE);
   if (actualPrice === null) return { error: 'Actual price must be between $1 and $100M' };
-  return { value: { actual_price: actualPrice } };
+  const rawEvidence = Object.prototype.hasOwnProperty.call(body || {}, 'settlement_evidence')
+    ? body.settlement_evidence
+    : body?.evidence_packet;
+  const evidence = validateSettlementEvidencePayload(rawEvidence, actualPrice);
+  if (evidence.error) return { error: evidence.error };
+  return { value: { actual_price: actualPrice, evidence_packet: evidence.value } };
 }
 
 function validationError(res, message) {
@@ -810,89 +817,6 @@ function getRoomFromCodeParam(req, res) {
 
 function getRoomReplay(room) {
   return replayRoomEvents(roomEventStore.list(room.code));
-}
-
-function sortJson(value) {
-  if (Array.isArray(value)) return value.map(sortJson);
-  if (!value || typeof value !== 'object') return value;
-  return Object.keys(value)
-    .sort()
-    .reduce((result, key) => {
-      result[key] = sortJson(value[key]);
-      return result;
-    }, {});
-}
-
-function stableJson(value) {
-  return JSON.stringify(sortJson(value));
-}
-
-function projectionHash(value) {
-  return crypto.createHash('sha256').update(stableJson(value)).digest('hex').slice(0, 16);
-}
-
-function projectionSize(value) {
-  return Buffer.byteLength(stableJson(value));
-}
-
-function sortedPlayers(players) {
-  return Object.values(players || {})
-    .map((player) => cloneJson(player))
-    .sort((a, b) => String(a.session_id || '').localeCompare(String(b.session_id || '')));
-}
-
-function createReplayIntegrityReport(room) {
-  const events = roomEventStore.list(room.code);
-  const replay = replayRoomEvents(events);
-  const liveProjection = {
-    room_code: room.code,
-    house: cloneJson(room.house),
-    draft_audit: room.draftAudit ? cloneJson(room.draftAudit) : null,
-    market: getPublicMarketState(room.market),
-    players: sortedPlayers(room.players),
-    activity: cloneJson(room.activity || []),
-    ai_enabled: Boolean(room.aiEnabled),
-    settled: Boolean(room.settled),
-    settlement: room.settlement ? cloneJson(room.settlement) : null,
-  };
-  const replayProjection = {
-    room_code: replay.room_code,
-    house: replay.house,
-    draft_audit: replay.draft_audit,
-    market: replay.market,
-    players: sortedPlayers(replay.players),
-    activity: replay.activity,
-    ai_enabled: Boolean(replay.ai_enabled),
-    settled: Boolean(replay.settled),
-    settlement: replay.settlement,
-  };
-
-  const checks = Object.keys(liveProjection).map((pathName) => {
-    const replayValue = replayProjection[pathName];
-    const liveValue = liveProjection[pathName];
-    const replayHash = projectionHash(replayValue);
-    const liveHash = projectionHash(liveValue);
-    return {
-      path: pathName,
-      ok: replayHash === liveHash,
-      replay_hash: replayHash,
-      live_hash: liveHash,
-      replay_size_bytes: projectionSize(replayValue),
-      live_size_bytes: projectionSize(liveValue),
-    };
-  });
-  const mismatches = checks.filter((check) => !check.ok);
-
-  return {
-    room_code: room.code,
-    ok: mismatches.length === 0,
-    checked_at: new Date().toISOString(),
-    event_count: events.length,
-    last_sequence: events.at(-1)?.sequence || 0,
-    checks,
-    mismatch_count: mismatches.length,
-    mismatches,
-  };
 }
 
 function recordReplayIntegrity(report) {
@@ -1469,7 +1393,7 @@ app.get('/api/rooms/:code/replay/verify', async (req, res) => {
   if (!room) return;
   if (!(await requireHostCapability(req, res, room))) return;
 
-  const report = createReplayIntegrityReport(room);
+  const report = createReplayIntegrityReport(room, roomEventStore.list(room.code));
   recordReplayIntegrity(report);
   res.status(report.ok ? 200 : 409).json(report);
 });
@@ -1594,7 +1518,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   room.aiEnabled = false;
   room.settled = true;
 
-  const { actual_price } = validated.value;
+  const { actual_price, evidence_packet } = validated.value;
   const winningOutcome = getWinningOutcome(actual_price, room.house.asking_price);
   const settlement = settlePlayers(Object.values(room.players), winningOutcome);
   for (const player of settlement.players) {
@@ -1602,10 +1526,11 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   }
   const { results } = settlement;
 
-  room.settlement = { winning_outcome: winningOutcome, actual_price, results };
+  room.settlement = { winning_outcome: winningOutcome, actual_price, results, evidence_packet };
   const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
     actual_price,
     winning_outcome: winningOutcome,
+    evidence_packet,
     results,
     settlement: room.settlement,
     players: Object.values(room.players).map((player) => cloneJson(player)),

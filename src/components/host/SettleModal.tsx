@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { House } from '../../types';
+import type { House, SettlementEvidencePacket } from '../../types';
 import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
 import { useToast } from '../../contexts/ToastContext';
 import TrustNotice from '../TrustNotice';
@@ -14,9 +14,37 @@ interface SettleModalProps {
 
 type SettlementResponse = {
   actual_price?: number;
+  evidence_packet?: SettlementEvidencePacket | null;
   error?: string;
   results?: unknown[];
   winning_outcome?: string;
+};
+
+const EVIDENCE_TYPES = [
+  'sale_record',
+  'appraisal',
+  'signed_valuation',
+  'mls_update',
+  'permit_record',
+  'rental_outcome',
+  'insurer_notice',
+  'public_record',
+  'host_attestation',
+] as const;
+
+type EvidenceType = typeof EVIDENCE_TYPES[number];
+type EvidenceConfidence = 'low' | 'medium' | 'high';
+
+const EVIDENCE_LABELS: Record<EvidenceType, string> = {
+  sale_record: 'Sale record',
+  appraisal: 'Appraisal',
+  signed_valuation: 'Signed valuation',
+  mls_update: 'MLS update',
+  permit_record: 'Permit record',
+  rental_outcome: 'Rental outcome',
+  insurer_notice: 'Insurer notice',
+  public_record: 'Public record',
+  host_attestation: 'Host attestation',
 };
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -25,6 +53,14 @@ async function readJson<T>(response: Response): Promise<T> {
 
 export default function SettleModal({ house, roomCode, hostToken, userToken, onClose }: SettleModalProps) {
   const [actualPrice, setActualPrice] = useState('');
+  const [evidenceType, setEvidenceType] = useState<EvidenceType>('sale_record');
+  const [evidenceConfidence, setEvidenceConfidence] = useState<EvidenceConfidence>('medium');
+  const [evidenceSummary, setEvidenceSummary] = useState('');
+  const [evidenceLabel, setEvidenceLabel] = useState('');
+  const [evidenceSource, setEvidenceSource] = useState('');
+  const [evidenceReference, setEvidenceReference] = useState('');
+  const [evidenceObservedAt, setEvidenceObservedAt] = useState('');
+  const [evidenceNotes, setEvidenceNotes] = useState('');
   const [settling, setSettling] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +90,35 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
       setError('Host authority missing for this room');
       return;
     }
+    const evidenceItemHasMetadata = [
+      evidenceLabel,
+      evidenceSource,
+      evidenceReference,
+      evidenceObservedAt,
+      evidenceNotes,
+    ].some((value) => value.trim());
+    if (evidenceItemHasMetadata && !evidenceSource.trim() && !evidenceReference.trim()) {
+      setError('Add an evidence source or reference, or leave evidence metadata blank');
+      return;
+    }
+    const settlementEvidence = evidenceSummary.trim() || evidenceItemHasMetadata
+      ? {
+        summary: evidenceSummary.trim() || undefined,
+        items: evidenceItemHasMetadata
+          ? [
+            {
+              type: evidenceType,
+              label: evidenceLabel.trim() || EVIDENCE_LABELS[evidenceType],
+              source: evidenceSource.trim(),
+              reference: evidenceReference.trim(),
+              observed_at: evidenceObservedAt.trim() || null,
+              confidence: evidenceConfidence,
+              notes: evidenceNotes.trim(),
+            },
+          ]
+          : [],
+      }
+      : undefined;
     setSettling(true);
     setError('');
     try {
@@ -63,7 +128,10 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
           'Content-Type': 'application/json',
           ...authHeaders,
         },
-        body: JSON.stringify({ actual_price: price }),
+        body: JSON.stringify({
+          actual_price: price,
+          ...(settlementEvidence ? { settlement_evidence: settlementEvidence } : {}),
+        }),
       });
       const data = await readJson<SettlementResponse>(res);
       if (!res.ok || data.error) {
@@ -91,7 +159,22 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
     } finally {
       setSettling(false);
     }
-  }, [roomCode, hostToken, userToken, actualPrice, onClose, showToast]);
+  }, [
+    roomCode,
+    hostToken,
+    userToken,
+    actualPrice,
+    evidenceType,
+    evidenceConfidence,
+    evidenceSummary,
+    evidenceLabel,
+    evidenceSource,
+    evidenceReference,
+    evidenceObservedAt,
+    evidenceNotes,
+    onClose,
+    showToast,
+  ]);
 
   return (
     <div
@@ -142,6 +225,101 @@ export default function SettleModal({ house, roomCode, hostToken, userToken, onC
               : 'UNDER wins'
             : 'enter a price'}
         </p>
+        <fieldset style={s.evidenceGroup}>
+          <legend style={s.evidenceLegend}>Settlement Evidence Packet</legend>
+          <div style={s.field}>
+            <label style={s.label} htmlFor="settle-evidence-summary">Summary</label>
+            <input
+              id="settle-evidence-summary"
+              style={s.inputSmall}
+              value={evidenceSummary}
+              onChange={(e) => setEvidenceSummary(e.target.value)}
+              placeholder="County sale record metadata"
+            />
+          </div>
+          <div style={s.twoColumn}>
+            <div style={s.fieldCompact}>
+              <label style={s.label} htmlFor="settle-evidence-type">Type</label>
+              <select
+                id="settle-evidence-type"
+                style={s.inputSmall}
+                value={evidenceType}
+                onChange={(e) => setEvidenceType(e.target.value as EvidenceType)}
+              >
+                {EVIDENCE_TYPES.map((type) => (
+                  <option key={type} value={type}>{EVIDENCE_LABELS[type]}</option>
+                ))}
+              </select>
+            </div>
+            <div style={s.fieldCompact}>
+              <label style={s.label} htmlFor="settle-evidence-confidence">Confidence</label>
+              <select
+                id="settle-evidence-confidence"
+                style={s.inputSmall}
+                value={evidenceConfidence}
+                onChange={(e) => setEvidenceConfidence(e.target.value as EvidenceConfidence)}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+          <div style={s.fieldCompact}>
+            <label style={s.label} htmlFor="settle-evidence-label">Label</label>
+            <input
+              id="settle-evidence-label"
+              style={s.inputSmall}
+              value={evidenceLabel}
+              onChange={(e) => setEvidenceLabel(e.target.value)}
+              placeholder={EVIDENCE_LABELS[evidenceType]}
+            />
+          </div>
+          <div style={s.twoColumn}>
+            <div style={s.fieldCompact}>
+              <label style={s.label} htmlFor="settle-evidence-source">Source</label>
+              <input
+                id="settle-evidence-source"
+                style={s.inputSmall}
+                value={evidenceSource}
+                onChange={(e) => setEvidenceSource(e.target.value)}
+                placeholder="County recorder"
+              />
+            </div>
+            <div style={s.fieldCompact}>
+              <label style={s.label} htmlFor="settle-evidence-reference">Reference</label>
+              <input
+                id="settle-evidence-reference"
+                style={s.inputSmall}
+                value={evidenceReference}
+                onChange={(e) => setEvidenceReference(e.target.value)}
+                placeholder="Document 9988"
+              />
+            </div>
+          </div>
+          <div style={s.fieldCompact}>
+            <label style={s.label} htmlFor="settle-evidence-observed">Observed At</label>
+            <input
+              id="settle-evidence-observed"
+              style={s.inputSmall}
+              value={evidenceObservedAt}
+              onChange={(e) => setEvidenceObservedAt(e.target.value)}
+              placeholder="2026-05-26"
+              inputMode="numeric"
+            />
+          </div>
+          <div style={s.fieldCompact}>
+            <label style={s.label} htmlFor="settle-evidence-notes">Notes</label>
+            <textarea
+              id="settle-evidence-notes"
+              style={s.textarea}
+              value={evidenceNotes}
+              onChange={(e) => setEvidenceNotes(e.target.value)}
+              placeholder="Public-safe metadata only"
+              rows={2}
+            />
+          </div>
+        </fieldset>
         {error && <p id="settle-error" style={s.error} role="alert">{error}</p>}
         <div style={s.buttons}>
           <button style={s.cancel} onClick={onClose}>Cancel</button>
@@ -173,8 +351,10 @@ const s: Record<string, React.CSSProperties> = {
     border: '1px solid var(--border-subtle)',
     borderRadius: 14,
     padding: 24,
-    width: 380,
+    width: 460,
     maxWidth: '90vw',
+    maxHeight: '88vh',
+    overflow: 'auto',
   },
   title: {
     fontSize: 18,
@@ -195,10 +375,10 @@ const s: Record<string, React.CSSProperties> = {
   },
   label: {
     fontSize: 11,
-    fontWeight: 600,
-    color: 'var(--text-muted)',
+    fontWeight: 700,
+    color: 'var(--text-primary)',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0,
   },
   input: {
     padding: '12px 14px',
@@ -211,6 +391,58 @@ const s: Record<string, React.CSSProperties> = {
     width: '100%',
     boxSizing: 'border-box',
   },
+  inputSmall: {
+    padding: '9px 10px',
+    background: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  textarea: {
+    padding: '9px 10px',
+    background: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    lineHeight: 1.35,
+    outline: 'none',
+    resize: 'vertical',
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  evidenceGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    margin: '14px 0 16px',
+    padding: 12,
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+  },
+  evidenceLegend: {
+    padding: '0 6px',
+    color: 'var(--text-primary)',
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  twoColumn: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: 8,
+  },
+  fieldCompact: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 5,
+  },
   hint: {
     fontSize: 13,
     color: 'var(--text-muted)',
@@ -218,7 +450,8 @@ const s: Record<string, React.CSSProperties> = {
   },
   error: {
     fontSize: 13,
-    color: 'var(--accent-danger)',
+    color: '#4c0519',
+    fontWeight: 700,
     margin: '0 0 16px',
   },
   buttons: {

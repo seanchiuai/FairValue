@@ -131,6 +131,71 @@ test('room, join, bet, and settlement payloads are validated before mutation', a
   });
   assert.equal(invalidSettle.status, 400);
   assert.equal(rooms[code].settled, false);
+
+  const invalidEvidence = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: {
+      actual_price: 650000,
+      settlement_evidence: {
+        items: [{ type: 'secret_pdf_upload', source: 'Mailbox' }],
+      },
+    },
+  });
+  assert.equal(invalidEvidence.status, 400);
+  assert.match(invalidEvidence.data.error, /unsupported type/);
+  assert.equal(rooms[code].settled, false);
+});
+
+test('settlement evidence packet is sanitized, replayed, and kept public-safe', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  const joined = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'evidence-player', nickname: 'Evidence Player' },
+  });
+  assert.equal(joined.status, 200);
+
+  const settled = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: {
+      actual_price: 650000,
+      settlement_evidence: {
+        summary: '<b>County sale record</b> and appraiser letter metadata.',
+        items: [
+          {
+            type: 'sale_record',
+            label: '<i>County record</i>',
+            source: 'County recorder',
+            reference: 'Document 9988',
+            observed_at: '2026-05-25',
+            confidence: 'high',
+            notes: 'Public closing record metadata; no private PDF stored.',
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(settled.status, 200);
+  assert.equal(settled.data.evidence_packet.schema_version, 'settlement-evidence/v1');
+  assert.equal(settled.data.evidence_packet.status, 'metadata_attached');
+  assert.equal(settled.data.evidence_packet.summary, 'County sale record and appraiser letter metadata.');
+  assert.equal(settled.data.evidence_packet.items[0].label, 'County record');
+  assert.equal(JSON.stringify(settled.data).includes('<b>'), false);
+  assert.equal(JSON.stringify(settled.data).includes(room.host_token), false);
+
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.settlement.evidence_packet.items[0].source, 'County recorder');
+
+  const replay = await request(`/api/rooms/${code}/replay`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.replay.settlement.evidence_packet.items[0].reference, 'Document 9988');
+  assert.equal(JSON.stringify(replay.data).includes(room.host_token), false);
 });
 
 test('market studio draft metadata is server-validated and preserved for audit', async () => {

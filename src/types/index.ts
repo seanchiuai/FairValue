@@ -101,10 +101,30 @@ export interface SettleResultEntry {
   final_balance: number;
 }
 
+export interface SettlementEvidenceItem {
+  type: string;
+  label: string;
+  source: string;
+  reference: string | null;
+  observed_at: string | null;
+  confidence: 'low' | 'medium' | 'high';
+  notes: string | null;
+}
+
+export interface SettlementEvidencePacket {
+  schema_version: string;
+  status: 'host_attested' | 'metadata_attached';
+  actual_price: number;
+  summary: string;
+  items: SettlementEvidenceItem[];
+  limitations: string[];
+}
+
 export interface SettleResult {
   winning_outcome: string;
   actual_price: number;
   results: SettleResultEntry[];
+  evidence_packet?: SettlementEvidencePacket | null;
 }
 
 // --- WebSocket message types (discriminated union) ---
@@ -138,6 +158,7 @@ export type WsSettleMessage = {
   winning_outcome: string;
   actual_price: number;
   results: SettleResultEntry[];
+  evidence_packet?: SettlementEvidencePacket | null;
   activity?: ActivityEntry;
 };
 

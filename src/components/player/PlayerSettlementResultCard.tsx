@@ -17,6 +17,7 @@ export default function PlayerSettlementResultCard({
   const outcomeClass = settleResult.winning_outcome === 'over'
     ? 'player-settlement-result__outcome--over'
     : 'player-settlement-result__outcome--under';
+  const evidencePacket = settleResult.evidence_packet;
 
   return (
     <section className="player-settlement-result" data-testid="player-settlement-result">
@@ -28,6 +29,13 @@ export default function PlayerSettlementResultCard({
       <div className={`player-settlement-result__outcome ${outcomeClass}`}>
         {outcome} wins!
       </div>
+      {evidencePacket && (
+        <div className="player-settlement-result__evidence" data-testid="player-settlement-evidence-packet">
+          <span>Evidence packet</span>
+          <strong>{evidencePacket.items.length} public item{evidencePacket.items.length === 1 ? '' : 's'}</strong>
+          <p>{evidencePacket.summary}</p>
+        </div>
+      )}
       <TrustNotice
         testId="player-settlement-trust-notice"
         title="Settlement recap"
@@ -36,6 +44,9 @@ export default function PlayerSettlementResultCard({
         points={[
           'Payouts are simulation credits only.',
           'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
+          evidencePacket
+            ? 'Evidence metadata is public-safe and does not include private documents.'
+            : 'No external evidence metadata is attached.',
           'The room event history preserves this outcome for replay.',
         ]}
       />

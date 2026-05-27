@@ -117,6 +117,8 @@ Browser (React)
 
 `POST /api/rooms` returns a `host_token` only to the creator. Host-only routes (`settle`, `toggle-ai`, `events`, `replay`, and `replay/verify`) require that value in the `X-FairValue-Host-Token` header or the durable signed host identity for newly created rooms. Join, state, player, and WebSocket payloads do not expose the token. Market Studio room creation may include a `market_draft`; the server accepts only draft metadata that matches the room address and asking price, preserves a `draft_audit` envelope in state/events/replay/snapshots, and stores a source-text hash and length instead of the raw pasted text. Replay verification compares redacted hashes of the event-replayed projection against the live room projection and reports mismatch paths without returning host tokens, user tokens, snapshot contents, or private raw evidence.
 
+`POST /api/rooms/:code/settle` accepts `actual_price` plus an optional `settlement_evidence` packet. The packet may include a public-safe summary and up to six metadata items of type `sale_record`, `appraisal`, `signed_valuation`, `mls_update`, `permit_record`, `rental_outcome`, `insurer_notice`, `public_record`, or `host_attestation`, each with source/reference metadata, confidence, observed date, and notes. The server sanitizes text, rejects unsupported item types, never stores private document contents, and creates a low-confidence host-attestation packet when no metadata is supplied. Settlement responses, room state, WebSocket settlement broadcasts, replay, operator review, and public recaps all carry the normalized `evidence_packet`.
+
 The `/recap/:roomCode` route is frontend-only and reads the public state endpoint. It does not request `/api/rooms/:code/events`, does not require or send host authority, and is covered by token-leakage checks.
 
 ### Solo Markets (from Neon)
@@ -136,7 +138,7 @@ Connect to `ws://localhost:8000/ws/:roomCode`. Server broadcasts:
 - **`bet`** — player trade with updated market, player state, activity entry
 - **`join`** — new player with player count
 - **`ai_trade`** — bot trade with market update
-- **`settle`** — settlement results with per-player payouts
+- **`settle`** — settlement results with per-player payouts and normalized public-safe `evidence_packet`
 
 Client sends `ping` every 30s for keepalive.
 
@@ -227,7 +229,7 @@ npm run test:a11y:assistive
 
 `smoke:boot` starts `node server/index.js` on a free local port with an isolated temporary room snapshot file, checks health/readiness, verifies ops metrics token gating, creates/joins/bets/settles one room through HTTP plus a WebSocket join broadcast, verifies host token non-leakage, and confirms local room snapshot persistence wrote.
 
-`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, public recap privacy route, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, market trust explainer, host/player room trust notes, player pre-bet intelligence, join forms, Market Studio draft generation/matching/saved-draft/host-audit/live-intelligence/operator-review flow, identity-minting failure notifications, join-page create/join/host-auto-join API failure notifications, malformed join success responses, host/player room surfaces, settled operator review, room-state load failure notifications, missing-host-authority controls, settle modal, settlement recap trust notes, market-start room creation/host-auto-join failure notifications, settlement failure notifications, malformed settlement success handling, host-action failure notifications, malformed AI-toggle success handling, missing-key AI fallback, direct player join validation/API notifications, player bet failure rollback, player validation notifications, and mobile wager controls.
+`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, public recap privacy route, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, market trust explainer, host/player room trust notes, player pre-bet intelligence, join forms, Market Studio draft generation/matching/saved-draft/host-audit/live-intelligence/operator-review flow, identity-minting failure notifications, join-page create/join/host-auto-join API failure notifications, malformed join success responses, host/player room surfaces, settled operator review, room-state load failure notifications, missing-host-authority controls, settle modal, settlement evidence packet display, settlement recap trust notes, market-start room creation/host-auto-join failure notifications, settlement failure notifications, malformed settlement success handling, host-action failure notifications, malformed AI-toggle success handling, missing-key AI fallback, direct player join validation/API notifications, player bet failure rollback, player validation notifications, and mobile wager controls.
 
 `test:e2e:matrix` starts fresh backend/frontend ports (`8030`/`3030`) and runs the rendered host/player room flow across Chromium, Firefox, and WebKit projects.
 
@@ -257,6 +259,8 @@ npm run test:a11y:assistive
 server/
   index.js          # Express + WebSocket backend
   db.js             # Neon database connection
+  replayIntegrity.js # Host-only replay/live projection verification
+  settlementEvidence.js # Public-safe settlement evidence packet normalization
   seed.js           # Database seeding script
 src/
   components/       # Reusable UI components

@@ -37,6 +37,36 @@
   color: var(--accent-danger);
 }
 
+.player-settlement-result__evidence {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.player-settlement-result__evidence span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.player-settlement-result__evidence strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.player-settlement-result__evidence p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .player-settlement-result__recap-link {
   display: inline-flex;
   align-items: center;

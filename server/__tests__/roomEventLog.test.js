@@ -193,6 +193,18 @@ test('room event payload contracts reject malformed canonical events before appe
     }),
     /Invalid bet_placed payload: market is required/
   );
+  assert.throws(
+    () => store.append({
+      roomCode: 'EVNT',
+      type: EVENT_TYPES.SETTLEMENT_COMPLETED,
+      payload: {
+        actual_price: 720000,
+        winning_outcome: 'over',
+        settlement: { actual_price: 720000, winning_outcome: 'over', results: [] },
+      },
+    }),
+    /Invalid settlement_completed payload: evidence_packet is required/
+  );
 });
 
 test('room event log supports audit access, ordered replay, and settlement reconstruction', async () => {
@@ -239,6 +251,7 @@ test('room event log supports audit access, ordered replay, and settlement recon
   });
   assert.equal(settlement.status, 200);
   assert.equal(settlement.data.winning_outcome, 'over');
+  assert.equal(settlement.data.evidence_packet.status, 'host_attested');
 
   const eventsResponse = await request(`/api/rooms/${code}/events`, {
     headers: { 'X-FairValue-Host-Token': room.host_token },
@@ -273,6 +286,7 @@ test('room event log supports audit access, ordered replay, and settlement recon
   assert.equal(replayResponse.status, 200);
   assert.equal(replayResponse.data.replay.settled, true);
   assert.equal(replayResponse.data.replay.settlement.winning_outcome, 'over');
+  assert.equal(replayResponse.data.replay.settlement.evidence_packet.schema_version, 'settlement-evidence/v1');
   assert.equal(replayResponse.data.replay.market.total_trades, 1);
   assert.equal(replayResponse.data.replay.players['player-1'].balance, settlement.data.results[0].final_balance);
 

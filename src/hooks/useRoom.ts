@@ -178,6 +178,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         winning_outcome: data.winning_outcome,
         actual_price: data.actual_price,
         results: data.results,
+        evidence_packet: data.evidence_packet || null,
       });
       if (data.activity) {
         const entry = data.activity;

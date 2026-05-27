@@ -34,3 +34,46 @@
 .host-settlement-result__outcome--under {
   color: var(--accent-danger);
 }
+
+.host-settlement-result__evidence {
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.host-settlement-result__evidence-title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.host-settlement-result__evidence p {
+  margin: 5px 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.host-settlement-result__evidence ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.host-settlement-result__evidence li {
+  display: grid;
+  gap: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.host-settlement-result__evidence strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}

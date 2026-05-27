@@ -162,6 +162,24 @@ describe('room review generation', () => {
       settlement: {
         winning_outcome: 'over',
         actual_price: 835_000,
+        evidence_packet: {
+          schema_version: 'settlement-evidence/v1',
+          status: 'metadata_attached',
+          actual_price: 835_000,
+          summary: 'County sale record metadata confirmed the settlement value.',
+          items: [
+            {
+              type: 'sale_record',
+              label: 'County sale record',
+              source: 'County recorder',
+              reference: 'Document 835',
+              observed_at: '2026-05-25',
+              confidence: 'high',
+              notes: null,
+            },
+          ],
+          limitations: ['Public-safe metadata only.'],
+        },
         results: [
           { nickname: 'Ada', payout: 48.2, final_balance: 998.2 },
         ],
@@ -175,9 +193,11 @@ describe('room review generation', () => {
       expect.arrayContaining([
         expect.objectContaining({ label: 'Event history', value: 'Locked' }),
         expect.objectContaining({ label: 'Settlement evidence', value: 'OVER at $835,000' }),
+        expect.objectContaining({ label: 'Settlement evidence packet', value: '1 public item' }),
       ])
     );
     expect(review.integrity_checks).toContain('Settlement outcome OVER matches the asking-price comparison.');
+    expect(review.integrity_checks.join(' ')).toContain('metadata attached');
     expect(review.recap).toContain('Settlement recap: OVER won at $835,000.');
   });
 });

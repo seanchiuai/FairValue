@@ -79,6 +79,7 @@ function validateRoomEventPayload(type, payload = {}) {
       if (!hasOutcome(body.winning_outcome)) return 'winning_outcome is required';
       if (!hasFiniteNumber(body.actual_price)) return 'actual_price is required';
       if (!isObject(body.settlement)) return 'settlement is required';
+      if (!isObject(body.evidence_packet || body.settlement?.evidence_packet)) return 'evidence_packet is required';
       return null;
     case EVENT_TYPES.ERROR:
       if (!hasText(body.action)) return 'action is required';

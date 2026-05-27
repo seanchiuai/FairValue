@@ -116,6 +116,13 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
       value: `${settlement.winning_outcome.toUpperCase()} at ${formatMoney(settlement.actual_price)}`,
       detail: `Host-entered public settlement value is ${formatMoney(Math.abs(settlement.actual_price - house.asking_price))} ${settlement.actual_price >= house.asking_price ? 'above' : 'below'} the ${formatMoney(house.asking_price)} ask.`,
     });
+    if (settlement.evidence_packet) {
+      evidence.push({
+        label: 'Settlement evidence packet',
+        value: `${settlement.evidence_packet.items.length} public item${settlement.evidence_packet.items.length === 1 ? '' : 's'}`,
+        detail: `${settlement.evidence_packet.summary} FairValue stores public-safe metadata, not private document contents.`,
+      });
+    }
   }
 
   return {
@@ -137,6 +144,7 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
       'Balances, wagers, and payouts are simulation credits only.',
       'This recap is not a FairValue appraisal, investment product, or real-money market.',
       'Host-only event log is not included, and host tokens/user tokens are never shown here.',
+      'Settlement evidence packets include public-safe metadata only, not private document contents.',
       'No provider-backed comps were queried for this public recap.',
     ],
     timeline: buildTimeline(activity),

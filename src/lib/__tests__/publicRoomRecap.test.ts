@@ -85,6 +85,24 @@ describe('public room recap generation', () => {
       settlement: {
         winning_outcome: 'over',
         actual_price: 735_000,
+        evidence_packet: {
+          schema_version: 'settlement-evidence/v1',
+          status: 'metadata_attached',
+          actual_price: 735_000,
+          summary: 'Public sale record metadata confirmed the settlement value.',
+          items: [
+            {
+              type: 'sale_record',
+              label: 'County sale record',
+              source: 'County recorder',
+              reference: 'Document 735',
+              observed_at: '2026-05-25',
+              confidence: 'high',
+              notes: null,
+            },
+          ],
+          limitations: ['Public-safe metadata only.'],
+        },
         results: [
           { nickname: 'Ada', payout: 48.2, final_balance: 998.2 },
         ],
@@ -101,8 +119,10 @@ describe('public room recap generation', () => {
     expect(recap.evidence).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: 'Settlement result', value: 'OVER at $735,000' }),
+        expect.objectContaining({ label: 'Settlement evidence packet', value: '1 public item' }),
       ])
     );
+    expect(recap.guardrails.join(' ')).toContain('public-safe metadata only');
     expect(recap.timeline.at(-1)).toEqual({
       label: 'Settlement recorded',
       detail: 'OVER won at $735,000.',
