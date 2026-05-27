@@ -1,6 +1,6 @@
 import type { ComponentProps, Ref } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, FileSearch, Gavel, Share2, Users } from 'lucide-react';
+import { Bot, FileSearch, Gavel, Maximize2, Share2, Users } from 'lucide-react';
 import ConnectionIndicator from '../ConnectionIndicator';
 import './HostTopBar.css';
 
@@ -15,6 +15,8 @@ interface HostTopBarProps {
   settleButtonRef: Ref<HTMLButtonElement>;
   onToggleAI: () => void;
   onOpenSettle: () => void;
+  projectorMode?: boolean;
+  onToggleProjector?: () => void;
   showStatus?: boolean;
   showActions?: boolean;
 }
@@ -34,6 +36,8 @@ export default function HostTopBar({
   settleButtonRef,
   onToggleAI,
   onOpenSettle,
+  projectorMode = false,
+  onToggleProjector,
   showStatus = true,
   showActions = true,
 }: HostTopBarProps) {
@@ -57,6 +61,18 @@ export default function HostTopBar({
         <div className="host-topbar__right">
           {roomCode && (
             <>
+              {onToggleProjector && (
+                <button
+                  type="button"
+                  className={`host-topbar__control host-topbar__control--button${projectorMode ? ' host-topbar__control--active' : ''}`}
+                  onClick={onToggleProjector}
+                  aria-label={projectorMode ? 'Exit projector mode' : 'Enter projector mode'}
+                  aria-pressed={projectorMode}
+                  data-testid="host-projector-toggle"
+                >
+                  <Maximize2 size={14} aria-hidden="true" /> Projector
+                </button>
+              )}
               <Link
                 to={`/review/${roomCode}`}
                 className="host-topbar__control host-topbar__control--link"

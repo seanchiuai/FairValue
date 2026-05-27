@@ -17,6 +17,7 @@ import HostTopBar from '../components/host/HostTopBar';
 import HostAuthorityNotice from '../components/host/HostAuthorityNotice';
 import HostPropertySummary from '../components/host/HostPropertySummary';
 import HostPhaseControl from '../components/host/HostPhaseControl';
+import HostProjectorStage from '../components/host/HostProjectorStage';
 import HostMarketChartPanel from '../components/host/HostMarketChartPanel';
 import HostSettlementResultCard from '../components/host/HostSettlementResultCard';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
@@ -68,6 +69,7 @@ export default function HostView() {
 
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [phasePending, setPhasePending] = useState('');
+  const [projectorMode, setProjectorMode] = useState(false);
   const [ngrokUrl, setNgrokUrl] = useState(
     () => sessionStorage.getItem('fv_ngrok_url') || ''
   );
@@ -85,6 +87,11 @@ export default function HostView() {
   const settleButtonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
   if (connectionState === 'connected') wasConnectedRef.current = true;
+
+  useEffect(() => {
+    if (!roomCode) return;
+    setProjectorMode(sessionStorage.getItem(`fv_host_projector_${roomCode}`) === '1');
+  }, [roomCode]);
 
   // Chart
   const { addPoint, loadHistory, setRef: chartRef } = useMarketChart({ height: 300 });
@@ -193,6 +200,14 @@ export default function HostView() {
     sessionStorage.setItem('fv_ngrok_url', url);
   }, []);
 
+  const handleToggleProjector = useCallback(() => {
+    setProjectorMode((current) => {
+      const next = !current;
+      if (roomCode) sessionStorage.setItem(`fv_host_projector_${roomCode}`, next ? '1' : '0');
+      return next;
+    });
+  }, [roomCode]);
+
   const closeSettleModal = useCallback(() => {
     setShowSettleModal(false);
     window.requestAnimationFrame(() => settleButtonRef.current?.focus());
@@ -247,7 +262,7 @@ export default function HostView() {
   const joinUrl = `${baseUrl}/play/${roomCode}`;
 
   return (
-    <div className="host-view">
+    <div className={`host-view${projectorMode ? ' host-view--projector' : ''}`}>
       <HostTopBar
         roomCode={roomCode}
         playerCount={players.length}
@@ -259,6 +274,8 @@ export default function HostView() {
         settleButtonRef={settleButtonRef}
         onToggleAI={handleToggleAI}
         onOpenSettle={() => setShowSettleModal(true)}
+        projectorMode={projectorMode}
+        onToggleProjector={handleToggleProjector}
       />
 
       {!settled && !hasHostAuthority && (
@@ -268,42 +285,75 @@ export default function HostView() {
       {/* Main Layout */}
       <div className="host-view__layout">
         <div className="host-view__left">
-          <HostPropertySummary house={house} probOver={market.prob_over} />
+          {projectorMode ? (
+            <>
+              <HostProjectorStage
+                roomCode={roomCode}
+                house={house}
+                market={market}
+                phase={phase}
+                players={players}
+                intelligence={roomIntelligence}
+                joinUrl={joinUrl}
+                settled={settled}
+                settleResult={settleResult}
+              />
 
-          <HostPhaseControl
-            phase={phase}
-            settled={settled}
-            hasHostAuthority={hasHostAuthority}
-            disabledDescriptionId={hostAuthorityNoticeId}
-            pendingPhase={phasePending}
-            onChangePhase={handleRoomPhaseChange}
-          />
+              <HostPhaseControl
+                phase={phase}
+                settled={settled}
+                hasHostAuthority={hasHostAuthority}
+                disabledDescriptionId={hostAuthorityNoticeId}
+                pendingPhase={phasePending}
+                onChangePhase={handleRoomPhaseChange}
+              />
 
-          {draftAudit && <HostDraftAuditCard draftAudit={draftAudit} />}
+              {settled && settleResult && (
+                <HostSettlementResultCard settleResult={settleResult} />
+              )}
 
-          {!showSettleModal && roomIntelligence && (
-            <HostRoomIntelligencePanel intelligence={roomIntelligence} />
+              <HostMarketChartPanel market={market} chartRef={chartRef} />
+            </>
+          ) : (
+            <>
+              <HostPropertySummary house={house} probOver={market.prob_over} />
+
+              <HostPhaseControl
+                phase={phase}
+                settled={settled}
+                hasHostAuthority={hasHostAuthority}
+                disabledDescriptionId={hostAuthorityNoticeId}
+                pendingPhase={phasePending}
+                onChangePhase={handleRoomPhaseChange}
+              />
+
+              {draftAudit && <HostDraftAuditCard draftAudit={draftAudit} />}
+
+              {!showSettleModal && roomIntelligence && (
+                <HostRoomIntelligencePanel intelligence={roomIntelligence} />
+              )}
+
+              <TrustNotice
+                testId="host-room-trust-notice"
+                title="Room trust note"
+                tone="dark"
+              />
+
+              {settled && settleResult && (
+                <HostSettlementResultCard settleResult={settleResult} />
+              )}
+
+              <HostMarketChartPanel market={market} chartRef={chartRef} />
+
+              <CogneeChat
+                propertyId={roomCode || ''}
+                askingPrice={house.asking_price}
+                market={market}
+                activity={activity}
+                players={players}
+              />
+            </>
           )}
-
-          <TrustNotice
-            testId="host-room-trust-notice"
-            title="Room trust note"
-            tone="dark"
-          />
-
-          {settled && settleResult && (
-            <HostSettlementResultCard settleResult={settleResult} />
-          )}
-
-          <HostMarketChartPanel market={market} chartRef={chartRef} />
-
-          <CogneeChat
-            propertyId={roomCode || ''}
-            askingPrice={house.asking_price}
-            market={market}
-            activity={activity}
-            players={players}
-          />
         </div>
 
         <div className="host-view__right">
