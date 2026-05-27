@@ -1264,6 +1264,28 @@ app.get('/api/market-templates', (req, res) => {
   res.json(publicMarketTemplateRegistry());
 });
 
+app.get('/api/neighborhoods', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  res.json(propertySnapshot.neighborhoodResponse({
+    city: req.query.city,
+    state: req.query.state,
+    zip: req.query.zip || req.query.zip_code,
+    minProperties: req.query.min_properties,
+    limit: req.query.limit,
+  }));
+});
+
+app.get('/api/neighborhoods/:zipCode', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const result = propertySnapshot.neighborhoodResponse({
+    zip: req.params.zipCode,
+    limit: 1,
+  });
+  if (!result.entities.length) {
+    res.status(404).json({ error: 'Neighborhood entity not found' });
+    return;
+  }
+  res.json(result);
+});
+
 app.get('/api/properties', limitRequests('properties:query', { max: 240 }), (req, res) => {
   res.json(propertySnapshot.queryResponse({
     ids: req.query.ids,

@@ -39,6 +39,12 @@ function configureFixtureSnapshot() {
         state: 'CA',
         zipcode: '94607',
         price: 700000,
+        bedrooms: 2,
+        bathrooms: 1,
+        livingArea: 1000,
+        rentZestimate: 3000,
+        homeType: 'CONDO',
+        schools: [{ rating: 6 }, { rating: 8 }],
         homeStatus: 'FOR_SALE',
         listingDataSource: 'Fixture MLS',
         attributionInfo: { lastUpdated: '2026-05-20' },
@@ -50,6 +56,12 @@ function configureFixtureSnapshot() {
         state: 'CA',
         zipcode: '94704',
         price: 900000,
+        bedrooms: 3,
+        bathrooms: 2,
+        livingArea: 1200,
+        rentZestimate: 4200,
+        homeType: 'SINGLE_FAMILY',
+        schools: [{ rating: 7 }],
         homeStatus: 'FOR_SALE',
         listingDataSource: 'Fixture MLS',
         attributionInfo: { lastUpdated: '2026-05-21' },
@@ -59,8 +71,14 @@ function configureFixtureSnapshot() {
         streetAddress: '30 Query Ct',
         city: 'Oakland',
         state: 'CA',
-        zipcode: '94612',
+        zipcode: '94607',
         price: 1200000,
+        bedrooms: 4,
+        bathrooms: 2,
+        livingArea: 1500,
+        rentZestimate: 5000,
+        homeType: 'CONDO',
+        schools: [{ rating: 4 }, { rating: 5 }],
         homeStatus: 'RECENTLY_SOLD',
         listingDataSource: 'County export',
         attributionInfo: { lastChecked: '2026-05-22' },
@@ -124,4 +142,40 @@ test('property query API supports ID lists, limit caps, and single-property look
   const missing = await request('/api/properties/not-found');
   assert.equal(missing.status, 404);
   assert.match(missing.data.error, /Property not found/);
+});
+
+test('neighborhood API builds static zip entities with aggregate metrics and provenance', async () => {
+  configureFixtureSnapshot();
+
+  const indexed = await request('/api/neighborhoods?city=Oakland&min_properties=2');
+  assert.equal(indexed.status, 200);
+  assert.equal(indexed.data.schema_version, 'fairvalue.neighborhoodIndex.v1');
+  assert.equal(indexed.data.count, 1);
+  assert.equal(indexed.data.total_matches, 1);
+  assert.equal(indexed.data.filters.city, 'Oakland');
+  assert.equal(indexed.data.filters.min_properties, 2);
+  const entity = indexed.data.entities[0];
+  assert.equal(entity.entity_id, 'zip:CA:94607');
+  assert.equal(entity.entity_type, 'zip_code');
+  assert.equal(entity.city, 'Oakland');
+  assert.equal(entity.property_count, 2);
+  assert.equal(entity.metrics.median_price, 950000);
+  assert.equal(entity.metrics.median_price_per_sqft, 750);
+  assert.equal(entity.metrics.median_rent_estimate, 4000);
+  assert.equal(entity.metrics.average_school_rating, 5.75);
+  assert.equal(entity.home_type_mix[0].value, 'CONDO');
+  assert.equal(entity.home_type_mix[0].count, 2);
+  assert.equal(entity.sample_confidence, 'directional_only');
+  assert.equal(entity.sample_properties[0].property_id, '103');
+  assert.equal(indexed.data.provenance.source_sha256, 'fixture-source-hash');
+  assert.equal(JSON.stringify(indexed.data).includes('streetView'), false);
+  assert.match(indexed.data.limitations.join(' '), /static ZIP-code aggregates/);
+
+  const single = await request('/api/neighborhoods/94607');
+  assert.equal(single.status, 200);
+  assert.equal(single.data.entities[0].entity_id, 'zip:CA:94607');
+
+  const missing = await request('/api/neighborhoods/99999');
+  assert.equal(missing.status, 404);
+  assert.match(missing.data.error, /Neighborhood entity not found/);
 });

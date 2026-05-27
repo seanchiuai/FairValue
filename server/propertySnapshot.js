@@ -1,5 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const {
+  NEIGHBORHOOD_INDEX_SCHEMA_VERSION,
+  buildNeighborhoodIndex,
+} = require('./neighborhoodIndex');
 
 const DEFAULT_PROPERTY_SNAPSHOT_PATH = path.join(__dirname, '..', 'public', 'data', 'properties.json');
 const PROPERTY_QUERY_SCHEMA_VERSION = 'fairvalue.propertyQuery.v1';
@@ -13,6 +17,33 @@ function sanitizePrice(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0 || number > 100_000_000) return null;
   return Math.round(number * 100) / 100;
+}
+
+function sanitizePositiveNumber(value, { max = 100_000_000, decimals = 2, allowZero = false } = {}) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number > max) return null;
+  if (allowZero ? number < 0 : number <= 0) return null;
+  const factor = 10 ** decimals;
+  return Math.round(number * factor) / factor;
+}
+
+function sanitizeYear(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1700 || number > 2200) return null;
+  return number;
+}
+
+function averageSchoolRating(schools) {
+  const ratings = Array.isArray(schools)
+    ? schools
+      .map((school) => Number(school?.rating))
+      .filter((rating) => Number.isFinite(rating) && rating >= 0 && rating <= 10)
+    : [];
+  if (!ratings.length) return { average: null, count: 0 };
+  return {
+    average: Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 100) / 100,
+    count: ratings.length,
+  };
 }
 
 function sanitizeLimit(value) {
@@ -38,6 +69,7 @@ function mapRawProperty(raw, index) {
   const address = source.address && typeof source.address === 'object' ? source.address : {};
   const attribution = source.attributionInfo && typeof source.attributionInfo === 'object' ? source.attributionInfo : {};
   const propertyId = String(source.zpid || index + 1);
+  const schoolRating = averageSchoolRating(source.schools);
   return {
     property_id: propertyId,
     price: sanitizePrice(source.price),
@@ -46,6 +78,16 @@ function mapRawProperty(raw, index) {
     state: sanitizeText(source.state || address.state || 'CA', 24),
     zip_code: sanitizeText(source.zipcode || address.zipcode, 24),
     home_status: sanitizeText(source.homeStatus, 80),
+    home_type: sanitizeText(source.homeType, 80),
+    bedrooms: sanitizePositiveNumber(source.bedrooms, { max: 100, decimals: 1, allowZero: true }),
+    bathrooms: sanitizePositiveNumber(source.bathrooms, { max: 100, decimals: 1, allowZero: true }),
+    living_area: sanitizePositiveNumber(source.livingArea || source.livingAreaValue, { max: 1_000_000, decimals: 0 }),
+    rent_zestimate: sanitizePrice(source.rentZestimate),
+    zestimate: sanitizePrice(source.zestimate),
+    tax_assessed_value: sanitizePrice(source.taxAssessedValue),
+    year_built: sanitizeYear(source.yearBuilt),
+    school_rating_average: schoolRating.average,
+    school_count: schoolRating.count,
     provider_source: sanitizeText(source.listingDataSource || source.listingSource || 'Zillow static property snapshot', 120),
     observed_at: sanitizeText(attribution.lastUpdated || attribution.lastChecked || source.dateSoldString, 80) || null,
   };
@@ -105,6 +147,11 @@ function createPropertySnapshot({
     ensureLoaded();
     const property = byId.get(String(propertyId || '').trim());
     return property ? JSON.parse(JSON.stringify(property)) : null;
+  }
+
+  function allProperties() {
+    ensureLoaded();
+    return JSON.parse(JSON.stringify(Array.from(byId.values())));
   }
 
   function query({
@@ -172,20 +219,32 @@ function createPropertySnapshot({
     };
   }
 
+  function neighborhoodResponse(filters = {}) {
+    ensureLoaded();
+    return buildNeighborhoodIndex({
+      properties: Array.from(byId.values()),
+      provenance,
+      filters,
+    });
+  }
+
   return {
     kind: Array.isArray(properties) ? 'memory-property-snapshot' : 'json-property-snapshot',
     filePath,
     manifestPath,
     load,
     getById,
+    allProperties,
     query,
     queryResponse,
+    neighborhoodResponse,
   };
 }
 
 module.exports = {
   DEFAULT_PROPERTY_SNAPSHOT_PATH,
   PROPERTY_QUERY_SCHEMA_VERSION,
+  NEIGHBORHOOD_INDEX_SCHEMA_VERSION,
   createPropertySnapshot,
   mapRawProperty,
 };
