@@ -553,6 +553,7 @@ function createReplayState() {
     market_config: null,
     market: null,
     players: {},
+    user_ids_by_session: {},
     activity: [],
     ai_enabled: false,
     settled: false,
@@ -591,6 +592,7 @@ function replayRoomEvents(events) {
       case EVENT_TYPES.RECONNECT:
         if (payload.player?.session_id) {
           state.players[payload.player.session_id] = cloneJson(payload.player);
+          if (payload.user_id) state.user_ids_by_session[payload.player.session_id] = payload.user_id;
         }
         break;
       case EVENT_TYPES.PLAYER_LEFT:

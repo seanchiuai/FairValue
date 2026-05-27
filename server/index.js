@@ -20,6 +20,7 @@ const { createRoomPersistence } = require('./roomPersistence');
 const { validateSettlementEvidencePayload } = require('./settlementEvidence');
 const { createPublicVerificationArtifact } = require('./publicVerification');
 const { createRoomReputationSummary } = require('./playerReputation');
+const { createUserReputationStore } = require('./userReputationStore');
 const {
   DEFAULT_MARKET_FORMAT,
   marketTemplateAuditProjection,
@@ -97,6 +98,7 @@ const MAX_ROOM_PHASE_TIMER_SECONDS = 3 * 60 * 60;
 const rateLimitBuckets = new Map();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
 let roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: sql }));
+let userReputationStore = createUserReputationStore(resolveUserReputationOptions());
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
 
@@ -157,6 +159,12 @@ function resolveRoomEventLogOptions(persistence = roomPersistence, { configuredS
   return {};
 }
 
+function resolveUserReputationOptions() {
+  const filePath = process.env.FAIRVALUE_USER_REPUTATION_PATH ||
+    (require.main === module ? path.join(process.cwd(), '.fairvalue', 'user-reputation.json') : null);
+  return { filePath };
+}
+
 function createRoomEventLog(options = {}) {
   const mode = String(options.mode || 'json').trim().toLowerCase();
   if (['postgres', 'neon', 'db', 'database'].includes(mode)) {
@@ -197,6 +205,7 @@ function serializeRoomSnapshot(room) {
     marketConfig: marketConfigPayload(room),
     market: cloneJson(room.market),
     players: cloneJson(room.players),
+    userIdsBySession: cloneJson(room.userIdsBySession || {}),
     betReceipts: Array.from(room.betReceipts.entries()).map(([key, receipt]) => [key, cloneJson(receipt)]),
     phase: normalizeRoomPhase(room.phase),
     aiEnabled: Boolean(room.aiEnabled),
@@ -227,6 +236,7 @@ function hydrateRoomSnapshot(snapshot) {
       snapshot.marketConfig || snapshot.market_config || null
     ),
     players: cloneJson(snapshot.players || {}),
+    userIdsBySession: cloneJson(snapshot.userIdsBySession || snapshot.user_ids_by_session || {}),
     betReceipts: new Map((snapshot.betReceipts || []).map(([key, receipt]) => [key, cloneJson(receipt)])),
     phase: normalizeRoomPhase(snapshot.phase),
     connections: [],
@@ -466,6 +476,7 @@ function hydrateRoomFromReplay(room, events) {
     room.marketConfig
   );
   if (replay.players) room.players = cloneJson(replay.players);
+  if (replay.user_ids_by_session) room.userIdsBySession = cloneJson(replay.user_ids_by_session);
   if (replay.activity) room.activity = cloneJson(replay.activity);
   room.settled = Boolean(replay.settled);
   room.settlement = replay.settlement ? cloneJson(replay.settlement) : null;
@@ -498,6 +509,14 @@ function configureRoomPersistence(filePathOrOptions) {
   roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: eventLogSql }));
   roomPersistenceWriteQueue = Promise.resolve();
   return loadPersistedRooms();
+}
+
+function configureUserReputationPersistence(filePathOrOptions) {
+  const options = typeof filePathOrOptions === 'object' && filePathOrOptions !== null
+    ? filePathOrOptions
+    : { filePath: filePathOrOptions || null };
+  userReputationStore = createUserReputationStore(options);
+  return userReputationStore.load();
 }
 
 function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
@@ -836,6 +855,7 @@ async function createRoom(house, roomCode, options = {}) {
     marketConfig,
     market: createInitialMarketState(marketFormat, marketConfig, DEFAULT_B),
     players: {},
+    userIdsBySession: {},
     betReceipts: new Map(),
     phase: createDefaultRoomPhase({ updated_at: Date.now() / 1000 }),
     connections: [],
@@ -1171,6 +1191,12 @@ app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, r
     user_id: userId,
     user_token: createUserToken(userId),
   });
+});
+
+app.get('/api/me/reputation', limitRequests('identity:reputation', { max: 120 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  res.json(userReputationStore.getUser(identity.user_id));
 });
 
 // ─── Server-side Cognee AI boundary ─────────────────────────────────
@@ -1517,8 +1543,10 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     return validationError(res, validated.error);
   }
 
-  const { session_id, nickname } = validated.value;
+  const { session_id, nickname, user_id } = validated.value;
   if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'join'))) return;
+  const joinedUserId = user_id || req.userIdentity?.user_id || null;
+  if (joinedUserId) room.userIdsBySession[session_id] = joinedUserId;
 
   let player = room.players[session_id];
   let joinBroadcast = null;
@@ -1530,6 +1558,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     ({ persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
       session_id,
       nickname,
+      user_id: joinedUserId,
       player: cloneJson(player),
       source: 'join',
     }, req));
@@ -1540,6 +1569,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     const { activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
       session_id,
       nickname,
+      user_id: joinedUserId,
       player: cloneJson(player),
       player_count: Object.keys(room.players).length,
     }, req);
@@ -1864,6 +1894,11 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   } catch (error) {
     return roomPersistenceError(res, error);
   }
+  try {
+    userReputationStore.recordRoomSettlement(room, { settledAt: Date.now() / 1000 });
+  } catch (error) {
+    observability.recordError('user_reputation', error, { operation: 'record_room_settlement' });
+  }
 
   broadcast(room, {
     type: 'settle',
@@ -2184,8 +2219,10 @@ module.exports = {
   roomEventStore,
   roomEventLog: () => roomEventLog,
   roomPersistence: () => roomPersistence,
+  userReputationStore: () => userReputationStore,
   observability,
   configureRoomPersistence,
+  configureUserReputationPersistence,
   loadPersistedRooms,
   persistRooms,
   replayRoomEvents,
