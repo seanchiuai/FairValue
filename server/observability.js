@@ -18,6 +18,7 @@ const DEFAULT_STATE = () => ({
     reconnected: 0,
     bets: 0,
     settlements: 0,
+    phase_changes: 0,
     ai_trades: 0,
     room_errors: 0,
     durability_failures: 0,

@@ -281,6 +281,98 @@ test('market studio draft metadata is server-validated and preserved for audit',
   assert.equal(replay.data.replay.draft_audit.property_id, '440298192');
 });
 
+test('room phase changes are host-authorized, replayed, and lock betting', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+  const hostHeaders = { 'X-FairValue-Host-Token': room.host_token };
+
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'phase-player', nickname: 'Phase Player' },
+  });
+  assert.equal(join.status, 200);
+  assert.equal(join.data.phase.status, 'open');
+
+  const deniedPhase = await request(`/api/rooms/${code}/phase`, {
+    method: 'POST',
+    body: { phase: 'locked' },
+  });
+  assert.equal(deniedPhase.status, 403);
+  assert.match(deniedPhase.data.error, /Host token/);
+
+  const invalidPhase = await request(`/api/rooms/${code}/phase`, {
+    method: 'POST',
+    headers: hostHeaders,
+    body: { phase: 'afterparty' },
+  });
+  assert.equal(invalidPhase.status, 400);
+  assert.match(invalidPhase.data.error, /open, discussion, or locked/);
+
+  const discussion = await request(`/api/rooms/${code}/phase`, {
+    method: 'POST',
+    headers: hostHeaders,
+    body: { phase: 'discussion', timer_seconds: 300 },
+  });
+  assert.equal(discussion.status, 200);
+  assert.equal(discussion.data.phase.status, 'discussion');
+  assert.equal(discussion.data.phase.betting_locked, false);
+  assert.equal(discussion.data.phase.duration_seconds, 300);
+  assert.ok(discussion.data.phase.timer_ends_at > discussion.data.phase.timer_started_at);
+
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.phase.status, 'discussion');
+  assert.equal(state.data.activity.at(-1).type, 'phase');
+
+  const replay = await request(`/api/rooms/${code}/replay`, {
+    headers: hostHeaders,
+  });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.replay.room_phase.status, 'discussion');
+  assert.equal(replay.data.replay.activity.at(-1).phase_label, 'Discussion timer');
+
+  const locked = await request(`/api/rooms/${code}/phase`, {
+    method: 'POST',
+    headers: hostHeaders,
+    body: { phase: 'locked' },
+  });
+  assert.equal(locked.status, 200);
+  assert.equal(locked.data.phase.betting_locked, true);
+
+  const lockedBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'phase-locked-bet-001' },
+    body: { session_id: 'phase-player', outcome: 'over', wager: 25 },
+  });
+  assert.equal(lockedBet.status, 423);
+  assert.equal(lockedBet.data.error, 'Betting is locked by the host');
+  assert.equal(rooms[code].market.total_trades, 0);
+
+  const lockedAi = await request(`/api/rooms/${code}/toggle-ai`, {
+    method: 'POST',
+    headers: hostHeaders,
+  });
+  assert.equal(lockedAi.status, 400);
+  assert.equal(lockedAi.data.error, 'Betting is locked by the host');
+
+  const reopened = await request(`/api/rooms/${code}/phase`, {
+    method: 'POST',
+    headers: hostHeaders,
+    body: { phase: 'open' },
+  });
+  assert.equal(reopened.status, 200);
+  assert.equal(reopened.data.phase.status, 'open');
+  assert.equal(reopened.data.phase.betting_locked, false);
+
+  const openBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'phase-open-bet-001' },
+    body: { session_id: 'phase-player', outcome: 'over', wager: 25 },
+  });
+  assert.equal(openBet.status, 200);
+  assert.equal(openBet.data.market.total_trades, 1);
+});
+
 test('bet idempotency replays duplicates without mutating the room twice', async () => {
   const room = await createHostedRoom();
   const code = room.room_code;

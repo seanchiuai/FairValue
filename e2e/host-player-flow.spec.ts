@@ -81,6 +81,16 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(host.getByTestId('leaderboard')).toContainText('Player One');
     await expect(host.getByTestId('leaderboard')).toContainText('Player Two');
 
+    await host.getByRole('button', { name: 'Start 5 min discussion' }).click();
+    await expect(host.getByTestId('host-phase-status')).toContainText('Discussion timer');
+    await expect(host.getByTestId('host-phase-timer')).toContainText('Ends in');
+    await host.getByRole('button', { name: 'Lock betting' }).click();
+    await expect(host.getByTestId('host-phase-status')).toContainText('Betting locked');
+    await playerOne.getByRole('button', { name: /Bet \$25 on OVER/ }).click();
+    await expect(playerOne.getByTestId('bet-error')).toContainText('Betting is locked by the host');
+    await host.getByRole('button', { name: 'Open betting' }).click();
+    await expect(host.getByTestId('host-phase-status')).toContainText('Betting open');
+
     await clickBetAndWait(playerOne, roomCode, /Bet \$25 on OVER/);
     await playerTwo.getByRole('button', { name: 'Set wager to $50' }).click();
     await clickBetAndWait(playerTwo, roomCode, /Bet \$50 on UNDER/);

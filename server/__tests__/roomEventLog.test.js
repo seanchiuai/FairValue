@@ -246,13 +246,32 @@ test('in-memory room event adapter appends deterministically and replays state',
       player: { session_id: 'player-1', nickname: 'Replay Player', balance: 975, bets: [{ outcome: 'over' }] },
     },
   });
+  const phase = store.append({
+    roomCode: 'a1b2',
+    type: EVENT_TYPES.PHASE_CHANGED,
+    timestamp: 4,
+    payload: {
+      phase: 'locked',
+      betting_locked: true,
+      room_phase: {
+        status: 'locked',
+        label: 'Betting locked',
+        betting_locked: true,
+        duration_seconds: null,
+        timer_started_at: null,
+        timer_ends_at: null,
+        updated_at: 4,
+      },
+    },
+  });
 
   assert.equal(created.id, 'A1B2-00000001');
   assert.equal(joined.sequence, 2);
   assert.equal(bet.sequence, 3);
+  assert.equal(phase.sequence, 4);
   assert.deepEqual(
     store.list('A1B2', { afterSequence: 1 }).map((event) => event.sequence),
-    [2, 3]
+    [2, 3, 4]
   );
 
   const replay = replayRoomEvents(store.list('a1b2'));
@@ -260,7 +279,9 @@ test('in-memory room event adapter appends deterministically and replays state',
   assert.equal(replay.house.address, 'Replay House');
   assert.equal(replay.market.total_trades, 1);
   assert.equal(replay.players['player-1'].balance, 975);
-  assert.deepEqual(replay.activity.map((entry) => entry.type), ['join', 'bet']);
+  assert.equal(replay.room_phase.status, 'locked');
+  assert.equal(replay.room_phase.betting_locked, true);
+  assert.deepEqual(replay.activity.map((entry) => entry.type), ['join', 'bet', 'phase']);
 });
 
 test('room event payload contracts reject malformed canonical events before append', () => {

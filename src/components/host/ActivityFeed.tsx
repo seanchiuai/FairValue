@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { TrendingUp, TrendingDown, Bot, Users, Gavel } from 'lucide-react';
+import { TrendingUp, TrendingDown, Bot, Users, Gavel, Clock3 } from 'lucide-react';
 import type { ActivityEntry } from '../../types';
 
 export default function ActivityFeed({ activity }: { activity: ActivityEntry[] }) {
@@ -64,6 +64,14 @@ export default function ActivityFeed({ activity }: { activity: ActivityEntry[] }
                 <Gavel size={12} color="var(--accent-warning)" />
                 <span>
                   Market settled — <strong>{a.winning_outcome?.toUpperCase()}</strong> wins
+                </span>
+              </>
+            )}
+            {a.type === 'phase' && (
+              <>
+                <Clock3 size={12} color="var(--accent-primary)" />
+                <span>
+                  Room phase changed to <strong>{a.phase_label || a.phase_status}</strong>
                 </span>
               </>
             )}

@@ -16,6 +16,7 @@ import HostDraftAuditCard from '../components/host/HostDraftAuditCard';
 import HostTopBar from '../components/host/HostTopBar';
 import HostAuthorityNotice from '../components/host/HostAuthorityNotice';
 import HostPropertySummary from '../components/host/HostPropertySummary';
+import HostPhaseControl from '../components/host/HostPhaseControl';
 import HostMarketChartPanel from '../components/host/HostMarketChartPanel';
 import HostSettlementResultCard from '../components/host/HostSettlementResultCard';
 import SkeletonChart from '../components/skeletons/SkeletonChart';
@@ -24,11 +25,18 @@ import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import { useToast } from '../contexts/ToastContext';
+import type { RoomPhase } from '../types';
 import './HostView.css';
 
 const hostAuthorityNoticeId = 'host-authority-warning';
 
 type ToggleAIResponse = {
+  ai_enabled?: boolean;
+  error?: string;
+};
+
+type RoomPhaseResponse = {
+  phase?: RoomPhase;
   ai_enabled?: boolean;
   error?: string;
 };
@@ -46,9 +54,11 @@ export default function HostView() {
     house,
     draftAudit,
     activity,
+    phase,
     aiEnabled,
     hostUserId,
     setAiEnabled,
+    setPhase,
     settled,
     settleResult,
     connectionState,
@@ -57,6 +67,7 @@ export default function HostView() {
   } = useRoom(roomCode || '', sessionId, userToken);
 
   const [showSettleModal, setShowSettleModal] = useState(false);
+  const [phasePending, setPhasePending] = useState('');
   const [ngrokUrl, setNgrokUrl] = useState(
     () => sessionStorage.getItem('fv_ngrok_url') || ''
   );
@@ -134,6 +145,48 @@ export default function HostView() {
       showToast('Unable to toggle AI bot', 'error');
     }
   }, [roomCode, hasHostAuthority, hostAuthHeaders, setAiEnabled, showToast]);
+
+  const handleRoomPhaseChange = useCallback(async (
+    nextPhase: 'open' | 'discussion' | 'locked',
+    timerSeconds?: number
+  ) => {
+    if (!roomCode) return;
+    if (!hasHostAuthority) {
+      showToast('Host authority is missing for this room.', 'error');
+      return;
+    }
+
+    setPhasePending(nextPhase);
+    try {
+      const res = await fetch(`/api/rooms/${roomCode}/phase`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...hostAuthHeaders,
+        },
+        body: JSON.stringify({
+          phase: nextPhase,
+          ...(timerSeconds ? { timer_seconds: timerSeconds } : {}),
+        }),
+      });
+      const data = await readJson<RoomPhaseResponse>(res);
+      if (!res.ok || data.error) {
+        showToast(data.error || 'Unable to update room phase', 'error');
+        return;
+      }
+      if (!data.phase) {
+        showToast('Room phase response was invalid', 'error');
+        return;
+      }
+      setPhase(data.phase);
+      if (typeof data.ai_enabled === 'boolean') setAiEnabled(data.ai_enabled);
+      showToast(data.phase.label, 'success');
+    } catch {
+      showToast('Unable to update room phase', 'error');
+    } finally {
+      setPhasePending('');
+    }
+  }, [roomCode, hasHostAuthority, hostAuthHeaders, setAiEnabled, setPhase, showToast]);
 
   const handleNgrokChange = useCallback((url: string) => {
     setNgrokUrl(url);
@@ -216,6 +269,15 @@ export default function HostView() {
       <div className="host-view__layout">
         <div className="host-view__left">
           <HostPropertySummary house={house} probOver={market.prob_over} />
+
+          <HostPhaseControl
+            phase={phase}
+            settled={settled}
+            hasHostAuthority={hasHostAuthority}
+            disabledDescriptionId={hostAuthorityNoticeId}
+            pendingPhase={phasePending}
+            onChangePhase={handleRoomPhaseChange}
+          />
 
           {draftAudit && <HostDraftAuditCard draftAudit={draftAudit} />}
 

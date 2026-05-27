@@ -74,6 +74,16 @@ export interface MarketDraftAudit {
   };
 }
 
+export interface RoomPhase {
+  status: 'open' | 'discussion' | 'locked' | 'settled';
+  label: string;
+  betting_locked: boolean;
+  duration_seconds: number | null;
+  timer_started_at: number | null;
+  timer_ends_at: number | null;
+  updated_at: number | null;
+}
+
 export interface ActivityEntry {
   type: string;
   nickname?: string;
@@ -82,6 +92,10 @@ export interface ActivityEntry {
   timestamp: number;
   actual_price?: number;
   winning_outcome?: string;
+  phase_status?: string;
+  phase_label?: string;
+  betting_locked?: boolean;
+  timer_ends_at?: number | null;
   event_sequence?: number;
 }
 
@@ -197,7 +211,16 @@ export type WsSettleMessage = {
   actual_price: number;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
+  phase?: RoomPhase;
   activity?: ActivityEntry;
+};
+
+export type WsPhaseMessage = {
+  type: 'phase';
+  phase: RoomPhase;
+  ai_enabled?: boolean;
+  activity?: ActivityEntry;
+  event_sequence?: number;
 };
 
 export type WsMarketUpdateMessage = {
@@ -211,6 +234,7 @@ export type WsMessage =
   | WsLeaveMessage
   | WsAiTradeMessage
   | WsSettleMessage
+  | WsPhaseMessage
   | WsMarketUpdateMessage;
 
 // --- Chat types ---

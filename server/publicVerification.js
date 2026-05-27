@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { createReplayIntegrityReport } = require('./replayIntegrity');
-const { replayRoomEvents } = require('./roomEventLog');
+const { normalizeRoomPhase, replayRoomEvents } = require('./roomEventLog');
 const { getPublicMarketState } = require('../src/lib/marketEngine');
 
 const DEFAULT_IDENTITY_SECRET = 'fairvalue-local-dev-identity-secret';
@@ -38,6 +38,10 @@ function publicActivityProjection(activity) {
     wager: typeof entry.wager === 'number' ? entry.wager : null,
     actual_price: typeof entry.actual_price === 'number' ? entry.actual_price : null,
     winning_outcome: entry.winning_outcome || null,
+    phase_status: entry.phase_status || null,
+    phase_label: entry.phase_label || null,
+    betting_locked: typeof entry.betting_locked === 'boolean' ? entry.betting_locked : null,
+    timer_ends_at: typeof entry.timer_ends_at === 'number' ? entry.timer_ends_at : null,
     event_sequence: typeof entry.event_sequence === 'number' ? entry.event_sequence : null,
     timestamp: typeof entry.timestamp === 'number' ? entry.timestamp : null,
   }));
@@ -79,6 +83,7 @@ function publicLiveProjection(room) {
     market: getPublicMarketState(room.market),
     players: publicPlayerProjection(room.players),
     activity: publicActivityProjection(room.activity),
+    room_phase: normalizeRoomPhase(room.phase),
     settled: Boolean(room.settled),
     settlement: publicSettlementProjection(room.settlement),
   };
@@ -92,6 +97,7 @@ function publicReplayProjection(replay) {
     market: replay.market,
     players: publicPlayerProjection(replay.players),
     activity: publicActivityProjection(replay.activity),
+    room_phase: replay.room_phase,
     settled: Boolean(replay.settled),
     settlement: publicSettlementProjection(replay.settlement),
   };

@@ -5,6 +5,7 @@ import type {
   WsLeaveMessage,
   WsAiTradeMessage,
   WsSettleMessage,
+  WsPhaseMessage,
   WsMarketUpdateMessage,
 } from '../types';
 
@@ -39,6 +40,7 @@ interface UseWebSocketOptions {
   onLeave?: (data: WsLeaveMessage) => void;
   onAiTrade?: (data: WsAiTradeMessage) => void;
   onSettle?: (data: WsSettleMessage) => void;
+  onPhase?: (data: WsPhaseMessage) => void;
   onMarketUpdate?: (data: WsMarketUpdateMessage) => void;
   onReconnected?: () => void;
 }
@@ -50,6 +52,7 @@ export function useWebSocket({
   onLeave,
   onAiTrade,
   onSettle,
+  onPhase,
   onMarketUpdate,
   onReconnected,
 }: UseWebSocketOptions) {
@@ -59,10 +62,10 @@ export function useWebSocket({
   const retryCountRef = useRef(0);
   const wasConnectedRef = useRef(false);
   const pendingMessagesRef = useRef<string[]>([]);
-  const handlersRef = useRef({ onBet, onJoin, onLeave, onAiTrade, onSettle, onMarketUpdate, onReconnected });
+  const handlersRef = useRef({ onBet, onJoin, onLeave, onAiTrade, onSettle, onPhase, onMarketUpdate, onReconnected });
 
   useEffect(() => {
-    handlersRef.current = { onBet, onJoin, onLeave, onAiTrade, onSettle, onMarketUpdate, onReconnected };
+    handlersRef.current = { onBet, onJoin, onLeave, onAiTrade, onSettle, onPhase, onMarketUpdate, onReconnected };
   });
 
   const flushPendingMessages = useCallback((ws: WebSocket) => {
@@ -112,6 +115,9 @@ export function useWebSocket({
             break;
           case 'settle':
             h.onSettle?.(data);
+            break;
+          case 'phase':
+            h.onPhase?.(data);
             break;
           case 'market_update':
             h.onMarketUpdate?.(data);

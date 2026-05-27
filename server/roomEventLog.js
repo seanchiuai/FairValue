@@ -16,6 +16,13 @@ const EVENT_TYPES = Object.freeze({
 });
 
 const VALID_EVENT_TYPES = new Set(Object.values(EVENT_TYPES));
+const ROOM_PHASE_LABELS = Object.freeze({
+  open: 'Betting open',
+  discussion: 'Discussion timer',
+  locked: 'Betting locked',
+  settled: 'Settled',
+});
+const VALID_ROOM_PHASE_STATUSES = new Set(Object.keys(ROOM_PHASE_LABELS));
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -36,6 +43,36 @@ function hasFiniteNumber(value) {
 function hasOutcome(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'over' || normalized === 'under';
+}
+
+function createDefaultRoomPhase(overrides = {}) {
+  const status = VALID_ROOM_PHASE_STATUSES.has(String(overrides.status || '').toLowerCase())
+    ? String(overrides.status).toLowerCase()
+    : 'open';
+  const durationSeconds = Number(overrides.duration_seconds);
+  const timerStartedAt = Number(overrides.timer_started_at);
+  const timerEndsAt = Number(overrides.timer_ends_at);
+  const updatedAt = Number(overrides.updated_at);
+
+  return {
+    status,
+    label: typeof overrides.label === 'string' && overrides.label.trim()
+      ? overrides.label.trim().slice(0, 80)
+      : ROOM_PHASE_LABELS[status],
+    betting_locked: typeof overrides.betting_locked === 'boolean'
+      ? overrides.betting_locked
+      : status === 'locked' || status === 'settled',
+    duration_seconds: Number.isFinite(durationSeconds) && durationSeconds > 0 ? Math.round(durationSeconds) : null,
+    timer_started_at: Number.isFinite(timerStartedAt) && timerStartedAt > 0 ? timerStartedAt : null,
+    timer_ends_at: Number.isFinite(timerEndsAt) && timerEndsAt > 0 ? timerEndsAt : null,
+    updated_at: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : null,
+  };
+}
+
+function normalizeRoomPhase(value) {
+  if (typeof value === 'string') return createDefaultRoomPhase({ status: value });
+  if (!isObject(value)) return createDefaultRoomPhase();
+  return createDefaultRoomPhase(value);
 }
 
 function validateRoomEventPayload(type, payload = {}) {
@@ -76,6 +113,9 @@ function validateRoomEventPayload(type, payload = {}) {
       return null;
     case EVENT_TYPES.PHASE_CHANGED:
       if (!hasText(body.phase)) return 'phase is required';
+      if (Object.prototype.hasOwnProperty.call(body, 'room_phase') && !isObject(body.room_phase)) {
+        return 'room_phase must be an object when present';
+      }
       if (Object.prototype.hasOwnProperty.call(body, 'ai_enabled') && typeof body.ai_enabled !== 'boolean') {
         return 'ai_enabled must be boolean when present';
       }
@@ -480,6 +520,17 @@ function roomEventToActivity(event) {
         timestamp: event.timestamp,
         event_sequence: event.sequence,
       };
+    case EVENT_TYPES.PHASE_CHANGED:
+      if (!payload.room_phase) return null;
+      return {
+        type: 'phase',
+        phase_status: payload.room_phase.status,
+        phase_label: payload.room_phase.label,
+        betting_locked: payload.room_phase.betting_locked,
+        timer_ends_at: payload.room_phase.timer_ends_at,
+        timestamp: event.timestamp,
+        event_sequence: event.sequence,
+      };
     default:
       return null;
   }
@@ -497,6 +548,7 @@ function createReplayState() {
     settled: false,
     settlement: null,
     phase: 'open',
+    room_phase: createDefaultRoomPhase(),
     event_count: 0,
     last_sequence: 0,
   };
@@ -520,7 +572,8 @@ function replayRoomEvents(events) {
         state.house = cloneJson(payload.house || state.house);
         state.draft_audit = cloneJson(payload.draft_audit || state.draft_audit);
         state.market = cloneJson(payload.market || state.market);
-        state.phase = 'open';
+        state.room_phase = normalizeRoomPhase(payload.room_phase || state.room_phase);
+        state.phase = state.room_phase.status;
         break;
       case EVENT_TYPES.PLAYER_JOINED:
       case EVENT_TYPES.RECONNECT:
@@ -547,11 +600,18 @@ function replayRoomEvents(events) {
         break;
       case EVENT_TYPES.PHASE_CHANGED:
         state.phase = payload.phase || state.phase;
+        if (payload.room_phase) state.room_phase = normalizeRoomPhase(payload.room_phase);
         if (typeof payload.ai_enabled === 'boolean') state.ai_enabled = payload.ai_enabled;
         break;
       case EVENT_TYPES.SETTLEMENT_COMPLETED:
         state.settled = true;
         state.phase = 'settled';
+        state.room_phase = normalizeRoomPhase(payload.room_phase || {
+          status: 'settled',
+          label: 'Settled',
+          betting_locked: true,
+          updated_at: event.timestamp,
+        });
         state.ai_enabled = false;
         state.settlement = cloneJson(payload.settlement || {
           winning_outcome: payload.winning_outcome,
@@ -575,9 +635,11 @@ module.exports = {
   EVENT_LOG_SCHEMA_VERSION,
   EVENT_TYPES,
   createDisabledRoomEventLog,
+  createDefaultRoomPhase,
   createInMemoryRoomEventStore,
   createJsonRoomEventLog,
   createPostgresRoomEventLog,
+  normalizeRoomPhase,
   replayRoomEvents,
   roomEventToActivity,
   validateRoomEventPayload,

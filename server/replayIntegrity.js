@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { replayRoomEvents } = require('./roomEventLog');
+const { normalizeRoomPhase, replayRoomEvents } = require('./roomEventLog');
 const { getPublicMarketState } = require('../src/lib/marketEngine');
 
 function cloneJson(value) {
@@ -44,6 +44,7 @@ function createReplayIntegrityReport(room, events) {
     market: getPublicMarketState(room.market),
     players: sortedPlayers(room.players),
     activity: cloneJson(room.activity || []),
+    room_phase: normalizeRoomPhase(room.phase),
     ai_enabled: Boolean(room.aiEnabled),
     settled: Boolean(room.settled),
     settlement: room.settlement ? cloneJson(room.settlement) : null,
@@ -55,6 +56,7 @@ function createReplayIntegrityReport(room, events) {
     market: replay.market,
     players: sortedPlayers(replay.players),
     activity: replay.activity,
+    room_phase: replay.room_phase,
     ai_enabled: Boolean(replay.ai_enabled),
     settled: Boolean(replay.settled),
     settlement: replay.settlement,

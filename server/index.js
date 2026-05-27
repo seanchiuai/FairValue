@@ -7,9 +7,11 @@ const { WebSocketServer, WebSocket } = require('ws');
 const sql = require('./db');
 const {
   EVENT_TYPES,
+  createDefaultRoomPhase,
   createJsonRoomEventLog,
   createPostgresRoomEventLog,
   createInMemoryRoomEventStore,
+  normalizeRoomPhase,
   replayRoomEvents,
   roomEventToActivity,
 } = require('./roomEventLog');
@@ -72,6 +74,8 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const MARKET_DRAFT_SOURCE_TYPES = new Set(['pasted_listing', 'manual', 'csv_row', 'address', 'existing_property']);
 const MARKET_DRAFT_FORMATS = new Set(['binary_over_under']);
 const MARKET_DRAFT_CONFIDENCES = new Set(['low', 'medium', 'high']);
+const HOST_SETTABLE_ROOM_PHASES = new Set(['open', 'discussion', 'locked']);
+const MAX_ROOM_PHASE_TIMER_SECONDS = 3 * 60 * 60;
 const rateLimitBuckets = new Map();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
 let roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: sql }));
@@ -174,6 +178,7 @@ function serializeRoomSnapshot(room) {
     market: cloneJson(room.market),
     players: cloneJson(room.players),
     betReceipts: Array.from(room.betReceipts.entries()).map(([key, receipt]) => [key, cloneJson(receipt)]),
+    phase: normalizeRoomPhase(room.phase),
     aiEnabled: Boolean(room.aiEnabled),
     settled: Boolean(room.settled),
     settlement: room.settlement ? cloneJson(room.settlement) : null,
@@ -197,6 +202,7 @@ function hydrateRoomSnapshot(snapshot) {
     market: createMarketState(snapshot.market || { b: DEFAULT_B }),
     players: cloneJson(snapshot.players || {}),
     betReceipts: new Map((snapshot.betReceipts || []).map(([key, receipt]) => [key, cloneJson(receipt)])),
+    phase: normalizeRoomPhase(snapshot.phase),
     connections: [],
     aiEnabled: false,
     aiInterval: null,
@@ -293,7 +299,7 @@ function stopAiBotInterval(room) {
 }
 
 async function runAiBotTick(room) {
-  if (!room || !room.aiEnabled || room.settled) {
+  if (!room || !room.aiEnabled || room.settled || room.phase?.betting_locked) {
     stopAiBotInterval(room);
     return { ok: false, skipped: true };
   }
@@ -301,7 +307,7 @@ async function runAiBotTick(room) {
 
   room.aiTradeInFlight = true;
   try {
-    if (!room.aiEnabled || room.settled) {
+    if (!room.aiEnabled || room.settled || room.phase?.betting_locked) {
       stopAiBotInterval(room);
       return { ok: false, skipped: true };
     }
@@ -426,6 +432,7 @@ function hydrateRoomFromReplay(room, events) {
   if (replay.activity) room.activity = cloneJson(replay.activity);
   room.settled = Boolean(replay.settled);
   room.settlement = replay.settlement ? cloneJson(replay.settlement) : null;
+  room.phase = normalizeRoomPhase(replay.room_phase || room.phase);
   room.draftAudit = replay.draft_audit ? cloneJson(replay.draft_audit) : room.draftAudit;
   room.aiEnabled = false;
 }
@@ -705,6 +712,41 @@ function validateSettlePayload(body) {
   return { value: { actual_price: actualPrice, evidence_packet: evidence.value } };
 }
 
+function validateRoomPhasePayload(body) {
+  const rawPhase = sanitizeText(body?.phase || body?.status, 40);
+  const phase = rawPhase ? rawPhase.toLowerCase() : '';
+  if (!HOST_SETTABLE_ROOM_PHASES.has(phase)) {
+    return { error: 'Room phase must be open, discussion, or locked' };
+  }
+
+  const rawTimer = body?.timer_seconds ?? body?.duration_seconds;
+  const timerSeconds = rawTimer === undefined || rawTimer === null || rawTimer === ''
+    ? null
+    : Number(rawTimer);
+  if (
+    timerSeconds !== null &&
+    (!Number.isFinite(timerSeconds) || timerSeconds < 0 || timerSeconds > MAX_ROOM_PHASE_TIMER_SECONDS)
+  ) {
+    return { error: 'Room phase timer must be between 0 seconds and 3 hours' };
+  }
+
+  const now = Date.now() / 1000;
+  const durationSeconds = phase === 'discussion' && timerSeconds && timerSeconds > 0
+    ? Math.round(timerSeconds)
+    : null;
+
+  return {
+    value: normalizeRoomPhase({
+      status: phase,
+      betting_locked: phase === 'locked',
+      duration_seconds: durationSeconds,
+      timer_started_at: durationSeconds ? now : null,
+      timer_ends_at: durationSeconds ? now + durationSeconds : null,
+      updated_at: now,
+    }),
+  };
+}
+
 function validationError(res, message) {
   return res.status(400).json({ error: message });
 }
@@ -730,6 +772,7 @@ async function createRoom(house, roomCode, options = {}) {
     market: createMarketState({ b: DEFAULT_B }),
     players: {},
     betReceipts: new Map(),
+    phase: createDefaultRoomPhase({ updated_at: Date.now() / 1000 }),
     connections: [],
     aiEnabled: false,
     aiInterval: null,
@@ -768,6 +811,7 @@ async function createRoom(house, roomCode, options = {}) {
     market: getPublicMarketState(room.market),
     host_user_id: room.hostUserId,
     draft_audit: room.draftAudit,
+    room_phase: room.phase,
   });
   await waitForRoomPersistence(persistence);
   return room;
@@ -926,6 +970,7 @@ function recordReplayIntegrity(report) {
 function getRoomStatePayload(room) {
   const replay = getRoomReplay(room);
   const replayPlayers = Object.values(replay.players);
+  const phase = normalizeRoomPhase(replay.room_phase || room.phase);
 
   return {
     market: replay.market || getPublicMarketState(room.market),
@@ -933,6 +978,7 @@ function getRoomStatePayload(room) {
     house: replay.house || room.house,
     history: [],
     activity: replay.activity.slice(-50),
+    phase,
     ai_enabled: room.aiEnabled,
     host_user_id: room.hostUserId || null,
     durability_error: room.durabilityError || null,
@@ -1436,6 +1482,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     players: state.players,
     house: state.house,
     activity: state.activity,
+    phase: state.phase,
     host_user_id: state.host_user_id,
     draft_audit: state.draft_audit,
     settled: state.settled,
@@ -1510,6 +1557,54 @@ app.get('/api/rooms/:code/public-verification', (req, res) => {
   res.status(artifact.replay.live_match ? 200 : 409).json(artifact);
 });
 
+app.post('/api/rooms/:code/phase', limitRequests('rooms:phase', { max: 30 }), async (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+  if (!(await requireHostCapability(req, res, room))) return;
+
+  if (room.settled) {
+    recordRoomError(room, 'phase', 'Market is settled', 400, req);
+    return res.status(400).json({ error: 'Market is settled' });
+  }
+
+  const validated = validateRoomPhasePayload(req.body);
+  if (validated.error) {
+    recordRoomError(room, 'phase', validated.error, 400, req);
+    return validationError(res, validated.error);
+  }
+
+  room.phase = validated.value;
+  if (room.phase.betting_locked && room.aiEnabled) {
+    room.aiEnabled = false;
+    stopAiBotInterval(room);
+  }
+
+  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
+    phase: room.phase.status,
+    room_phase: room.phase,
+    betting_locked: room.phase.betting_locked,
+    ai_enabled: room.aiEnabled,
+  }, req);
+
+  try {
+    await waitForRoomPersistence(persistence);
+    clearRoomDurabilityError(room, 'phase');
+  } catch (error) {
+    return roomPersistenceError(res, error);
+  }
+
+  broadcast(room, {
+    type: 'phase',
+    phase: room.phase,
+    ai_enabled: room.aiEnabled,
+    activity: activityEntry,
+    event_sequence: event.sequence,
+  });
+  observability.increment('room_lifecycle.phase_changes');
+
+  res.json({ phase: room.phase, ai_enabled: room.aiEnabled, event_sequence: event.sequence });
+});
+
 app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
@@ -1544,6 +1639,10 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   if (room.settled) {
     recordRoomError(room, 'bet', 'Market is settled', 400, req);
     return res.status(400).json({ error: 'Market is settled' });
+  }
+  if (room.phase?.betting_locked) {
+    recordRoomError(room, 'bet', 'Betting is locked by the host', 423, req);
+    return res.status(423).json({ error: 'Betting is locked by the host' });
   }
 
   const player = room.players[session_id];
@@ -1629,6 +1728,11 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   room.aiEnabled = false;
   room.settled = true;
+  room.phase = normalizeRoomPhase({
+    status: 'settled',
+    betting_locked: true,
+    updated_at: Date.now() / 1000,
+  });
 
   const { actual_price, evidence_packet } = validated.value;
   const winningOutcome = getWinningOutcome(actual_price, room.house.asking_price);
@@ -1645,6 +1749,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
     evidence_packet,
     results,
     settlement: room.settlement,
+    room_phase: room.phase,
     players: Object.values(room.players).map((player) => cloneJson(player)),
   }, req);
 
@@ -1654,7 +1759,13 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
     return roomPersistenceError(res, error);
   }
 
-  broadcast(room, { type: 'settle', ...room.settlement, activity: activityEntry, event_sequence: event.sequence });
+  broadcast(room, {
+    type: 'settle',
+    ...room.settlement,
+    phase: room.phase,
+    activity: activityEntry,
+    event_sequence: event.sequence,
+  });
   observability.increment('room_lifecycle.settlements');
 
   res.json({ ...room.settlement, event_sequence: event.sequence });
@@ -1669,7 +1780,13 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
     return res.status(400).json({ error: 'Market is settled' });
   }
 
-  room.aiEnabled = !room.aiEnabled;
+  const nextAiEnabled = !room.aiEnabled;
+  if (nextAiEnabled && room.phase?.betting_locked) {
+    recordRoomError(room, 'toggle-ai', 'Betting is locked by the host', 400, req);
+    return res.status(400).json({ error: 'Betting is locked by the host' });
+  }
+
+  room.aiEnabled = nextAiEnabled;
   const { event, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
     phase: 'ai_toggled',
     ai_enabled: room.aiEnabled,

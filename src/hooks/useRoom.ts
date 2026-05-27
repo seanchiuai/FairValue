@@ -15,12 +15,14 @@ import type {
   PlayerData,
   House,
   ActivityEntry,
+  RoomPhase,
   SettleResult,
   SettleResultEntry,
   WsBetMessage,
   WsJoinMessage,
   WsAiTradeMessage,
   WsSettleMessage,
+  WsPhaseMessage,
 } from '../types';
 
 const CONNECTED_RECONCILE_INTERVAL_MS = 5000;
@@ -37,6 +39,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   const [house, setHouse] = useState<House | null>(null);
   const [draftAudit, setDraftAudit] = useState<MarketDraftAudit | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [phase, setPhase] = useState<RoomPhase | null>(null);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [hostUserId, setHostUserId] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
@@ -62,6 +65,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
           setHouse(data.house);
           setDraftAudit(data.draft_audit || null);
           setActivity(data.activity || []);
+          setPhase(data.phase || null);
           setAiEnabled(data.ai_enabled);
           setHostUserId(data.host_user_id || null);
           setSettled(data.settled);
@@ -84,6 +88,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         setHouse(data.house || null);
         setDraftAudit(data.draft_audit || null);
         setActivity(data.activity || []);
+        setPhase(data.phase || null);
         setAiEnabled(Boolean(data.ai_enabled));
         setHostUserId(data.host_user_id || null);
         setSettled(Boolean(data.settled));
@@ -118,6 +123,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     setHouse(data.house || null);
     setDraftAudit(data.draft_audit || null);
     setActivity(data.activity || []);
+    setPhase(data.phase || null);
     setAiEnabled(Boolean(data.ai_enabled));
     setHostUserId(data.host_user_id || null);
     if (data.settled) setSettled(true);
@@ -174,6 +180,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     }, []),
     onSettle: useCallback((data: WsSettleMessage) => {
       setSettled(true);
+      if (data.phase) setPhase(data.phase);
       setSettleResult({
         winning_outcome: data.winning_outcome,
         actual_price: data.actual_price,
@@ -192,6 +199,14 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
             return p;
           })
         );
+      }
+    }, []),
+    onPhase: useCallback((data: WsPhaseMessage) => {
+      setPhase(data.phase);
+      if (typeof data.ai_enabled === 'boolean') setAiEnabled(data.ai_enabled);
+      if (data.activity) {
+        const entry = data.activity;
+        setActivity((prev) => [...prev, entry]);
       }
     }, []),
     onReconnected: fetchRoomState,
@@ -248,6 +263,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
       setPlayers(data.players || []);
       setHouse(data.house || null);
       setDraftAudit(data.draft_audit || null);
+      setPhase(data.phase || null);
       if (data.activity) setActivity(data.activity);
       setHostUserId(data.host_user_id || null);
       if (data.settled) setSettled(true);
@@ -262,6 +278,10 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
       // Optimistic update: predict new state using LMSR math
       const prevMarket = market;
       const prevPlayers = players;
+
+      if (phase?.betting_locked) {
+        throw new Error('Betting is locked by the host');
+      }
 
       if (market) {
         const shares = buyWithBudget(outcome, wager, market.q_over, market.q_under, market.b);
@@ -317,7 +337,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         throw err;
       }
     },
-    [roomCode, sessionId, userToken, market, players, updatePlayerInList]
+    [roomCode, sessionId, userToken, market, players, phase, updatePlayerInList]
   );
 
   return {
@@ -327,8 +347,10 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     house,
     draftAudit,
     activity,
+    phase,
     aiEnabled,
     hostUserId,
+    setPhase,
     setAiEnabled,
     settled,
     settleResult,
