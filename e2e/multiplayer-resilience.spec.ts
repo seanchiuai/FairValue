@@ -459,6 +459,8 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('draft only');
     await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood price momentum');
     await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Evidence required');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Evidence gap', { timeout: 15_000 });
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('blocked from playable-room promotion');
     await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('not playable rooms');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Market Intelligence');
     await expect(desktop.getByTestId('structured-intelligence-status')).toContainText('Structured provider', { timeout: 15_000 });
@@ -482,6 +484,7 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(mobile.getByTestId('neighborhood-brief-section')).toContainText('Static ZIP entity');
     await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood Scenario Markets', { timeout: 15_000 });
     await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Draft only');
+    await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Evidence gap', { timeout: 15_000 });
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Market Intelligence', { timeout: 15_000 });
     await expect(mobile.getByTestId('structured-intelligence-status')).toContainText('Structured provider', { timeout: 15_000 });
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Analyst case network');

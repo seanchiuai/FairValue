@@ -142,6 +142,11 @@ type NeighborhoodMarketDraftsResponse = {
   error?: string;
 };
 
+type NeighborhoodEvidenceEnvelope = {
+  provider_status?: 'provider_backed' | 'local_fallback';
+  error?: string;
+};
+
 async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
 }
@@ -181,6 +186,7 @@ const MarketPage: React.FC = () => {
   const [neighborhoodDrafts, setNeighborhoodDrafts] = useState<NeighborhoodMarketDraftsResponse | null>(null);
   const [neighborhoodDraftsLoading, setNeighborhoodDraftsLoading] = useState(false);
   const [neighborhoodDraftsError, setNeighborhoodDraftsError] = useState('');
+  const [neighborhoodEvidence, setNeighborhoodEvidence] = useState<Record<string, boolean>>({});
   const [structuredIntelligence, setStructuredIntelligence] = useState<StructuredIntelligenceEnvelope | null>(null);
   const [structuredIntelligenceLoading, setStructuredIntelligenceLoading] = useState(false);
   const [structuredIntelligenceError, setStructuredIntelligenceError] = useState('');
@@ -261,6 +267,34 @@ const MarketPage: React.FC = () => {
       });
     return () => controller.abort();
   }, [property?.zipCode]);
+
+  useEffect(() => {
+    if (!property?.zipCode || !neighborhoodDrafts?.drafts?.length) {
+      setNeighborhoodEvidence({});
+      return;
+    }
+    const drafts = neighborhoodDrafts.drafts;
+    const controller = new AbortController();
+    Promise.all(drafts.map(async (draft) => {
+      const response = await fetch(
+        `/api/neighborhoods/${property.zipCode}/market-drafts/${draft.draft_id}/evidence/generate`,
+        {
+          method: 'POST',
+          signal: controller.signal,
+        }
+      );
+      const data = await readJson<NeighborhoodEvidenceEnvelope>(response);
+      if (!response.ok || data.error) throw new Error();
+      return [draft.draft_id, data.provider_status === 'provider_backed'] as const;
+    }))
+      .then((entries) => {
+        if (!controller.signal.aborted) setNeighborhoodEvidence(Object.fromEntries(entries));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setNeighborhoodEvidence({});
+      });
+    return () => controller.abort();
+  }, [property?.zipCode, neighborhoodDrafts]);
 
   useEffect(() => {
     if (!property?.id) {
@@ -668,34 +702,41 @@ const MarketPage: React.FC = () => {
           {draftCards.length > 0 && (
             <>
               <div className="neighborhood-draft-grid">
-                {draftCards.map((draft) => (
-                  <article key={draft.draft_id} className="neighborhood-draft-card">
-                    <div className="neighborhood-draft-top">
-                      <span className="neighborhood-draft-label">{draft.template_label}</span>
-                      <span className="neighborhood-draft-status">{draft.template_status.replace(/_/g, ' ')}</span>
-                    </div>
-                    <p className="neighborhood-draft-question">{draft.question}</p>
-                    <div className="neighborhood-draft-facts">
-                      <div>
-                        <span>Baseline</span>
-                        <strong>{formatDraftValue(draft.baseline.metric, draft.baseline.value ?? draft.baseline.subject_baseline_median_price)}</strong>
+                {draftCards.map((draft) => {
+                  const hasProviderEvidence = neighborhoodEvidence[draft.draft_id];
+                  return (
+                    <article key={draft.draft_id} className="neighborhood-draft-card">
+                      <div className="neighborhood-draft-top">
+                        <span className="neighborhood-draft-label">{draft.template_label}</span>
+                        <span className="neighborhood-draft-status">{draft.template_status.replace(/_/g, ' ')}</span>
                       </div>
-                      <div>
-                        <span>Trigger</span>
-                        <strong>{draftThresholdLabel(draft)}</strong>
+                      <p className="neighborhood-draft-question">{draft.question}</p>
+                      <div className="neighborhood-draft-facts">
+                        <div>
+                          <span>Baseline</span>
+                          <strong>{formatDraftValue(draft.baseline.metric, draft.baseline.value ?? draft.baseline.subject_baseline_median_price)}</strong>
+                        </div>
+                        <div>
+                          <span>Trigger</span>
+                          <strong>{draftThresholdLabel(draft)}</strong>
+                        </div>
+                        <div>
+                          <span>Window</span>
+                          <strong>{String(draft.default_config.comparison_window || 'pending').replace(/_/g, ' ')}</strong>
+                        </div>
                       </div>
-                      <div>
-                        <span>Window</span>
-                        <strong>{String(draft.default_config.comparison_window || 'pending').replace(/_/g, ' ')}</strong>
+                      <p className="neighborhood-draft-evidence">
+                        <span>Evidence required</span>
+                        {draft.evidence_required[0] || 'Provider-backed future neighborhood snapshot.'}
+                      </p>
+                      <div className={`neighborhood-evidence-status ${hasProviderEvidence ? 'provider' : ''}`}>
+                        <span className="neighborhood-evidence-label">{hasProviderEvidence ? 'Provider' : 'Evidence gap'}</span>
+                        <span className="neighborhood-evidence-detail">blocked from playable-room promotion</span>
                       </div>
-                    </div>
-                    <p className="neighborhood-draft-evidence">
-                      <span>Evidence required</span>
-                      {draft.evidence_required[0] || 'Provider-backed future neighborhood snapshot.'}
-                    </p>
-                    <p className="neighborhood-draft-rule">{draft.settlement_rule}</p>
-                  </article>
-                ))}
+                      <p className="neighborhood-draft-rule">{draft.settlement_rule}</p>
+                    </article>
+                  );
+                })}
               </div>
               <p className="neighborhood-drafts-limitation">
                 {neighborhoodDrafts?.limitations?.[0] || 'These are draft-only scenario contracts, not playable rooms.'}

@@ -770,6 +770,39 @@
   border-top: 1px solid #E6EDF4;
 }
 
+.neighborhood-evidence-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+  border: 1px solid #D7DFE9;
+  border-radius: 7px;
+  background: #F8FBFF;
+}
+
+.neighborhood-evidence-status.provider {
+  border-color: #A9D5BC;
+  background: #F2FBF5;
+}
+
+.neighborhood-evidence-label {
+  color: #26384D;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.neighborhood-evidence-status.provider .neighborhood-evidence-label {
+  color: #106536;
+}
+
+.neighborhood-evidence-detail {
+  color: #465366;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .neighborhood-draft-rule {
   margin: 0;
 }
