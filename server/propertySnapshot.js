@@ -4,6 +4,12 @@ const {
   NEIGHBORHOOD_INDEX_SCHEMA_VERSION,
   buildNeighborhoodIndex,
 } = require('./neighborhoodIndex');
+const {
+  GEOSPATIAL_INDEX_SCHEMA_VERSION,
+  buildGeospatialIndex,
+  sanitizeLatitude,
+  sanitizeLongitude,
+} = require('./geospatialIndex');
 
 const DEFAULT_PROPERTY_SNAPSHOT_PATH = path.join(__dirname, '..', 'public', 'data', 'properties.json');
 const PROPERTY_QUERY_SCHEMA_VERSION = 'fairvalue.propertyQuery.v1';
@@ -88,6 +94,9 @@ function mapRawProperty(raw, index) {
     year_built: sanitizeYear(source.yearBuilt),
     school_rating_average: schoolRating.average,
     school_count: schoolRating.count,
+    latitude: sanitizeLatitude(source.latitude),
+    longitude: sanitizeLongitude(source.longitude),
+    has_bad_geocode: source.hasBadGeocode === true,
     provider_source: sanitizeText(source.listingDataSource || source.listingSource || 'Zillow static property snapshot', 120),
     observed_at: sanitizeText(attribution.lastUpdated || attribution.lastChecked || source.dateSoldString, 80) || null,
   };
@@ -228,6 +237,38 @@ function createPropertySnapshot({
     });
   }
 
+  function geospatialResponse(filters = {}) {
+    ensureLoaded();
+    return buildGeospatialIndex({
+      properties: Array.from(byId.values()),
+      provenance,
+      filters,
+    });
+  }
+
+  function nearbyResponse(propertyId, filters = {}) {
+    ensureLoaded();
+    const property = byId.get(String(propertyId || '').trim());
+    if (!property) {
+      return { error: 'Property not found', statusCode: 404 };
+    }
+    if (property.latitude == null || property.longitude == null || property.has_bad_geocode) {
+      return { error: 'Property does not have a usable geocode in the current snapshot', statusCode: 422 };
+    }
+    return buildGeospatialIndex({
+      properties: Array.from(byId.values()),
+      provenance,
+      originProperty: property,
+      filters: {
+        ...filters,
+        lat: property.latitude,
+        lng: property.longitude,
+        radiusKm: filters.radiusKm || filters.radius_km || 2,
+        defaultLimit: 12,
+      },
+    });
+  }
+
   return {
     kind: Array.isArray(properties) ? 'memory-property-snapshot' : 'json-property-snapshot',
     filePath,
@@ -238,6 +279,8 @@ function createPropertySnapshot({
     query,
     queryResponse,
     neighborhoodResponse,
+    geospatialResponse,
+    nearbyResponse,
   };
 }
 
@@ -245,6 +288,7 @@ module.exports = {
   DEFAULT_PROPERTY_SNAPSHOT_PATH,
   PROPERTY_QUERY_SCHEMA_VERSION,
   NEIGHBORHOOD_INDEX_SCHEMA_VERSION,
+  GEOSPATIAL_INDEX_SCHEMA_VERSION,
   createPropertySnapshot,
   mapRawProperty,
 };

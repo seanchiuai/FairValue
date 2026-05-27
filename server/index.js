@@ -1330,6 +1330,23 @@ app.get('/api/neighborhoods/:zipCode', limitRequests('properties:query', { max: 
   res.json(result);
 });
 
+app.get('/api/geospatial/properties', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  res.json(propertySnapshot.geospatialResponse({
+    lat: req.query.lat || req.query.latitude,
+    lng: req.query.lng || req.query.lon || req.query.longitude,
+    radius_km: req.query.radius_km,
+    bbox: req.query.bbox,
+    west: req.query.west,
+    south: req.query.south,
+    east: req.query.east,
+    north: req.query.north,
+    city: req.query.city,
+    state: req.query.state,
+    zip: req.query.zip || req.query.zip_code,
+    limit: req.query.limit,
+  }));
+});
+
 app.get('/api/properties', limitRequests('properties:query', { max: 240 }), (req, res) => {
   res.json(propertySnapshot.queryResponse({
     ids: req.query.ids,
@@ -1340,6 +1357,26 @@ app.get('/api/properties', limitRequests('properties:query', { max: 240 }), (req
     maxPrice: req.query.max_price,
     limit: req.query.limit,
   }));
+});
+
+app.get('/api/properties/:propertyId/nearby', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const result = propertySnapshot.nearbyResponse(req.params.propertyId, {
+    radius_km: req.query.radius_km,
+    bbox: req.query.bbox,
+    west: req.query.west,
+    south: req.query.south,
+    east: req.query.east,
+    north: req.query.north,
+    city: req.query.city,
+    state: req.query.state,
+    zip: req.query.zip || req.query.zip_code,
+    limit: req.query.limit,
+  });
+  if (result.error) {
+    res.status(result.statusCode || 400).json({ error: result.error });
+    return;
+  }
+  res.json(result);
 });
 
 app.get('/api/properties/:propertyId', limitRequests('properties:query', { max: 240 }), (req, res) => {

@@ -39,6 +39,8 @@ function configureFixtureSnapshot() {
         state: 'CA',
         zipcode: '94607',
         price: 700000,
+        latitude: 37.8044,
+        longitude: -122.2712,
         bedrooms: 2,
         bathrooms: 1,
         livingArea: 1000,
@@ -56,6 +58,8 @@ function configureFixtureSnapshot() {
         state: 'CA',
         zipcode: '94704',
         price: 900000,
+        latitude: 37.8715,
+        longitude: -122.2730,
         bedrooms: 3,
         bathrooms: 2,
         livingArea: 1200,
@@ -73,6 +77,8 @@ function configureFixtureSnapshot() {
         state: 'CA',
         zipcode: '94607',
         price: 1200000,
+        latitude: 37.8060,
+        longitude: -122.2698,
         bedrooms: 4,
         bathrooms: 2,
         livingArea: 1500,
@@ -209,4 +215,45 @@ test('neighborhood API builds static zip entities with aggregate metrics and pro
   const missingDrafts = await request('/api/neighborhoods/99999/market-drafts');
   assert.equal(missingDrafts.status, 404);
   assert.match(missingDrafts.data.error, /Neighborhood entity not found/);
+});
+
+test('geospatial property API exposes centroid radius, bbox, and nearby queries with provenance', async () => {
+  configureFixtureSnapshot();
+
+  const radius = await request('/api/geospatial/properties?lat=37.8044&lng=-122.2712&radius_km=1&limit=5');
+  assert.equal(radius.status, 200);
+  assert.equal(radius.data.schema_version, 'fairvalue.geospatialIndex.v1');
+  assert.equal(radius.data.filters.lat, 37.8044);
+  assert.equal(radius.data.filters.lng, -122.2712);
+  assert.equal(radius.data.filters.radius_km, 1);
+  assert.equal(radius.data.count, 2);
+  assert.equal(radius.data.total_matches, 2);
+  assert.equal(radius.data.properties[0].property_id, '101');
+  assert.equal(radius.data.properties[0].spatial_unit, 'property_centroid');
+  assert.equal(radius.data.properties[0].geocode_quality, 'provider_centroid');
+  assert.equal(radius.data.properties[0].distance_km, 0);
+  assert.equal(radius.data.index_summary.indexed_properties, 3);
+  assert.equal(radius.data.index_summary.coordinate_coverage_percent, 100);
+  assert.equal(radius.data.tiles[0].spatial_unit, '0.01_degree_grid_cell');
+  assert.equal(radius.data.provenance.source_sha256, 'fixture-source-hash');
+  assert.equal(JSON.stringify(radius.data).includes('streetView'), false);
+  assert.match(radius.data.limitations.join(' '), /not a parcel-boundary/);
+
+  const bbox = await request('/api/geospatial/properties?west=-122.272&south=37.804&east=-122.268&north=37.807&limit=10');
+  assert.equal(bbox.status, 200);
+  assert.deepEqual(bbox.data.properties.map((property) => property.property_id), ['101', '103']);
+  assert.equal(bbox.data.filters.bbox.west, -122.272);
+  assert.equal(bbox.data.filters.bbox.north, 37.807);
+
+  const nearby = await request('/api/properties/101/nearby?radius_km=15&limit=5');
+  assert.equal(nearby.status, 200);
+  assert.equal(nearby.data.origin.kind, 'property');
+  assert.equal(nearby.data.origin.property_id, '101');
+  assert.equal(nearby.data.properties.some((property) => property.property_id === '101'), false);
+  assert.equal(nearby.data.properties[0].property_id, '103');
+  assert.equal(nearby.data.properties[1].property_id, '102');
+
+  const missing = await request('/api/properties/not-found/nearby');
+  assert.equal(missing.status, 404);
+  assert.match(missing.data.error, /Property not found/);
 });
