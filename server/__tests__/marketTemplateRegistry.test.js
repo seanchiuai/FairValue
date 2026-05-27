@@ -10,7 +10,7 @@ const {
   validateMarketFormatForRoom,
 } = require('../marketTemplateRegistry');
 
-test('market template registry exposes playable binary and draft-only future formats', () => {
+test('market template registry exposes playable binary/range and draft-only future formats', () => {
   const registry = publicMarketTemplateRegistry();
   assert.equal(registry.schema_version, 'market-template-registry/v1');
   assert.equal(registry.default_market_format, 'binary_over_under');
@@ -21,19 +21,23 @@ test('market template registry exposes playable binary and draft-only future for
   assert.equal(binary.pricing_engine, 'lmsr_binary_v1');
   assert.deepEqual(binary.outcome_schema.outcomes, ['over', 'under']);
   assert.equal(isRegisteredMarketFormat('range_price_band'), true);
-  assert.equal(isPlayableMarketFormat('range_price_band'), false);
+  assert.equal(isPlayableMarketFormat('range_price_band'), true);
   assert.equal(getMarketTemplate('range_price_band').pricing_engine, 'lmsr_multi_outcome_v1');
 
   registry.templates[0].label = 'mutated outside';
   assert.equal(publicMarketTemplateRegistry().templates[0].label, 'Binary over/under');
 });
 
-test('room market format validation blocks registered formats without a playable room workflow', () => {
+test('room market format validation accepts playable range and blocks remaining draft-only formats', () => {
   const binary = validateMarketFormatForRoom('binary_over_under');
   assert.equal(binary.value, 'binary_over_under');
   assert.equal(binary.template.status, 'playable');
 
-  const draftOnly = validateMarketFormatForRoom('range_price_band');
+  const range = validateMarketFormatForRoom('range_price_band');
+  assert.equal(range.value, 'range_price_band');
+  assert.equal(range.template.status, 'playable');
+
+  const draftOnly = validateMarketFormatForRoom('rent_yield_over_under');
   assert.match(draftOnly.error, /registered but not playable yet/);
   assert.equal(draftOnly.template.status, 'draft_only');
 

@@ -42,7 +42,7 @@ function hasFiniteNumber(value) {
 
 function hasOutcome(value) {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'over' || normalized === 'under';
+  return /^[a-z][a-z0-9_:-]{1,63}$/.test(normalized);
 }
 
 function createDefaultRoomPhase(overrides = {}) {
@@ -549,6 +549,8 @@ function createReplayState() {
     room_code: null,
     house: null,
     draft_audit: null,
+    market_format: 'binary_over_under',
+    market_config: null,
     market: null,
     players: {},
     activity: [],
@@ -579,6 +581,8 @@ function replayRoomEvents(events) {
       case EVENT_TYPES.ROOM_CREATED:
         state.house = cloneJson(payload.house || state.house);
         state.draft_audit = cloneJson(payload.draft_audit || state.draft_audit);
+        state.market_format = payload.market_format || payload.draft_audit?.market_format || state.market_format;
+        state.market_config = cloneJson(payload.market_config || payload.draft_audit?.market_config || state.market_config);
         state.market = cloneJson(payload.market || state.market);
         state.room_phase = normalizeRoomPhase(payload.room_phase || state.room_phase);
         state.phase = state.room_phase.status;

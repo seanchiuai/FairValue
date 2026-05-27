@@ -49,7 +49,7 @@ const REGISTERED_MARKET_FORMATS = new Set<MarketFormat>([
   'time_on_market_over_under',
   'renovation_budget_over_under',
 ]);
-const PLAYABLE_MARKET_FORMATS = new Set<MarketFormat>(['binary_over_under']);
+const PLAYABLE_MARKET_FORMATS = new Set<MarketFormat>(['binary_over_under', 'range_price_band']);
 
 const STREET_SUFFIX_PATTERN =
   'Street|St\\.?|Avenue|Ave\\.?|Road|Rd\\.?|Way|Boulevard|Blvd\\.?|Drive|Dr\\.?|Court|Ct\\.?|Lane|Ln\\.?|Place|Pl\\.?|Terrace|Ter\\.?|Circle|Cir\\.?|Highway|Hwy\\.?|Parkway|Pkwy\\.?|Loop|Square|Sq\\.?';

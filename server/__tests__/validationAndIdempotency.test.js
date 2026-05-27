@@ -276,7 +276,7 @@ test('market studio draft metadata is server-validated and preserved for audit',
   assert.equal(templates.status, 200);
   assert.equal(templates.data.schema_version, 'market-template-registry/v1');
   assert.equal(templates.data.default_market_format, 'binary_over_under');
-  assert.equal(templates.data.templates.some((template) => template.market_format === 'range_price_band' && template.status === 'draft_only'), true);
+  assert.equal(templates.data.templates.some((template) => template.market_format === 'range_price_band' && template.status === 'playable'), true);
 
   const invalidDraft = await request('/api/rooms', {
     method: 'POST',
@@ -294,7 +294,7 @@ test('market studio draft metadata is server-validated and preserved for audit',
   assert.match(invalidDraft.data.error, /Market draft address/);
   assert.equal(Object.keys(rooms).length, 0);
 
-  const draftOnlyFormat = await request('/api/rooms', {
+  const invalidRangeBand = await request('/api/rooms', {
     method: 'POST',
     body: {
       address: '3004 26th St',
@@ -304,11 +304,13 @@ test('market studio draft metadata is server-validated and preserved for audit',
         address: '3004 26th St',
         asking_price: 800000,
         market_format: 'range_price_band',
+        band_low: 850000,
+        band_high: 750000,
       },
     },
   });
-  assert.equal(draftOnlyFormat.status, 400);
-  assert.match(draftOnlyFormat.data.error, /registered but not playable yet/);
+  assert.equal(invalidRangeBand.status, 400);
+  assert.match(invalidRangeBand.data.error, /low must be below/);
   assert.equal(Object.keys(rooms).length, 0);
 
   const sourceText = [
@@ -377,6 +379,100 @@ test('market studio draft metadata is server-validated and preserved for audit',
   });
   assert.equal(replay.status, 200);
   assert.equal(replay.data.replay.draft_audit.property_id, '440298192');
+});
+
+test('range price band rooms create, trade, settle, replay, and verify through the API', async () => {
+  const created = await request('/api/rooms', {
+    method: 'POST',
+    body: {
+      address: '88 Range Way',
+      asking_price: 800000,
+      market_draft: {
+        source_type: 'manual',
+        address: '88 Range Way',
+        asking_price: 800000,
+        market_format: 'range_price_band',
+        band_low: 760000,
+        band_high: 840000,
+        market_question: 'Where will 88 Range Way settle relative to the $760k-$840k band?',
+      },
+    },
+  });
+  assert.equal(created.status, 200);
+  assert.equal(created.data.market_format, 'range_price_band');
+  assert.equal(created.data.market_config.band_low, 760000);
+  assert.equal(created.data.market_config.band_high, 840000);
+  assert.equal(created.data.draft_audit.market_config.outcomes.includes('inside_band'), true);
+  const code = created.data.room_code;
+  const hostHeaders = { 'X-FairValue-Host-Token': created.data.host_token };
+
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'range-player', nickname: 'Range Player' },
+  });
+  assert.equal(join.status, 200);
+  assert.equal(join.data.market.schema_version, 'multi-outcome-lmsr-state/v1');
+  assert.equal(join.data.market.outcomes.length, 3);
+
+  const invalidOutcome = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'range-invalid-outcome-001' },
+    body: { session_id: 'range-player', outcome: 'over', wager: 25 },
+  });
+  assert.equal(invalidOutcome.status, 400);
+  assert.match(invalidOutcome.data.error, /below_band, inside_band, above_band/);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'range-inside-bet-001' },
+    body: { session_id: 'range-player', outcome: 'inside_band', wager: 75, reason: 'Sale comps cluster inside the band.' },
+  });
+  assert.equal(bet.status, 200);
+  assert.equal(bet.data.trade.outcome, 'inside_band');
+  assert.equal(bet.data.market.total_trades, 1);
+  assert.equal(bet.data.market.probabilities.inside_band > 1 / 3, true);
+  assert.equal(bet.data.player.bets[0].outcome, 'inside_band');
+  assert.equal(bet.data.player.bets[0].prob_at_entry, bet.data.trade.probabilities_after.inside_band);
+
+  const aiToggle = await request(`/api/rooms/${code}/toggle-ai`, {
+    method: 'POST',
+    headers: hostHeaders,
+  });
+  assert.equal(aiToggle.status, 400);
+  assert.match(aiToggle.data.error, /binary over\/under/);
+
+  const settled = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: hostHeaders,
+    body: { actual_price: 810000 },
+  });
+  assert.equal(settled.status, 200);
+  assert.equal(settled.data.winning_outcome, 'inside_band');
+  assert.equal(settled.data.results[0].payout > 0, true);
+  assert.equal(settled.data.reputation_summary.status, 'settled');
+  assert.equal(settled.data.reputation_summary.correct_bets, 1);
+
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.market_format, 'range_price_band');
+  assert.equal(state.data.market_config.band_high, 840000);
+  assert.equal(state.data.settlement.winning_outcome, 'inside_band');
+
+  const replay = await request(`/api/rooms/${code}/replay`, { headers: hostHeaders });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.replay.market_format, 'range_price_band');
+  assert.equal(replay.data.replay.market_config.band_low, 760000);
+  assert.equal(replay.data.replay.settlement.winning_outcome, 'inside_band');
+
+  const verification = await request(`/api/rooms/${code}/public-verification`);
+  assert.equal(verification.status, 200);
+  assert.equal(verification.data.settlement.winning_outcome, 'inside_band');
+  assert.equal(verification.data.replay.live_match, true);
+
+  const projection = publicLiveProjection(rooms[code]);
+  assert.equal(projection.market_format, 'range_price_band');
+  assert.equal(projection.market.probabilities.inside_band > 1 / 3, true);
+  assert.equal(projection.players[0].outcome_counts.inside_band, 1);
 });
 
 test('room phase changes are host-authorized, replayed, and lock betting', async () => {

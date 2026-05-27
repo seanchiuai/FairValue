@@ -26,16 +26,27 @@ const {
   publicMarketTemplateRegistry,
   validateMarketFormatForRoom,
 } = require('./marketTemplateRegistry');
+const {
+  BINARY_MARKET_FORMAT,
+  createMarketConfigForRoom,
+  createInitialMarketState,
+  hydrateRoomMarketState,
+  getPublicRoomMarketState,
+  normalizeOutcomeForRoom,
+  placeRoomBetWithBudget,
+  selectedProbabilityAfter,
+  winningOutcomeForRoom,
+  settlePlayersForRoom,
+  eventMarketPayload,
+  isBinaryMarket,
+  marketConfigPayload,
+} = require('./roomMarketRuntime');
 const observability = require('./observability');
 const {
   DEFAULT_B,
   priceOver,
-  getPublicMarketState,
   createMarketState,
   applyTrade,
-  placeBetWithBudget,
-  getWinningOutcome,
-  settlePlayers,
 } = require('../src/lib/marketEngine');
 
 const app = express();
@@ -182,6 +193,8 @@ function serializeRoomSnapshot(room) {
     hostToken: room.hostToken,
     hostUserId: room.hostUserId || null,
     house: cloneJson(room.house),
+    marketFormat: room.marketFormat || BINARY_MARKET_FORMAT,
+    marketConfig: marketConfigPayload(room),
     market: cloneJson(room.market),
     players: cloneJson(room.players),
     betReceipts: Array.from(room.betReceipts.entries()).map(([key, receipt]) => [key, cloneJson(receipt)]),
@@ -206,7 +219,13 @@ function hydrateRoomSnapshot(snapshot) {
     hostToken: snapshot.hostToken || generateHostToken(),
     hostUserId: normalizeUserId(snapshot.hostUserId) || null,
     house: cloneJson(snapshot.house),
-    market: createMarketState(snapshot.market || { b: DEFAULT_B }),
+    marketFormat: snapshot.marketFormat || snapshot.market_format || snapshot.marketConfig?.market_format || BINARY_MARKET_FORMAT,
+    marketConfig: snapshot.marketConfig || snapshot.market_config || null,
+    market: hydrateRoomMarketState(
+      snapshot.marketFormat || snapshot.market_format || snapshot.marketConfig?.market_format || BINARY_MARKET_FORMAT,
+      snapshot.market || { b: DEFAULT_B },
+      snapshot.marketConfig || snapshot.market_config || null
+    ),
     players: cloneJson(snapshot.players || {}),
     betReceipts: new Map((snapshot.betReceipts || []).map(([key, receipt]) => [key, cloneJson(receipt)])),
     phase: normalizeRoomPhase(snapshot.phase),
@@ -309,6 +328,11 @@ async function runAiBotTick(room) {
   if (!room || !room.aiEnabled || room.settled || room.phase?.betting_locked) {
     stopAiBotInterval(room);
     return { ok: false, skipped: true };
+  }
+  if (!isBinaryMarket(room)) {
+    room.aiEnabled = false;
+    stopAiBotInterval(room);
+    return { ok: false, skipped: true, reason: 'unsupported_market_format' };
   }
   if (room.aiTradeInFlight) return { ok: false, skipped: true, reason: 'ai_trade_in_flight' };
 
@@ -434,7 +458,13 @@ function hydratePersistedRooms(snapshot) {
 function hydrateRoomFromReplay(room, events) {
   const replay = replayRoomEvents(events);
   if (replay.house) room.house = cloneJson(replay.house);
-  if (replay.market) room.market = createMarketState(replay.market);
+  if (replay.market_format) room.marketFormat = replay.market_format;
+  if (replay.market_config) room.marketConfig = cloneJson(replay.market_config);
+  if (replay.market) room.market = hydrateRoomMarketState(
+    room.marketFormat || BINARY_MARKET_FORMAT,
+    replay.market,
+    room.marketConfig
+  );
   if (replay.players) room.players = cloneJson(replay.players);
   if (replay.activity) room.activity = cloneJson(replay.activity);
   room.settled = Boolean(replay.settled);
@@ -563,6 +593,9 @@ function validateMarketDraftAuditPayload(rawDraft, house) {
   const marketFormat = sanitizeText(rawDraft.market_format, 60) || DEFAULT_MARKET_FORMAT;
   const marketFormatValidation = validateMarketFormatForRoom(marketFormat);
   if (marketFormatValidation.error) return { error: marketFormatValidation.error };
+  const liquidityB = parsePositiveNumber(rawDraft.liquidity_b, 10_000) || DEFAULT_B;
+  const marketConfig = createMarketConfigForRoom(marketFormatValidation.value, house, rawDraft, liquidityB);
+  if (marketConfig.error) return { error: marketConfig.error };
 
   const provenance = rawDraft.provenance && typeof rawDraft.provenance === 'object'
     ? rawDraft.provenance
@@ -573,7 +606,6 @@ function validateMarketDraftAuditPayload(rawDraft, house) {
   }
 
   const sourceText = typeof rawDraft.source_text === 'string' ? rawDraft.source_text : '';
-  const liquidityB = parsePositiveNumber(rawDraft.liquidity_b, 10_000) || DEFAULT_B;
   const evidenceRequired = sanitizeTextList(rawDraft.evidence_required, 180, 6);
   const warnings = sanitizeTextList(rawDraft.warnings, 180, 8);
   const matchedSignals = sanitizeTextList(provenance.matchedSignals, 80, 8);
@@ -602,6 +634,7 @@ function validateMarketDraftAuditPayload(rawDraft, house) {
       market_question: sanitizeText(rawDraft.market_question, 180) || `Will ${address} appraise above $${askingPrice.toLocaleString()}?`,
       market_format: marketFormatValidation.value,
       market_template: marketTemplateAuditProjection(marketFormatValidation.template),
+      market_config: marketConfig.value,
       liquidity_b: liquidityB,
       settlement_rule: sanitizeText(rawDraft.settlement_rule, 240) || 'Settle using final sale price, appraisal, or host-provided valuation evidence.',
       evidence_required: evidenceRequired,
@@ -681,7 +714,21 @@ function validateCreateRoomPayload(body) {
   const house = { address, asking_price: askingPrice };
   const draftAudit = validateMarketDraftAuditPayload(body?.market_draft, house);
   if (draftAudit.error) return { error: draftAudit.error };
-  return { value: { ...house, host_user_id: hostUserId, draft_audit: draftAudit.value } };
+  const marketFormat = draftAudit.value?.market_format || DEFAULT_MARKET_FORMAT;
+  const defaultMarketConfig = draftAudit.value?.market_config
+    ? { value: draftAudit.value.market_config }
+    : createMarketConfigForRoom(marketFormat, house, body?.market_draft || {}, DEFAULT_B);
+  if (defaultMarketConfig.error) return { error: defaultMarketConfig.error };
+  const marketConfig = defaultMarketConfig.value;
+  return {
+    value: {
+      ...house,
+      host_user_id: hostUserId,
+      draft_audit: draftAudit.value,
+      market_format: marketFormat,
+      market_config: marketConfig,
+    },
+  };
 }
 
 function validateJoinPayload(body) {
@@ -695,21 +742,23 @@ function validateJoinPayload(body) {
   return { value: { session_id: sessionId, nickname, user_id: userId } };
 }
 
-function validateBetPayload(body) {
+function validateBetPayload(body, room) {
   const sessionId = sanitizeText(body?.session_id, 100);
   const hasUserId = Object.prototype.hasOwnProperty.call(body || {}, 'user_id');
   const userId = hasUserId ? normalizeUserId(body?.user_id) : null;
-  const outcome = typeof body?.outcome === 'string' ? body.outcome.trim().toLowerCase() : body?.outcome;
+  const outcomeValidation = room
+    ? normalizeOutcomeForRoom(room, body?.outcome)
+    : normalizeOutcomeForRoom({ marketFormat: BINARY_MARKET_FORMAT }, body?.outcome);
   const wager = parsePositiveNumber(body?.wager, 1000);
   const rawReason = body?.reason ?? body?.bet_reason ?? body?.rationale;
   const hasReason = rawReason !== undefined && rawReason !== null && rawReason !== '';
   if (!sessionId) return { error: 'Session ID is required' };
   if (hasUserId && !userId) return { error: 'User ID is invalid' };
-  if (!['over', 'under'].includes(outcome)) return { error: "Outcome must be 'over' or 'under'" };
+  if (outcomeValidation.error) return { error: outcomeValidation.error };
   if (wager === null) return { error: 'Wager must be between $1 and $1,000' };
   if (hasReason && typeof rawReason !== 'string') return { error: 'Bet reason must be text' };
   const reason = sanitizeText(rawReason, MAX_BET_REASON_LENGTH);
-  return { value: { session_id: sessionId, user_id: userId, outcome, wager, reason } };
+  return { value: { session_id: sessionId, user_id: userId, outcome: outcomeValidation.value, wager, reason } };
 }
 
 function validateSettlePayload(body) {
@@ -776,12 +825,16 @@ function betFingerprint(bet) {
 async function createRoom(house, roomCode, options = {}) {
   const code = roomCode ? normalizeRoomCode(roomCode) : generateRoomCode();
   if (!code) throw new Error('Room code must be 4 letters or numbers');
+  const marketFormat = options.marketFormat || BINARY_MARKET_FORMAT;
+  const marketConfig = options.marketConfig || createMarketConfigForRoom(marketFormat, house, {}, DEFAULT_B).value;
   const room = {
     code,
     hostToken: generateHostToken(),
     hostUserId: normalizeUserId(options.hostUserId) || null,
     house,
-    market: createMarketState({ b: DEFAULT_B }),
+    marketFormat,
+    marketConfig,
+    market: createInitialMarketState(marketFormat, marketConfig, DEFAULT_B),
     players: {},
     betReceipts: new Map(),
     phase: createDefaultRoomPhase({ updated_at: Date.now() / 1000 }),
@@ -797,30 +850,34 @@ async function createRoom(house, roomCode, options = {}) {
     draftAudit: options.draftAudit ? cloneJson(options.draftAudit) : null,
   };
 
-  // Persist a new market row + market_state in Neon so trades are saved
-  try {
-    const propertyId = 'room-' + code;
-    const [inserted] = await sql`
-      INSERT INTO markets (address, asking_price, property_id, status)
-      VALUES (${house.address || ''}, ${house.asking_price || 0}, ${propertyId}, 'open')
-      RETURNING id
-    `;
-    room.marketId = inserted.id;
+  if (isBinaryMarket(room)) {
+    // Persist a new market row + market_state in Neon so binary trades are saved.
+    try {
+      const propertyId = 'room-' + code;
+      const [inserted] = await sql`
+        INSERT INTO markets (address, asking_price, property_id, status)
+        VALUES (${house.address || ''}, ${house.asking_price || 0}, ${propertyId}, 'open')
+        RETURNING id
+      `;
+      room.marketId = inserted.id;
 
-    await sql`
-      INSERT INTO market_state (market_id, q_over, q_under, b, total_trades, total_wagered)
-      VALUES (${room.marketId}, 0, 0, 100, 0, 0)
-    `;
-    console.log(`Room ${code}: created DB market ${room.marketId}`);
-  } catch (e) {
-    observability.recordError('database', e, { operation: 'create_room_market' });
-    console.error(`Room ${code}: failed to create DB market:`, e.message);
+      await sql`
+        INSERT INTO market_state (market_id, q_over, q_under, b, total_trades, total_wagered)
+        VALUES (${room.marketId}, 0, 0, 100, 0, 0)
+      `;
+      console.log(`Room ${code}: created DB market ${room.marketId}`);
+    } catch (e) {
+      observability.recordError('database', e, { operation: 'create_room_market' });
+      console.error(`Room ${code}: failed to create DB market:`, e.message);
+    }
   }
 
   rooms[code] = room;
   const { persistence } = appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
     house: room.house,
-    market: getPublicMarketState(room.market),
+    market_format: room.marketFormat,
+    market_config: marketConfigPayload(room),
+    market: eventMarketPayload(room),
     host_user_id: room.hostUserId,
     draft_audit: room.draftAudit,
     room_phase: room.phase,
@@ -985,7 +1042,9 @@ function getRoomStatePayload(room) {
   const phase = normalizeRoomPhase(replay.room_phase || room.phase);
 
   return {
-    market: replay.market || getPublicMarketState(room.market),
+    market: replay.market || getPublicRoomMarketState(room),
+    market_format: replay.market_format || room.marketFormat || BINARY_MARKET_FORMAT,
+    market_config: replay.market_config || marketConfigPayload(room),
     players: replayPlayers.length ? replayPlayers : Object.values(room.players),
     house: replay.house || room.house,
     history: [],
@@ -1424,13 +1483,25 @@ app.post('/api/rooms', limitRequests('rooms:create', { max: 20 }), async (req, r
   const validated = validateCreateRoomPayload(req.body);
   if (validated.error) return validationError(res, validated.error);
 
-  const { host_user_id, draft_audit, ...house } = validated.value;
+  const { host_user_id, draft_audit, market_format, market_config, ...house } = validated.value;
   if (host_user_id && !requireExpectedUserIdentity(req, res, host_user_id)) return;
 
   try {
-    const room = await createRoom(house, undefined, { hostUserId: host_user_id, draftAudit: draft_audit });
+    const room = await createRoom(house, undefined, {
+      hostUserId: host_user_id,
+      draftAudit: draft_audit,
+      marketFormat: market_format,
+      marketConfig: market_config,
+    });
     observability.increment('room_lifecycle.created');
-    res.json({ room_code: room.code, host_token: room.hostToken, house, draft_audit: room.draftAudit });
+    res.json({
+      room_code: room.code,
+      host_token: room.hostToken,
+      house,
+      market_format: room.marketFormat,
+      market_config: marketConfigPayload(room),
+      draft_audit: room.draftAudit,
+    });
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -1495,6 +1566,8 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   res.json({
     player,
     market: state.market,
+    market_format: state.market_format,
+    market_config: state.market_config,
     players: state.players,
     house: state.house,
     activity: state.activity,
@@ -1625,7 +1698,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
 
-  const validated = validateBetPayload(req.body);
+  const validated = validateBetPayload(req.body, room);
   if (validated.error) {
     recordRoomError(room, 'bet', validated.error, 400, req);
     return validationError(res, validated.error);
@@ -1671,7 +1744,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     return res.status(400).json({ error: 'Insufficient balance' });
   }
 
-  const execution = placeBetWithBudget(room.market, outcome, wager, player.nickname);
+  const execution = placeRoomBetWithBudget(room, outcome, wager, player.nickname);
   room.market = execution.market;
   const shares = execution.shares;
   const trade = execution.trade;
@@ -1681,7 +1754,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     outcome,
     wager: trade.wager,
     shares: Math.round(shares * 100) / 100,
-    prob_at_entry: outcome === 'over' ? trade.prob_over_after : trade.prob_under_after,
+    prob_at_entry: selectedProbabilityAfter(room, trade, outcome),
     timestamp: trade.timestamp,
     reason: reason || null,
   });
@@ -1701,8 +1774,10 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   }, req);
 
   // Persist to DB in background (don't block response)
-  persistTrade(room.marketId, trade, shares);
-  updateMarketState(room.marketId, room.market);
+  if (isBinaryMarket(room)) {
+    persistTrade(room.marketId, trade, shares);
+    updateMarketState(room.marketId, room.market);
+  }
 
   const response = { trade, market: marketState, player, event_sequence: event.sequence };
   room.betReceipts.set(idempotencyKey, {
@@ -1754,8 +1829,8 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   });
 
   const { actual_price, evidence_packet } = validated.value;
-  const winningOutcome = getWinningOutcome(actual_price, room.house.asking_price);
-  const settlement = settlePlayers(Object.values(room.players), winningOutcome);
+  const winningOutcome = winningOutcomeForRoom(room, actual_price);
+  const settlement = settlePlayersForRoom(room, Object.values(room.players), winningOutcome);
   for (const player of settlement.players) {
     room.players[player.session_id] = player;
   }
@@ -1815,6 +1890,10 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
   if (nextAiEnabled && room.phase?.betting_locked) {
     recordRoomError(room, 'toggle-ai', 'Betting is locked by the host', 400, req);
     return res.status(400).json({ error: 'Betting is locked by the host' });
+  }
+  if (nextAiEnabled && !isBinaryMarket(room)) {
+    recordRoomError(room, 'toggle-ai', 'AI bot currently supports binary over/under rooms only', 400, req);
+    return res.status(400).json({ error: 'AI bot currently supports binary over/under rooms only' });
   }
 
   room.aiEnabled = nextAiEnabled;

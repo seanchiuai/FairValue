@@ -331,7 +331,7 @@ test('room event payload contracts reject malformed canonical events before appe
   assert.match(
     validateRoomEventPayload(EVENT_TYPES.BET_PLACED, {
       session_id: 'player-1',
-      outcome: 'sideways',
+      outcome: 'up outcome',
       wager: 25,
       market: {},
       player: {},

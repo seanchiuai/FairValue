@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { createReplayIntegrityReport } = require('./replayIntegrity');
 const { normalizeRoomPhase, replayRoomEvents } = require('./roomEventLog');
 const { publicReputationProjection } = require('./playerReputation');
-const { getPublicMarketState } = require('../src/lib/marketEngine');
+const { getPublicRoomMarketState, marketConfigPayload } = require('./roomMarketRuntime');
 
 const DEFAULT_IDENTITY_SECRET = 'fairvalue-local-dev-identity-secret';
 const SIGNED_SCHEMA_VERSION = 'public-room-verification/v1';
@@ -61,6 +61,11 @@ function publicPlayerProjection(players) {
         total_wagered: bets.reduce((sum, bet) => sum + (Number.isFinite(bet.wager) ? bet.wager : 0), 0),
         over_bets: bets.filter((bet) => bet.outcome === 'over').length,
         under_bets: bets.filter((bet) => bet.outcome === 'under').length,
+        outcome_counts: bets.reduce((counts, bet) => {
+          const outcome = String(bet.outcome || '').trim().toLowerCase();
+          if (outcome) counts[outcome] = (counts[outcome] || 0) + 1;
+          return counts;
+        }, {}),
       };
     })
     .sort((a, b) => a.nickname.localeCompare(b.nickname));
@@ -85,7 +90,9 @@ function publicLiveProjection(room) {
     room_code: room.code,
     house: cloneJson(room.house),
     draft_audit: room.draftAudit ? cloneJson(room.draftAudit) : null,
-    market: getPublicMarketState(room.market),
+    market_format: room.marketFormat || 'binary_over_under',
+    market_config: marketConfigPayload(room),
+    market: getPublicRoomMarketState(room),
     players: publicPlayerProjection(room.players),
     activity: publicActivityProjection(room.activity),
     room_phase: normalizeRoomPhase(room.phase),
@@ -99,6 +106,8 @@ function publicReplayProjection(replay) {
     room_code: replay.room_code,
     house: replay.house,
     draft_audit: replay.draft_audit,
+    market_format: replay.market_format || 'binary_over_under',
+    market_config: replay.market_config || null,
     market: replay.market,
     players: publicPlayerProjection(replay.players),
     activity: publicActivityProjection(replay.activity),

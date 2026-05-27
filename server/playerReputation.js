@@ -26,7 +26,7 @@ function clampProbability(value) {
 
 function normalizeOutcome(value) {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'over' || normalized === 'under' ? normalized : null;
+  return /^[a-z][a-z0-9_:-]{1,63}$/.test(normalized) ? normalized : null;
 }
 
 function playerListFrom(players) {

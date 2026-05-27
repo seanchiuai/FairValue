@@ -23,7 +23,7 @@
     {
       "market_format": "range_price_band",
       "label": "Range price band",
-      "status": "draft_only",
+      "status": "playable",
       "summary": "Players forecast which settlement price band the property lands in.",
       "outcome_schema": {
         "type": "range",
@@ -32,10 +32,11 @@
       "pricing_engine": "lmsr_multi_outcome_v1",
       "settlement_inputs": ["actual_price", "band_low", "band_high", "settlement_evidence"],
       "settlement_rule": "Resolve to below_band, inside_band, or above_band using the configured price band.",
-      "supported_surfaces": ["market_studio_registry", "developer_api"],
+      "supported_surfaces": ["room_creation_api", "betting_api", "settlement", "event_replay", "public_verification", "developer_api"],
       "limitations": [
-        "Registered for schema and pricing-core planning only.",
-        "Room creation is blocked until range settlement, replay, and UI workflows exist."
+        "Playable through the room API and server event/replay path.",
+        "The current rendered host/player room UI remains optimized for binary rooms until the generic market surface is implemented.",
+        "AI bot trading remains disabled for range rooms."
       ]
     },
     {

@@ -20,12 +20,12 @@ describe('market template registry', () => {
     );
     expect(getMarketTemplate('range_price_band')).toEqual(
       expect.objectContaining({
-        status: 'draft_only',
+        status: 'playable',
         pricing_engine: 'lmsr_multi_outcome_v1',
       })
     );
     expect(isRegisteredMarketFormat('range_price_band')).toBe(true);
-    expect(isPlayableMarketFormat('range_price_band')).toBe(false);
+    expect(isPlayableMarketFormat('range_price_band')).toBe(true);
   });
 
   it('returns cloned templates so consumers cannot mutate the registry singleton', () => {

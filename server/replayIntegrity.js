@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { normalizeRoomPhase, replayRoomEvents } = require('./roomEventLog');
-const { getPublicMarketState } = require('../src/lib/marketEngine');
+const { getPublicRoomMarketState, marketConfigPayload } = require('./roomMarketRuntime');
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -41,7 +41,9 @@ function createReplayIntegrityReport(room, events) {
     room_code: room.code,
     house: cloneJson(room.house),
     draft_audit: room.draftAudit ? cloneJson(room.draftAudit) : null,
-    market: getPublicMarketState(room.market),
+    market_format: room.marketFormat || 'binary_over_under',
+    market_config: marketConfigPayload(room),
+    market: getPublicRoomMarketState(room),
     players: sortedPlayers(room.players),
     activity: cloneJson(room.activity || []),
     room_phase: normalizeRoomPhase(room.phase),
@@ -53,6 +55,8 @@ function createReplayIntegrityReport(room, events) {
     room_code: replay.room_code,
     house: replay.house,
     draft_audit: replay.draft_audit,
+    market_format: replay.market_format || 'binary_over_under',
+    market_config: replay.market_config || null,
     market: replay.market,
     players: sortedPlayers(replay.players),
     activity: replay.activity,
