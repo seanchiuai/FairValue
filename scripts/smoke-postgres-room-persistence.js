@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const net = require('node:net');
 const postgres = require('postgres');
 const { createPostgresRoomPersistence } = require('../server/roomPersistence');
+const { createPostgresRoomEventLog, EVENT_TYPES } = require('../server/roomEventLog');
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -94,7 +95,9 @@ async function main() {
     await waitForPostgres(sql);
 
     const persistence = createPostgresRoomPersistence({ sql });
+    const eventLog = createPostgresRoomEventLog({ sql });
     await persistence.clear();
+    await eventLog.clear();
     await persistence.save({
       rooms: {
         LIVE: {
@@ -109,11 +112,26 @@ async function main() {
         },
       },
     });
+    await eventLog.append({
+      id: 'LIVE-00000001',
+      room_code: 'LIVE',
+      sequence: 1,
+      type: EVENT_TYPES.ROOM_CREATED,
+      payload: {
+        house: { address: '1 Disposable Postgres Way', asking_price: 500000 },
+        market: { total_trades: 0, prob_over: 0.5, prob_under: 0.5 },
+      },
+      timestamp: Date.now() / 1000,
+    });
 
     let loaded = await persistence.load();
     assert.equal(loaded.rooms.LIVE.hostToken, 'live-host-token');
     assert.equal(loaded.rooms.LIVE.players.player1.nickname, 'Live Player');
     assert.equal(loaded.rooms.LIVE.betReceipts[0][0], 'live-bet-001');
+    let loadedEvents = await eventLog.loadRoom('LIVE');
+    assert.equal(loadedEvents.length, 1);
+    assert.equal(loadedEvents[0].type, EVENT_TYPES.ROOM_CREATED);
+    assert.equal(JSON.stringify(loadedEvents).includes('live-host-token'), false);
 
     await persistence.save({
       rooms: {
@@ -133,8 +151,11 @@ async function main() {
     loaded = await persistence.load();
     assert.deepEqual(Object.keys(loaded.rooms), ['NEXT']);
     assert.equal(loaded.rooms.NEXT.settled, true);
+    loadedEvents = await eventLog.load();
+    assert.deepEqual(loadedEvents.map((event) => event.room_code), ['LIVE']);
 
     await persistence.clear();
+    await eventLog.clear();
     const oldTimestamp = Date.now() / 1000 - 8 * 24 * 60 * 60;
     const recentTimestamp = Date.now() / 1000 - 24 * 60 * 60;
     await persistence.saveRoom('OLDP', {
@@ -164,13 +185,17 @@ async function main() {
     assert.equal(await retentionPersistence.loadRoom('OLDP'), null);
 
     await persistence.clear();
+    await eventLog.clear();
     loaded = await persistence.load();
     assert.deepEqual(loaded.rooms, {});
+    assert.deepEqual(await eventLog.load(), []);
 
     console.log(JSON.stringify({
       ok: true,
       adapter: persistence.kind,
       table: persistence.tableName,
+      eventAdapter: eventLog.kind,
+      eventTable: eventLog.tableName,
       retentionPruned: true,
       image,
       port,

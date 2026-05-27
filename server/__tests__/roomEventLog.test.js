@@ -17,6 +17,7 @@ const {
 const {
   EVENT_LOG_SCHEMA_VERSION,
   createJsonRoomEventLog,
+  createPostgresRoomEventLog,
   createInMemoryRoomEventStore,
   replayRoomEvents,
   validateRoomEventPayload,
@@ -83,6 +84,10 @@ function closeSocket(ws) {
   });
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 async function createHostedRoom() {
   const created = await request('/api/rooms', {
     method: 'POST',
@@ -92,9 +97,103 @@ async function createHostedRoom() {
   return created.data;
 }
 
+function createFakeSql() {
+  const snapshotRows = new Map();
+  const eventRows = [];
+  const calls = [];
+
+  async function sql(strings, ...values) {
+    const query = strings.join('?').replace(/\s+/g, ' ').trim();
+    calls.push({ query, values });
+
+    if (query.startsWith('CREATE TABLE IF NOT EXISTS fairvalue_room_snapshots')) return [];
+    if (query.startsWith('CREATE TABLE IF NOT EXISTS fairvalue_room_events')) return [];
+    if (query.startsWith('CREATE INDEX IF NOT EXISTS fairvalue_room_events_room_sequence_idx')) return [];
+
+    if (query.startsWith('SELECT room_code, snapshot, updated_at FROM fairvalue_room_snapshots')) {
+      return Array.from(snapshotRows.entries()).map(([room_code, row]) => ({
+        room_code,
+        snapshot: row.snapshot,
+        updated_at: row.updated_at,
+      }));
+    }
+    if (query.startsWith('SELECT snapshot, updated_at FROM fairvalue_room_snapshots WHERE room_code')) {
+      const row = snapshotRows.get(values[0]);
+      return row ? [{ snapshot: row.snapshot, updated_at: row.updated_at }] : [];
+    }
+    if (query.startsWith('SELECT room_code FROM fairvalue_room_snapshots')) {
+      return Array.from(snapshotRows.keys()).map((room_code) => ({ room_code }));
+    }
+    if (query.startsWith('INSERT INTO fairvalue_room_snapshots')) {
+      snapshotRows.set(values[0], {
+        snapshot: JSON.parse(values[1]),
+        updated_at: new Date('2026-05-10T12:00:00.000Z'),
+      });
+      return [];
+    }
+    if (query.startsWith('DELETE FROM fairvalue_room_snapshots WHERE room_code')) {
+      snapshotRows.delete(values[0]);
+      return [];
+    }
+    if (query.startsWith('DELETE FROM fairvalue_room_snapshots')) {
+      snapshotRows.clear();
+      return [];
+    }
+
+    if (query.startsWith('INSERT INTO fairvalue_room_events')) {
+      const row = {
+        event_id: values[0],
+        room_code: values[1],
+        sequence: values[2],
+        type: values[3],
+        payload: JSON.parse(values[4]),
+        request_id: values[5],
+        occurred_at: new Date(values[6]),
+        schema_version: values[7],
+      };
+      if (eventRows.some((event) => event.event_id === row.event_id)) throw new Error('duplicate event_id');
+      if (eventRows.some((event) => event.room_code === row.room_code && event.sequence === row.sequence)) {
+        throw new Error('duplicate room sequence');
+      }
+      eventRows.push(row);
+      return [];
+    }
+    if (query.startsWith('SELECT event_id, room_code, sequence, type, payload, request_id, occurred_at, schema_version FROM fairvalue_room_events WHERE room_code')) {
+      return eventRows
+        .filter((row) => row.room_code === values[0])
+        .sort((a, b) => a.sequence - b.sequence)
+        .map((row) => ({ ...row }));
+    }
+    if (query.startsWith('SELECT event_id, room_code, sequence, type, payload, request_id, occurred_at, schema_version FROM fairvalue_room_events')) {
+      return eventRows
+        .slice()
+        .sort((a, b) => a.room_code.localeCompare(b.room_code) || a.sequence - b.sequence)
+        .map((row) => ({ ...row }));
+    }
+    if (query.startsWith('DELETE FROM fairvalue_room_events WHERE room_code')) {
+      for (let index = eventRows.length - 1; index >= 0; index -= 1) {
+        if (eventRows[index].room_code === values[0]) eventRows.splice(index, 1);
+      }
+      return [];
+    }
+    if (query.startsWith('DELETE FROM fairvalue_room_events')) {
+      eventRows.length = 0;
+      return [];
+    }
+
+    throw new Error(`Unexpected fake SQL query: ${query}`);
+  }
+
+  sql.isConfigured = true;
+  sql.snapshotRows = snapshotRows;
+  sql.eventRows = eventRows;
+  sql.calls = calls;
+  return sql;
+}
+
 before(listen);
 
-afterEach(() => {
+afterEach(async () => {
   for (const room of Object.values(rooms)) {
     if (room.aiInterval) clearInterval(room.aiInterval);
   }
@@ -102,8 +201,8 @@ afterEach(() => {
     delete rooms[code];
   }
   roomEventStore.clearAll();
-  roomPersistence().clear();
-  configureRoomPersistence(null);
+  await roomPersistence().clear();
+  await configureRoomPersistence(null);
   for (const dir of tempDirs) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -256,6 +355,61 @@ test('json room event log appends canonical events without rewriting the stream'
   assert.deepEqual(loaded.map((event) => event.sequence), [1, 2]);
   assert.equal(loaded[1].payload.player.session_id, 'event-log-player');
   assert.equal(JSON.stringify(loaded).includes('host_token'), false);
+});
+
+test('postgres room event log appends canonical events into an ordered stream', async () => {
+  const fakeSql = createFakeSql();
+  const eventLog = createPostgresRoomEventLog({ sql: fakeSql });
+
+  assert.equal(eventLog.enabled, true);
+  assert.equal(eventLog.kind, 'postgres-event-log');
+  assert.equal(eventLog.tableName, 'fairvalue_room_events');
+
+  await eventLog.append({
+    id: 'PGEV-00000002',
+    room_code: 'pgev',
+    sequence: 2,
+    type: EVENT_TYPES.PLAYER_JOINED,
+    payload: {
+      session_id: 'pg-player',
+      nickname: 'Postgres Player',
+      player: { session_id: 'pg-player', nickname: 'Postgres Player', balance: 1000, bets: [] },
+    },
+    timestamp: 2,
+  });
+  await eventLog.append({
+    id: 'PGEV-00000001',
+    room_code: 'PGEV',
+    sequence: 1,
+    type: EVENT_TYPES.ROOM_CREATED,
+    payload: {
+      house: { address: 'Postgres Event House', asking_price: 800000 },
+      market: { total_trades: 0, prob_over: 0.5, prob_under: 0.5 },
+    },
+    timestamp: 1,
+  });
+
+  const loaded = await eventLog.loadRoom('PGEV');
+  assert.deepEqual(loaded.map((event) => event.sequence), [1, 2]);
+  assert.equal(loaded[0].payload.house.address, 'Postgres Event House');
+  assert.equal(loaded[1].payload.player.nickname, 'Postgres Player');
+  assert.equal(JSON.stringify(loaded).includes('host_token'), false);
+
+  await assert.rejects(() => eventLog.append({
+    id: 'PGEV-00000002',
+    room_code: 'PGEV',
+    sequence: 2,
+    type: EVENT_TYPES.PLAYER_JOINED,
+    payload: {
+      session_id: 'pg-player',
+      nickname: 'Postgres Player',
+      player: { session_id: 'pg-player', nickname: 'Postgres Player', balance: 1000, bets: [] },
+    },
+    timestamp: 3,
+  }), /duplicate/);
+
+  await eventLog.clear();
+  assert.deepEqual(await eventLog.load(), []);
 });
 
 test('room event log supports audit access, ordered replay, and settlement reconstruction', async () => {
@@ -554,4 +708,72 @@ test('append-only room event journal restores replay state when snapshot events 
   });
   assert.equal(secondBet.status, 200);
   assert.equal(secondBet.data.market.total_trades, 2);
+});
+
+test('postgres room event journal restores replay state when snapshot events are stale', async () => {
+  const fakeSql = createFakeSql();
+  await configureRoomPersistence({ mode: 'postgres', sql: fakeSql });
+  assert.equal(roomPersistence().kind, 'postgres');
+  assert.equal(roomEventLog().kind, 'postgres-event-log');
+  assert.equal(roomEventLog().tableName, 'fairvalue_room_events');
+
+  const room = await createHostedRoom();
+  const code = room.room_code;
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'pg-journal-player', nickname: 'PG Journal Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'pg-journal-bet-001' },
+    body: { session_id: 'pg-journal-player', outcome: 'over', wager: 45 },
+  });
+  assert.equal(bet.status, 200);
+  assert.equal(bet.data.market.total_trades, 1);
+
+  const snapshotRow = fakeSql.snapshotRows.get(code);
+  const snapshot = cloneJson(snapshotRow.snapshot);
+  const journalEventCount = fakeSql.eventRows.filter((event) => event.room_code === code).length;
+  assert.equal(journalEventCount, snapshot.events.length);
+
+  snapshot.events = snapshot.events.slice(0, 1);
+  snapshot.market = {
+    q_over: 0,
+    q_under: 0,
+    b: 100,
+    total_trades: 0,
+    total_wagered: 0,
+  };
+  snapshot.players = {};
+  snapshot.activity = [];
+  fakeSql.snapshotRows.set(code, {
+    ...snapshotRow,
+    snapshot,
+  });
+
+  for (const existingCode of Object.keys(rooms)) delete rooms[existingCode];
+  roomEventStore.clearAll();
+
+  const restored = await loadPersistedRooms();
+  assert.equal(restored.loaded, 1);
+  assert.equal(roomEventStore.list(code).length, journalEventCount);
+  assert.equal(rooms[code].market.total_trades, 1);
+  assert.equal(rooms[code].players['pg-journal-player'].nickname, 'PG Journal Player');
+
+  const restoredState = await request(`/api/rooms/${code}/state`);
+  assert.equal(restoredState.status, 200);
+  assert.equal(restoredState.data.market.total_trades, 1);
+  assert.equal(restoredState.data.players[0].nickname, 'PG Journal Player');
+  assert.equal(restoredState.data.event_sequence, journalEventCount);
+
+  const secondBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'pg-journal-bet-002' },
+    body: { session_id: 'pg-journal-player', outcome: 'under', wager: 20 },
+  });
+  assert.equal(secondBet.status, 200);
+  assert.equal(secondBet.data.market.total_trades, 2);
+  assert.equal(fakeSql.eventRows.filter((event) => event.room_code === code).length, journalEventCount + 1);
 });

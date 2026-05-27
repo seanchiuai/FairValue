@@ -76,7 +76,7 @@ Browser (React)
 
 - **Rooms** are live in-memory objects with JSON snapshot durability for local degraded mode (`.fairvalue/rooms.json` by default in the real server process)
 - **Room event logs** are kept with each durable room snapshot so state can be reconstructed after a local backend restart
-- **Room event journals** append canonical room events to a local `.events.ndjson` stream for JSON-backed development, so replay recovery is less dependent on rewritten whole-room snapshots
+- **Room event journals** append canonical room events to a local `.events.ndjson` stream for JSON-backed development or to `fairvalue_room_events` for Postgres-backed deployments, so replay recovery is less dependent on rewritten whole-room snapshots
 - **Player Pre-Bet Intelligence** is deterministic local fallback output on `/play/:roomCode`; it uses LMSR math, the player's wager/balance, current room probability, and recent room activity to explain one reason to believe, one reason to doubt, and both OVER/UNDER wager previews before a bet is placed.
 - **Live Room Intelligence** is deterministic local fallback output on the host dashboard; it combines room LMSR state, recent room activity, players, and optional server-accepted draft audits without claiming provider-backed comps
 - **Operator Review** is a host-facing deterministic recap surface over room state plus host-authorized event logs, including draft audit, settlement evidence, timeline, and integrity checks
@@ -98,6 +98,8 @@ Browser (React)
 - **`markets`** — property listings (address, asking_price, status, property_id)
 - **`market_state`** — LMSR state per market (q_over, q_under, b, total_trades, total_wagered)
 - **`trades`** — trade history (outcome, shares, wager, payout, probabilities after, source)
+- **`fairvalue_room_snapshots`** — sensitive durable room snapshots for Postgres-backed multiplayer recovery
+- **`fairvalue_room_events`** — append-only canonical room event stream for Postgres-backed replay recovery
 
 ## API Endpoints
 
@@ -172,8 +174,8 @@ cp .env.example .env
 - `VITE_WS_BASE_URL` can override the WebSocket base URL for non-standard local or deployed setups.
 - `FAIRVALUE_ROOM_STORE=json` keeps the default local JSON snapshot adapter; `FAIRVALUE_ROOM_STORE=postgres` uses the Neon/Postgres `fairvalue_room_snapshots` table when `DATABASE_URL` is configured.
 - `FAIRVALUE_ROOM_STORE_PATH` overrides the local durable room snapshot file. If unset, `npm run server` uses `.fairvalue/rooms.json`.
-- `FAIRVALUE_ROOM_EVENT_LOG=auto` keeps the append-only local room event journal enabled for JSON room persistence. Set it to `off` to disable event journaling.
-- `FAIRVALUE_ROOM_EVENT_LOG_PATH` overrides the append-only local event journal path. If unset and JSON room persistence has a snapshot path, FairValue uses `<room snapshot path>.events.ndjson`.
+- `FAIRVALUE_ROOM_EVENT_LOG=auto` keeps append-only room event journaling enabled. JSON room persistence writes a local `<room snapshot path>.events.ndjson` stream; Postgres room persistence writes canonical events to `fairvalue_room_events`. Set it to `off` only for local experiments where replay recovery is intentionally ephemeral.
+- `FAIRVALUE_ROOM_EVENT_LOG_PATH` overrides the append-only local JSON event journal path. Do not set it in production with `FAIRVALUE_ROOM_STORE=postgres`; production readiness requires the Postgres event stream.
 - `FAIRVALUE_ROOM_PERSISTENCE=off` disables local room snapshots and returns to fully ephemeral in-memory room state.
 - `FAIRVALUE_ROOM_RETENTION_DAYS` defaults to `30` for local JSON snapshots and prunes only settled rooms whose last saved room event/activity is older than that window. Set it to `0` or `off` to disable local retention pruning.
 - `FAIRVALUE_ROOM_SNAPSHOT_SECRET` encrypts the local JSON room snapshot file with AES-256-GCM. Set a stable private value before creating rooms; encrypted local snapshots cannot be read without the same value.
@@ -185,7 +187,7 @@ cp .env.example .env
 - `FAIRVALUE_IDENTITY_SECRET` signs anonymous browser identities used for durable player sessions and host authority. Set a stable private value anywhere rooms need to survive server restarts.
 - `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` signs public settled-room verification artifacts. If unset, the public endpoint still returns deterministic hashes but marks the artifact as an unsigned local digest. Production readiness requires this value so shareable public artifacts do not ship unsigned.
 
-Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, bet idempotency receipts, and optional Market Studio draft audit envelopes; AI bot intervals are not auto-resumed after a backend restart. Draft audits intentionally keep source-text hashes and lengths, not raw pasted listing text. Local JSON retention prunes settled rooms only; active rooms and rooms without a room-specific timestamp are kept. Postgres retention is opt-in and prunes settled rows only. If `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, local JSON snapshots are saved as encrypted envelopes; existing plaintext snapshots still load and are rewritten encrypted on the next save. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually. The local append-only event journal stores canonical room events without host tokens or private evidence documents; on restore, the server prefers the journal when it contains a longer event stream for a snapshotted room.
+Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres snapshot adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both snapshot stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, bet idempotency receipts, and optional Market Studio draft audit envelopes; AI bot intervals are not auto-resumed after a backend restart. Draft audits intentionally keep source-text hashes and lengths, not raw pasted listing text. Local JSON retention prunes settled rooms only; active rooms and rooms without a room-specific timestamp are kept. Postgres retention is opt-in and prunes settled rows only. If `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, local JSON snapshots are saved as encrypted envelopes; existing plaintext snapshots still load and are rewritten encrypted on the next save. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually. Append-only event journals store canonical room events without host tokens or private evidence documents: local JSON uses `.events.ndjson`, and Postgres uses `fairvalue_room_events` with unique `(room_code, sequence)` records. On restore, the server prefers the journal when it contains a longer event stream for a snapshotted room.
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
 
@@ -197,7 +199,7 @@ HTTP hardening note: the Express server disables `X-Powered-By` and emits baseli
 - `GET /readyz` reports whether the process is ready for its configured dependencies. Local degraded mode is ready without `DATABASE_URL`; `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` makes the database requirement explicit.
 - `GET /api/ops/metrics` returns an in-memory JSON snapshot for local triage: request counts/latency, room lifecycle counters, active room/player/connection counts, WebSocket counters, rate-limit rejections, database errors, persistence failures, and AI degraded/error counts. It does not include room host tokens or player payloads. Set `FAIRVALUE_OPS_TOKEN` before exposing it outside local development.
 - `GET /metrics` exposes the same aggregate counters in Prometheus text format for an external scraper. It uses the same `FAIRVALUE_OPS_TOKEN` guard as `/api/ops/metrics`.
-- Replay integrity checks from `GET /api/rooms/:code/replay/verify` and public settled-room verification digest generation increment replay-integrity counters in both ops metrics surfaces, making replay/live drift visible without exposing room authority tokens.
+- Replay integrity checks from `GET /api/rooms/:code/replay/verify` and public settled-room verification digest generation increment replay-integrity counters in both ops metrics surfaces, making replay/live drift visible without exposing room authority tokens. Ops metrics also expose whether append-only event journaling is enabled and which adapter is active.
 
 ## Verification
 
@@ -215,7 +217,7 @@ For a deployment environment gate, run:
 npm run check:production
 ```
 
-This prints a JSON report and exits non-zero until production-critical variables are set: `DATABASE_URL`, `FAIRVALUE_ROOM_STORE=postgres`, positive `FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS`, non-default `FAIRVALUE_IDENTITY_SECRET`, `FAIRVALUE_PUBLIC_VERIFICATION_SECRET`, enabled room persistence, and `FAIRVALUE_OPS_TOKEN`. Missing `COGNEE_API_KEY` is reported as a warning because the AI analyst can intentionally run degraded.
+This prints a JSON report and exits non-zero until production-critical variables are set: `DATABASE_URL`, `FAIRVALUE_ROOM_STORE=postgres`, positive `FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS`, `FAIRVALUE_ROOM_EVENT_LOG=auto` or `postgres` without a local event-log path override, non-default `FAIRVALUE_IDENTITY_SECRET`, `FAIRVALUE_PUBLIC_VERIFICATION_SECRET`, enabled room persistence, and `FAIRVALUE_OPS_TOKEN`. Missing `COGNEE_API_KEY` is reported as a warning because the AI analyst can intentionally run degraded.
 
 For browser flow coverage, run:
 
@@ -258,9 +260,9 @@ npm run test:a11y:assistive
 
 `test:a11y:assistive` starts fresh backend/frontend ports, opens headed Playwright Chrome with renderer accessibility enabled, captures the macOS accessibility tree plus Playwright ARIA snapshots for join, host, settle, and player flows, and writes `docs/accessibility-assistive-tech-notes.md`. It is intentionally not part of `npm run verify` because it opens a headed browser window.
 
-`test:persistence:postgres` requires Docker. It starts a disposable `postgres:16-alpine` container, verifies the Postgres room snapshot adapter against a real database, and removes the container afterward.
+`test:persistence:postgres` requires Docker. It starts a disposable `postgres:16-alpine` container, verifies the Postgres room snapshot adapter plus the append-only `fairvalue_room_events` event stream against a real database, and removes the container afterward.
 
-`test:persistence:live` is the production database readiness gate. With no `DATABASE_URL`, it records a local degraded/skip result unless `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` is set. With `DATABASE_URL` configured, it verifies live connectivity and whether `fairvalue_room_snapshots` exists. Set `FAIRVALUE_LIVE_POSTGRES_SMOKE=1` to run the non-destructive live write/read/delete path against a single temporary `FV**` room row; it never calls the whole-table snapshot replacement path against a live database.
+`test:persistence:live` is the production database readiness gate. With no `DATABASE_URL`, it records a local degraded/skip result unless `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` is set. With `DATABASE_URL` configured, it verifies live connectivity and whether `fairvalue_room_snapshots` and `fairvalue_room_events` exist. Set `FAIRVALUE_LIVE_POSTGRES_SMOKE=1` to run the non-destructive live write/read/delete path against a single temporary `FV**` room row and its matching event stream rows; it never calls the whole-table snapshot replacement path against a live database.
 
 ## Project Structure
 

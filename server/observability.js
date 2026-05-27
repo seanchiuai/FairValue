@@ -135,6 +135,16 @@ function persistenceSummary(roomPersistence) {
   };
 }
 
+function eventLogSummary(roomEventLog) {
+  return {
+    enabled: Boolean(roomEventLog?.enabled),
+    kind: roomEventLog?.kind || 'unknown',
+    table: roomEventLog?.tableName || null,
+    file_configured: Boolean(roomEventLog?.filePath),
+    reason: roomEventLog?.enabled ? null : roomEventLog?.reason || null,
+  };
+}
+
 function databaseSummary(sql) {
   return {
     configured: sql?.isConfigured !== false,
@@ -170,7 +180,7 @@ function line(name, value, labels = {}) {
   return `${prometheusMetricName(name)}${labelText} ${Number.isFinite(numeric) ? numeric : 0}`;
 }
 
-function snapshot({ rooms, roomPersistence, sql } = {}) {
+function snapshot({ rooms, roomPersistence, roomEventLog, sql } = {}) {
   return {
     service: 'fairvalue',
     started_at: new Date(state.startedAtMs).toISOString(),
@@ -188,6 +198,7 @@ function snapshot({ rooms, roomPersistence, sql } = {}) {
       failures: state.persistence.failures,
       last_failure: state.persistence.last_failure,
     },
+    event_log: eventLogSummary(roomEventLog),
     database: {
       ...databaseSummary(sql),
       errors: state.database.errors,
@@ -198,10 +209,11 @@ function snapshot({ rooms, roomPersistence, sql } = {}) {
   };
 }
 
-function readiness({ roomPersistence, sql } = {}) {
+function readiness({ roomPersistence, roomEventLog, sql } = {}) {
   const postgresPersistenceRequired = roomPersistence?.kind === 'postgres';
   const databaseRequired = postgresPersistenceRequired ||
     ['1', 'true', 'yes', 'on'].includes(String(process.env.FAIRVALUE_REQUIRE_DATABASE_URL || '').toLowerCase());
+  const postgresEventLogRequired = postgresPersistenceRequired;
 
   const checks = {
     process: {
@@ -216,6 +228,11 @@ function readiness({ roomPersistence, sql } = {}) {
     room_persistence: {
       ok: !postgresPersistenceRequired || Boolean(roomPersistence?.enabled),
       ...persistenceSummary(roomPersistence),
+    },
+    room_event_log: {
+      ok: !postgresEventLogRequired || (Boolean(roomEventLog?.enabled) && roomEventLog?.kind === 'postgres-event-log'),
+      required: postgresEventLogRequired,
+      ...eventLogSummary(roomEventLog),
     },
   };
 
@@ -236,8 +253,8 @@ function health() {
   };
 }
 
-function prometheusMetrics({ rooms, roomPersistence, sql } = {}) {
-  const metrics = snapshot({ rooms, roomPersistence, sql });
+function prometheusMetrics({ rooms, roomPersistence, roomEventLog, sql } = {}) {
+  const metrics = snapshot({ rooms, roomPersistence, roomEventLog, sql });
   const lines = [
     '# HELP fairvalue_up FairValue process health indicator.',
     '# TYPE fairvalue_up gauge',
@@ -302,6 +319,9 @@ function prometheusMetrics({ rooms, roomPersistence, sql } = {}) {
     '# HELP fairvalue_room_persistence_failures_total Room persistence failures observed by this process.',
     '# TYPE fairvalue_room_persistence_failures_total counter',
     line('fairvalue_room_persistence_failures_total', metrics.persistence.failures, { kind: metrics.persistence.kind }),
+    '# HELP fairvalue_room_event_log_enabled Whether append-only room event persistence is enabled.',
+    '# TYPE fairvalue_room_event_log_enabled gauge',
+    line('fairvalue_room_event_log_enabled', metrics.event_log.enabled ? 1 : 0, { kind: metrics.event_log.kind }),
     '# HELP fairvalue_ai_events_total AI degraded responses and integration errors.',
     '# TYPE fairvalue_ai_events_total counter',
     line('fairvalue_ai_events_total', metrics.ai.degraded_responses, { event: 'degraded_response' }),

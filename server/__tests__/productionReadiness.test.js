@@ -42,6 +42,7 @@ test('production readiness rejects local defaults and does not echo secret value
     'ops_token',
     'postgres_retention',
     'public_verification_secret',
+    'room_event_log_postgres',
     'room_store_postgres',
   ]);
 
@@ -78,4 +79,18 @@ test('production readiness fails when room persistence is disabled', () => {
 
   assert.equal(report.ok, false);
   assert.deepEqual(failedIds(report), ['room_persistence_enabled']);
+});
+
+test('production readiness requires Postgres-backed append-only room events', () => {
+  const disabled = buildProductionReadinessReport(baseProductionEnv({
+    FAIRVALUE_ROOM_EVENT_LOG: 'off',
+  }));
+  assert.equal(disabled.ok, false);
+  assert.deepEqual(failedIds(disabled), ['room_event_log_postgres']);
+
+  const localPath = buildProductionReadinessReport(baseProductionEnv({
+    FAIRVALUE_ROOM_EVENT_LOG_PATH: '/tmp/fairvalue-events.ndjson',
+  }));
+  assert.equal(localPath.ok, false);
+  assert.deepEqual(failedIds(localPath), ['room_event_log_postgres']);
 });

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const EVENT_LOG_SCHEMA_VERSION = 'fairvalue.roomEventLog.v1';
+const DEFAULT_POSTGRES_EVENT_TABLE = 'fairvalue_room_events';
 const EVENT_TYPES = Object.freeze({
   ROOM_CREATED: 'room_created',
   PLAYER_JOINED: 'player_joined',
@@ -121,6 +122,27 @@ function normalizeEventRecord(event) {
   return normalized;
 }
 
+function parsePayloadJson(value) {
+  if (!value) return {};
+  if (typeof value === 'string') return JSON.parse(value);
+  return cloneJson(value);
+}
+
+function timestampToSeconds(value) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.getTime() / 1000;
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1_000_000_000_000 ? value / 1000 : value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed / 1000 : Date.now() / 1000;
+  }
+
+  return Date.now() / 1000;
+}
+
 function createDisabledRoomEventLog({ kind = 'disabled', reason = 'Room event log persistence is disabled' } = {}) {
   return {
     enabled: false,
@@ -222,6 +244,126 @@ function createJsonRoomEventLog({ filePath } = {}) {
     append,
     load,
     loadRoom,
+    clear,
+  };
+}
+
+function createPostgresRoomEventLog({ sql } = {}) {
+  if (!sql || sql.isConfigured === false) {
+    return createDisabledRoomEventLog({
+      kind: 'postgres-event-log',
+      reason: 'DATABASE_URL is not configured',
+    });
+  }
+
+  let schemaReady = false;
+
+  async function ensureSchema() {
+    if (schemaReady) return;
+    await sql`
+      CREATE TABLE IF NOT EXISTS fairvalue_room_events (
+        event_id text PRIMARY KEY,
+        room_code text NOT NULL,
+        sequence integer NOT NULL CHECK (sequence > 0),
+        type text NOT NULL,
+        payload jsonb NOT NULL,
+        request_id text,
+        occurred_at timestamptz NOT NULL,
+        schema_version text NOT NULL DEFAULT 'fairvalue.roomEventLog.v1',
+        inserted_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (room_code, sequence)
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS fairvalue_room_events_room_sequence_idx
+      ON fairvalue_room_events (room_code, sequence)
+    `;
+    schemaReady = true;
+  }
+
+  function rowToEvent(row) {
+    return normalizeEventRecord({
+      id: row.event_id,
+      room_code: row.room_code,
+      sequence: row.sequence,
+      type: row.type,
+      payload: parsePayloadJson(row.payload),
+      request_id: row.request_id,
+      timestamp: timestampToSeconds(row.occurred_at),
+    });
+  }
+
+  async function append(event) {
+    const normalized = normalizeEventRecord(event);
+    await ensureSchema();
+    await sql`
+      INSERT INTO fairvalue_room_events (
+        event_id,
+        room_code,
+        sequence,
+        type,
+        payload,
+        request_id,
+        occurred_at,
+        schema_version
+      )
+      VALUES (
+        ${normalized.id},
+        ${normalized.room_code},
+        ${normalized.sequence},
+        ${normalized.type},
+        ${JSON.stringify(normalized.payload)}::jsonb,
+        ${normalized.request_id || null},
+        ${new Date(normalized.timestamp * 1000).toISOString()}::timestamptz,
+        ${EVENT_LOG_SCHEMA_VERSION}
+      )
+    `;
+  }
+
+  async function load({ roomCode } = {}) {
+    await ensureSchema();
+    const normalizedRoomCode = roomCode ? normalizeRoomCode(roomCode) : null;
+    const rows = normalizedRoomCode
+      ? await sql`
+        SELECT event_id, room_code, sequence, type, payload, request_id, occurred_at, schema_version
+        FROM fairvalue_room_events
+        WHERE room_code = ${normalizedRoomCode}
+        ORDER BY sequence ASC
+      `
+      : await sql`
+        SELECT event_id, room_code, sequence, type, payload, request_id, occurred_at, schema_version
+        FROM fairvalue_room_events
+        ORDER BY room_code ASC, sequence ASC
+      `;
+
+    return dedupeAndSortEvents((rows || []).map(rowToEvent));
+  }
+
+  function loadRoom(roomCode) {
+    return load({ roomCode });
+  }
+
+  async function deleteRoom(roomCode) {
+    const normalizedRoomCode = normalizeRoomCode(roomCode);
+    if (!normalizedRoomCode) return;
+    await ensureSchema();
+    await sql`DELETE FROM fairvalue_room_events WHERE room_code = ${normalizedRoomCode}`;
+  }
+
+  async function clear() {
+    await ensureSchema();
+    await sql`DELETE FROM fairvalue_room_events`;
+  }
+
+  return {
+    kind: 'postgres-event-log',
+    enabled: true,
+    tableName: DEFAULT_POSTGRES_EVENT_TABLE,
+    filePath: null,
+    append,
+    load,
+    loadRoom,
+    deleteRoom,
     clear,
   };
 }
@@ -429,11 +571,13 @@ function replayRoomEvents(events) {
 }
 
 module.exports = {
+  DEFAULT_POSTGRES_EVENT_TABLE,
   EVENT_LOG_SCHEMA_VERSION,
   EVENT_TYPES,
   createDisabledRoomEventLog,
   createInMemoryRoomEventStore,
   createJsonRoomEventLog,
+  createPostgresRoomEventLog,
   replayRoomEvents,
   roomEventToActivity,
   validateRoomEventPayload,

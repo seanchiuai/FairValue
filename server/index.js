@@ -8,6 +8,7 @@ const sql = require('./db');
 const {
   EVENT_TYPES,
   createJsonRoomEventLog,
+  createPostgresRoomEventLog,
   createInMemoryRoomEventStore,
   replayRoomEvents,
   roomEventToActivity,
@@ -73,7 +74,7 @@ const MARKET_DRAFT_FORMATS = new Set(['binary_over_under']);
 const MARKET_DRAFT_CONFIDENCES = new Set(['low', 'medium', 'high']);
 const rateLimitBuckets = new Map();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
-let roomEventLog = createJsonRoomEventLog(resolveRoomEventLogOptions(roomPersistence));
+let roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: sql }));
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
 
@@ -118,16 +119,28 @@ function resolveRoomPersistenceOptions() {
   };
 }
 
-function resolveRoomEventLogOptions(persistence = roomPersistence) {
+function resolveRoomEventLogOptions(persistence = roomPersistence, { configuredSql = sql } = {}) {
   const mode = String(process.env.FAIRVALUE_ROOM_EVENT_LOG || 'auto').trim().toLowerCase();
   if (['0', 'false', 'off', 'disabled', 'none'].includes(mode)) return {};
+  if (['postgres', 'neon', 'db', 'database'].includes(mode)) return { mode: 'postgres', sql: configuredSql };
   if (process.env.FAIRVALUE_ROOM_EVENT_LOG_PATH) {
-    return { filePath: process.env.FAIRVALUE_ROOM_EVENT_LOG_PATH };
+    return { mode: 'json', filePath: process.env.FAIRVALUE_ROOM_EVENT_LOG_PATH };
+  }
+  if (persistence?.kind === 'postgres') {
+    return { mode: 'postgres', sql: configuredSql };
   }
   if (persistence?.kind === 'json' && persistence.filePath) {
-    return { filePath: `${persistence.filePath}.events.ndjson` };
+    return { mode: 'json', filePath: `${persistence.filePath}.events.ndjson` };
   }
   return {};
+}
+
+function createRoomEventLog(options = {}) {
+  const mode = String(options.mode || 'json').trim().toLowerCase();
+  if (['postgres', 'neon', 'db', 'database'].includes(mode)) {
+    return createPostgresRoomEventLog({ sql: options.sql });
+  }
+  return createJsonRoomEventLog(options);
 }
 
 function generateRoomCode() {
@@ -366,16 +379,14 @@ function persistRoom(room) {
   return persistRooms();
 }
 
-function hydratePersistedRooms(snapshot) {
+function hydratePersistedRoomsFromEvents(snapshot, durableEvents = []) {
   let loaded = 0;
   const durableEventsByRoom = new Map();
 
-  if (roomEventLog.enabled) {
-    for (const event of roomEventLog.load()) {
-      const events = durableEventsByRoom.get(event.room_code) || [];
-      events.push(event);
-      durableEventsByRoom.set(event.room_code, events);
-    }
+  for (const event of durableEvents) {
+    const events = durableEventsByRoom.get(event.room_code) || [];
+    events.push(event);
+    durableEventsByRoom.set(event.room_code, events);
   }
 
   for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
@@ -395,6 +406,16 @@ function hydratePersistedRooms(snapshot) {
     filePath: roomPersistence.filePath,
     kind: roomPersistence.kind,
   };
+}
+
+function hydratePersistedRooms(snapshot) {
+  if (!roomEventLog.enabled) return hydratePersistedRoomsFromEvents(snapshot, []);
+
+  const durableEvents = roomEventLog.load();
+  if (isPromiseLike(durableEvents)) {
+    return durableEvents.then((events) => hydratePersistedRoomsFromEvents(snapshot, events));
+  }
+  return hydratePersistedRoomsFromEvents(snapshot, durableEvents);
 }
 
 function hydrateRoomFromReplay(room, events) {
@@ -420,15 +441,17 @@ function loadPersistedRooms() {
 }
 
 function configureRoomPersistence(filePathOrOptions) {
+  let eventLogSql = sql;
   if (typeof filePathOrOptions === 'object' && filePathOrOptions !== null) {
     roomPersistence = createRoomPersistence({ sql, ...filePathOrOptions });
+    eventLogSql = filePathOrOptions.sql || sql;
   } else {
     roomPersistence = createRoomPersistence({
       mode: filePathOrOptions ? 'json' : 'off',
       filePath: filePathOrOptions,
     });
   }
-  roomEventLog = createJsonRoomEventLog(resolveRoomEventLogOptions(roomPersistence));
+  roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: eventLogSql }));
   roomPersistenceWriteQueue = Promise.resolve();
   return loadPersistedRooms();
 }
@@ -1005,20 +1028,20 @@ app.get('/healthz', (req, res) => {
 });
 
 app.get('/readyz', (req, res) => {
-  const payload = observability.readiness({ roomPersistence, sql });
+  const payload = observability.readiness({ roomPersistence, roomEventLog, sql });
   res.status(payload.ready ? 200 : 503).json(payload);
 });
 
 app.get('/api/ops/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
-  res.json(observability.snapshot({ rooms, roomPersistence, sql }));
+  res.json(observability.snapshot({ rooms, roomPersistence, roomEventLog, sql }));
 });
 
 app.get('/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
   res
     .type('text/plain; version=0.0.4; charset=utf-8')
-    .send(observability.prometheusMetrics({ rooms, roomPersistence, sql }));
+    .send(observability.prometheusMetrics({ rooms, roomPersistence, roomEventLog, sql }));
 });
 
 app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, res) => {

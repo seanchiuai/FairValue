@@ -41,6 +41,8 @@ function buildProductionReadinessReport(env = process.env) {
   const checks = [];
   const databaseUrl = normalized(env.DATABASE_URL);
   const roomStore = normalized(env.FAIRVALUE_ROOM_STORE || 'json').toLowerCase();
+  const roomEventLog = normalized(env.FAIRVALUE_ROOM_EVENT_LOG || 'auto').toLowerCase();
+  const roomEventLogPath = normalized(env.FAIRVALUE_ROOM_EVENT_LOG_PATH);
   const roomPersistence = normalized(env.FAIRVALUE_ROOM_PERSISTENCE || 'on').toLowerCase();
   const identitySecret = normalized(env.FAIRVALUE_IDENTITY_SECRET);
   const publicVerificationSecret = normalized(env.FAIRVALUE_PUBLIC_VERIFICATION_SECRET);
@@ -78,6 +80,15 @@ function buildProductionReadinessReport(env = process.env) {
     id: 'postgres_retention',
     ok: POSTGRES_ROOM_STORES.has(roomStore) && isPositiveDays(env.FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS),
     message: 'Set FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS to a positive production retention window before enabling Postgres room snapshots.',
+  }));
+
+  checks.push(createCheck({
+    id: 'room_event_log_postgres',
+    ok: POSTGRES_ROOM_STORES.has(roomStore) &&
+      !isDisabled(roomEventLog) &&
+      !roomEventLogPath &&
+      (roomEventLog === 'auto' || POSTGRES_ROOM_STORES.has(roomEventLog)),
+    message: 'Use the Postgres append-only room event stream in production; keep FAIRVALUE_ROOM_EVENT_LOG=auto or postgres and do not set FAIRVALUE_ROOM_EVENT_LOG_PATH.',
   }));
 
   checks.push(createCheck({
