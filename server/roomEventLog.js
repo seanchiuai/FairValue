@@ -16,6 +16,80 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function isObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasText(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function hasFiniteNumber(value) {
+  return Number.isFinite(Number(value));
+}
+
+function hasOutcome(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'over' || normalized === 'under';
+}
+
+function validateRoomEventPayload(type, payload = {}) {
+  const body = isObject(payload) ? payload : {};
+
+  switch (type) {
+    case EVENT_TYPES.ROOM_CREATED:
+      if (!isObject(body.house)) return 'house is required';
+      if (!hasText(body.house.address)) return 'house.address is required';
+      if (!hasFiniteNumber(body.house.asking_price)) return 'house.asking_price is required';
+      if (!isObject(body.market)) return 'market is required';
+      return null;
+    case EVENT_TYPES.PLAYER_JOINED:
+      if (!hasText(body.session_id || body.player?.session_id)) return 'session_id is required';
+      if (!hasText(body.nickname || body.player?.nickname)) return 'nickname is required';
+      if (!isObject(body.player)) return 'player is required';
+      return null;
+    case EVENT_TYPES.RECONNECT:
+      if (!hasText(body.source) && !hasText(body.session_id || body.player?.session_id)) {
+        return 'source or session_id is required';
+      }
+      return null;
+    case EVENT_TYPES.PLAYER_LEFT:
+      if (!hasText(body.source) && !hasText(body.session_id)) return 'source or session_id is required';
+      return null;
+    case EVENT_TYPES.BET_PLACED:
+      if (!hasText(body.session_id || body.player?.session_id)) return 'session_id is required';
+      if (!hasOutcome(body.outcome)) return 'outcome is required';
+      if (!hasFiniteNumber(body.wager)) return 'wager is required';
+      if (!isObject(body.market)) return 'market is required';
+      if (!isObject(body.player)) return 'player is required';
+      return null;
+    case EVENT_TYPES.AI_TRADE:
+      if (!hasOutcome(body.outcome)) return 'outcome is required';
+      if (!hasFiniteNumber(body.wager)) return 'wager is required';
+      if (!isObject(body.market)) return 'market is required';
+      if (!isObject(body.trade)) return 'trade is required';
+      return null;
+    case EVENT_TYPES.PHASE_CHANGED:
+      if (!hasText(body.phase)) return 'phase is required';
+      if (Object.prototype.hasOwnProperty.call(body, 'ai_enabled') && typeof body.ai_enabled !== 'boolean') {
+        return 'ai_enabled must be boolean when present';
+      }
+      return null;
+    case EVENT_TYPES.SETTLEMENT_COMPLETED:
+      if (!hasOutcome(body.winning_outcome)) return 'winning_outcome is required';
+      if (!hasFiniteNumber(body.actual_price)) return 'actual_price is required';
+      if (!isObject(body.settlement)) return 'settlement is required';
+      return null;
+    case EVENT_TYPES.ERROR:
+      if (!hasText(body.action)) return 'action is required';
+      if (!hasText(body.message)) return 'message is required';
+      if (!hasFiniteNumber(body.status)) return 'status is required';
+      return null;
+    default:
+      return null;
+  }
+}
+
 function normalizeRoomCode(value) {
   return String(value || '').trim().toUpperCase();
 }
@@ -29,6 +103,8 @@ function createInMemoryRoomEventStore() {
       const normalizedRoomCode = normalizeRoomCode(roomCode);
       if (!normalizedRoomCode) throw new Error('roomCode is required');
       if (!VALID_EVENT_TYPES.has(type)) throw new Error(`Unknown room event type: ${type}`);
+      const payloadError = validateRoomEventPayload(type, payload);
+      if (payloadError) throw new Error(`Invalid ${type} payload: ${payloadError}`);
 
       const nextSequence = (cursorsByRoom.get(normalizedRoomCode) || 0) + 1;
       cursorsByRoom.set(normalizedRoomCode, nextSequence);
@@ -202,6 +278,7 @@ function replayRoomEvents(events) {
       case EVENT_TYPES.SETTLEMENT_COMPLETED:
         state.settled = true;
         state.phase = 'settled';
+        state.ai_enabled = false;
         state.settlement = cloneJson(payload.settlement || {
           winning_outcome: payload.winning_outcome,
           actual_price: payload.actual_price,
@@ -224,4 +301,5 @@ module.exports = {
   createInMemoryRoomEventStore,
   replayRoomEvents,
   roomEventToActivity,
+  validateRoomEventPayload,
 };

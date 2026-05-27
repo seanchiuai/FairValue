@@ -109,12 +109,13 @@ Browser (React)
 | GET | `/api/rooms/:code/state` | Full room state |
 | GET | `/api/rooms/:code/events` | Host-only room event log |
 | GET | `/api/rooms/:code/replay` | Host-only replayed room state |
+| GET | `/api/rooms/:code/replay/verify` | Host-only replay/live integrity verification |
 | POST | `/api/rooms/:code/bet` | Place bet |
 | POST | `/api/rooms/:code/settle` | Settle market |
 | POST | `/api/rooms/:code/toggle-ai` | Toggle AI bot |
 | GET | `/api/rooms/:code/leaderboard` | Leaderboard |
 
-`POST /api/rooms` returns a `host_token` only to the creator. Host-only routes (`settle`, `toggle-ai`, `events`, and `replay`) require that value in the `X-FairValue-Host-Token` header or the durable signed host identity for newly created rooms. Join, state, player, and WebSocket payloads do not expose the token. Market Studio room creation may include a `market_draft`; the server accepts only draft metadata that matches the room address and asking price, preserves a `draft_audit` envelope in state/events/replay/snapshots, and stores a source-text hash and length instead of the raw pasted text.
+`POST /api/rooms` returns a `host_token` only to the creator. Host-only routes (`settle`, `toggle-ai`, `events`, `replay`, and `replay/verify`) require that value in the `X-FairValue-Host-Token` header or the durable signed host identity for newly created rooms. Join, state, player, and WebSocket payloads do not expose the token. Market Studio room creation may include a `market_draft`; the server accepts only draft metadata that matches the room address and asking price, preserves a `draft_audit` envelope in state/events/replay/snapshots, and stores a source-text hash and length instead of the raw pasted text. Replay verification compares redacted hashes of the event-replayed projection against the live room projection and reports mismatch paths without returning host tokens, user tokens, snapshot contents, or private raw evidence.
 
 The `/recap/:roomCode` route is frontend-only and reads the public state endpoint. It does not request `/api/rooms/:code/events`, does not require or send host authority, and is covered by token-leakage checks.
 
@@ -185,6 +186,7 @@ HTTP hardening note: the Express server disables `X-Powered-By` and emits baseli
 - `GET /readyz` reports whether the process is ready for its configured dependencies. Local degraded mode is ready without `DATABASE_URL`; `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` makes the database requirement explicit.
 - `GET /api/ops/metrics` returns an in-memory JSON snapshot for local triage: request counts/latency, room lifecycle counters, active room/player/connection counts, WebSocket counters, rate-limit rejections, database errors, persistence failures, and AI degraded/error counts. It does not include room host tokens or player payloads. Set `FAIRVALUE_OPS_TOKEN` before exposing it outside local development.
 - `GET /metrics` exposes the same aggregate counters in Prometheus text format for an external scraper. It uses the same `FAIRVALUE_OPS_TOKEN` guard as `/api/ops/metrics`.
+- Replay integrity checks from `GET /api/rooms/:code/replay/verify` increment replay-integrity counters in both ops metrics surfaces, making replay/live drift visible without exposing room authority tokens.
 
 ## Verification
 

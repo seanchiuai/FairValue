@@ -16,6 +16,7 @@ const {
 const {
   createInMemoryRoomEventStore,
   replayRoomEvents,
+  validateRoomEventPayload,
 } = require('../roomEventLog');
 
 let baseUrl;
@@ -160,6 +161,40 @@ test('in-memory room event adapter appends deterministically and replays state',
   assert.deepEqual(replay.activity.map((entry) => entry.type), ['join', 'bet']);
 });
 
+test('room event payload contracts reject malformed canonical events before append', () => {
+  const store = createInMemoryRoomEventStore();
+
+  assert.equal(
+    validateRoomEventPayload(EVENT_TYPES.ROOM_CREATED, {
+      house: { address: 'Contract House', asking_price: 500000 },
+      market: { prob_over: 0.5, prob_under: 0.5 },
+    }),
+    null
+  );
+  assert.equal(
+    validateRoomEventPayload(EVENT_TYPES.RECONNECT, { source: 'websocket', connection_count: 1 }),
+    null
+  );
+  assert.match(
+    validateRoomEventPayload(EVENT_TYPES.BET_PLACED, {
+      session_id: 'player-1',
+      outcome: 'sideways',
+      wager: 25,
+      market: {},
+      player: {},
+    }),
+    /outcome/
+  );
+  assert.throws(
+    () => store.append({
+      roomCode: 'EVNT',
+      type: EVENT_TYPES.BET_PLACED,
+      payload: { session_id: 'player-1', outcome: 'over', wager: 20, player: {} },
+    }),
+    /Invalid bet_placed payload: market is required/
+  );
+});
+
 test('room event log supports audit access, ordered replay, and settlement reconstruction', async () => {
   const room = await createHostedRoom();
   const code = room.room_code;
@@ -249,6 +284,67 @@ test('room event log supports audit access, ordered replay, and settlement recon
     state.data.activity.map((entry) => entry.type),
     ['join', 'bet', 'settle']
   );
+});
+
+test('replay verification proves live room projection matches canonical events without leaking authority tokens', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  const joined = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'verify-player', nickname: 'Verify Player' },
+  });
+  assert.equal(joined.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'replay-verify-bet-001' },
+    body: { session_id: 'verify-player', outcome: 'over', wager: 35 },
+  });
+  assert.equal(bet.status, 200);
+
+  const aiEnabled = await request(`/api/rooms/${code}/toggle-ai`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(aiEnabled.status, 200);
+  assert.equal(aiEnabled.data.ai_enabled, true);
+
+  const settlement = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: { actual_price: 715000 },
+  });
+  assert.equal(settlement.status, 200);
+  assert.equal(settlement.data.winning_outcome, 'over');
+
+  const denied = await request(`/api/rooms/${code}/replay/verify`);
+  assert.equal(denied.status, 403);
+
+  const verified = await request(`/api/rooms/${code}/replay/verify`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(verified.status, 200);
+  assert.equal(verified.data.ok, true);
+  assert.equal(verified.data.mismatch_count, 0);
+  assert.equal(verified.data.room_code, code);
+  assert.ok(verified.data.event_count >= 5);
+  assert.ok(verified.data.checks.some((check) => check.path === 'market' && check.ok));
+  assert.ok(verified.data.checks.some((check) => check.path === 'players' && check.ok));
+  assert.ok(verified.data.checks.some((check) => check.path === 'ai_enabled' && check.ok));
+  assert.equal(JSON.stringify(verified.data).includes(room.host_token), false);
+
+  rooms[code].players['verify-player'].balance += 1;
+  const mismatch = await request(`/api/rooms/${code}/replay/verify`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(mismatch.status, 409);
+  assert.equal(mismatch.data.ok, false);
+  assert.deepEqual(
+    mismatch.data.mismatches.map((entry) => entry.path),
+    ['players']
+  );
+  assert.equal(JSON.stringify(mismatch.data).includes(room.host_token), false);
 });
 
 test('file-backed room persistence restores room state, events, and bet idempotency', async () => {

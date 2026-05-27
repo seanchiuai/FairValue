@@ -126,6 +126,12 @@ test('ops metrics track requests, room lifecycle, and avoid room secret leakage'
   });
   assert.equal(settled.status, 200);
 
+  const replayIntegrity = await request(`/api/rooms/${code}/replay/verify`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(replayIntegrity.status, 200);
+  assert.equal(replayIntegrity.data.ok, true);
+
   const metrics = await request('/api/ops/metrics');
   assert.equal(metrics.status, 200);
   assert.ok(metrics.data.requests.total >= 4);
@@ -140,6 +146,8 @@ test('ops metrics track requests, room lifecycle, and avoid room secret leakage'
   assert.equal(metrics.data.rooms.settled_rooms, 1);
   assert.equal(metrics.data.rooms.total_players, 1);
   assert.equal(metrics.data.database.configured, false);
+  assert.equal(metrics.data.replay_integrity.checks, 1);
+  assert.equal(metrics.data.replay_integrity.failures, 0);
   assert.equal(JSON.stringify(metrics.data).includes(room.host_token), false);
 });
 
@@ -187,6 +195,8 @@ test('prometheus metrics expose aggregate counters for external scrapers', async
   assert.match(metrics.text, /fairvalue_rooms\{state="active"\} 1/);
   assert.match(metrics.text, /fairvalue_room_players 1/);
   assert.match(metrics.text, /fairvalue_database_configured 0/);
+  assert.match(metrics.text, /fairvalue_replay_integrity_checks_total 0/);
+  assert.match(metrics.text, /fairvalue_replay_integrity_failures_total 0/);
   assert.equal(metrics.text.includes(room.host_token), false);
 
   process.env.FAIRVALUE_OPS_TOKEN = 'prometheus-test-token';

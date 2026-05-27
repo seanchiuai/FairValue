@@ -45,6 +45,12 @@ const DEFAULT_STATE = () => ({
     degraded_responses: 0,
     integration_errors: 0,
   },
+  replay_integrity: {
+    checks: 0,
+    failures: 0,
+    errors: 0,
+    last_error: null,
+  },
 });
 
 let state = DEFAULT_STATE();
@@ -188,6 +194,7 @@ function snapshot({ rooms, roomPersistence, sql } = {}) {
       last_error: state.database.last_error,
     },
     ai: { ...state.ai },
+    replay_integrity: { ...state.replay_integrity },
   };
 }
 
@@ -299,6 +306,12 @@ function prometheusMetrics({ rooms, roomPersistence, sql } = {}) {
     '# TYPE fairvalue_ai_events_total counter',
     line('fairvalue_ai_events_total', metrics.ai.degraded_responses, { event: 'degraded_response' }),
     line('fairvalue_ai_events_total', metrics.ai.integration_errors, { event: 'integration_error' }),
+    '# HELP fairvalue_replay_integrity_checks_total Replay integrity checks run by this process.',
+    '# TYPE fairvalue_replay_integrity_checks_total counter',
+    line('fairvalue_replay_integrity_checks_total', metrics.replay_integrity.checks),
+    '# HELP fairvalue_replay_integrity_failures_total Replay/live projection mismatches observed by this process.',
+    '# TYPE fairvalue_replay_integrity_failures_total counter',
+    line('fairvalue_replay_integrity_failures_total', metrics.replay_integrity.failures),
   );
 
   return `${lines.join('\n')}\n`;
