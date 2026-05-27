@@ -23,6 +23,7 @@ const { createRoomReputationSummary } = require('./playerReputation');
 const { createUserReputationStore } = require('./userReputationStore');
 const { createUserProfileStore } = require('./userProfileStore');
 const { createPropertySnapshot } = require('./propertySnapshot');
+const { buildPropertyIntelligenceProviderContract } = require('./structuredIntelligenceAdapter');
 const {
   DEFAULT_MARKET_FORMAT,
   marketTemplateAuditProjection,
@@ -1268,6 +1269,19 @@ app.get('/api/properties/:propertyId', limitRequests('properties:query', { max: 
     return;
   }
   res.json(propertySnapshot.queryResponse({ ids: [property.property_id], limit: 1 }));
+});
+
+app.get('/api/ai/intelligence/properties/:propertyId/contract', limitRequests('ai:intelligence', { max: 120 }), (req, res) => {
+  const property = propertySnapshot.getById(req.params.propertyId);
+  if (!property) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  const result = propertySnapshot.query({ ids: [property.property_id], limit: 1 });
+  res.json(buildPropertyIntelligenceProviderContract({
+    property,
+    provenance: result.provenance,
+  }));
 });
 
 app.get('/api/ops/metrics', (req, res) => {

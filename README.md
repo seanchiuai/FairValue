@@ -99,6 +99,7 @@ Browser (React)
 - **Market Template Registry** is a versioned contract in `src/data/marketTemplates.json`, exposed publicly at `/api/market-templates`. `binary_over_under`, `range_price_band`, `rent_yield_over_under`, `time_on_market_over_under`, and `renovation_budget_over_under` are playable in the rendered room UI, canonical event replay, settlement, and public verification. Future formats should remain explicit `draft_only` contracts until real workflows exist.
 - **Player Pre-Bet Intelligence** is deterministic local fallback output on `/play/:roomCode`; it uses LMSR math, the player's wager/balance, current room probability, and recent room activity to explain one reason to believe, one reason to doubt, and both OVER/UNDER wager previews before a bet is placed.
 - **Live Room Intelligence** is deterministic local fallback output on the host dashboard; it combines room LMSR state, recent room activity, players, and optional server-accepted draft audits without claiming provider-backed comps
+- **Structured Intelligence Provider Contract** is exposed at `GET /api/ai/intelligence/properties/:propertyId/contract`. It returns a redacted property context, the required `fairvalue.marketIntelligence.v2` output shape, required analyst roles, citation requirements, prohibited claims, and a deterministic request hash so future provider-backed intelligence can be validated before replacing local fallback.
 - **Operator Review** is a host-facing deterministic recap surface over room state plus host-authorized event logs, including draft audit, settlement evidence, timeline, and integrity checks
 - **Public Recap** is a share-safe deterministic route over `GET /api/rooms/:code/state` only; it includes public LMSR movement, activity, settlement, room reputation/calibration, and guardrails while deliberately omitting host-only event logs and capability tokens
 - **Trades** are persisted to Neon on every bet
@@ -328,6 +329,7 @@ server/
   publicVerification.js # Share-safe settled-room verification digests
   roomEventLog.js    # Canonical room events, replay projection, and local append-only event journal
   settlementEvidence.js # Public-safe settlement evidence packet normalization
+  structuredIntelligenceAdapter.js # Provider contract and validation boundary for structured intelligence
   seed.js           # Database seeding script
 scripts/
   property-data-manifest.js # Static property snapshot provenance and coverage manifest
