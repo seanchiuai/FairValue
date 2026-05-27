@@ -73,8 +73,8 @@ const MarketPage: React.FC = () => {
   const navigate = useNavigate();
   const { properties, loading } = useProperties();
   const { manifest, loading: manifestLoading } = usePropertyDataManifest();
-  const { ensureIdentity } = useSession();
-  const { isWatched, toggleProperty } = usePropertyWatchlist();
+  const { ensureIdentity, userToken } = useSession();
+  const { isWatched, toggleProperty } = usePropertyWatchlist({ userToken });
   const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');

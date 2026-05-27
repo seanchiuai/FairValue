@@ -125,7 +125,28 @@ test('signed-in profile route renders private prediction history from settled ro
   await expect(page.getByTestId('profile-history')).toContainText('OVER');
   await expect(page.getByTestId('profile-history')).toContainText('1/1 correct');
   await expect(page.getByTestId('profile-history')).toContainText('$25');
+  await expect(page.getByTestId('profile-watchlist')).toContainText('Signed sync');
   await expect(page.getByTestId('profile-watchlist')).toContainText(watchProperty.address);
+  const noteLabel = new RegExp(`Watch note for ${escapeRegExp(watchProperty.address)}`);
+  const alertAboveLabel = new RegExp(`Alert above for ${escapeRegExp(watchProperty.address)}`);
+  const noteSaved = page.waitForResponse((response) => (
+    response.url().includes(`/api/me/watchlist/${watchProperty.id}`) &&
+    response.request().method() === 'PUT' &&
+    response.status() === 200
+  ));
+  await page.getByLabel(noteLabel).fill('Check the permit packet.');
+  await noteSaved;
+  const alertSaved = page.waitForResponse((response) => (
+    response.url().includes(`/api/me/watchlist/${watchProperty.id}`) &&
+    response.request().method() === 'PUT' &&
+    response.status() === 200
+  ));
+  await page.getByLabel(alertAboveLabel).fill('900000');
+  await alertSaved;
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'My prediction profile' })).toBeVisible();
+  await expect(page.getByLabel(noteLabel)).toHaveValue('Check the permit packet.');
+  await expect(page.getByLabel(alertAboveLabel)).toHaveValue('900000');
   await page.getByRole('button', {
     name: new RegExp(`Remove ${escapeRegExp(watchProperty.address)} from watchlist`),
   }).click();

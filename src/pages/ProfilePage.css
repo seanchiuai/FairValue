@@ -258,6 +258,42 @@
   border-color: var(--border-default);
 }
 
+.profile-page__watchlist-tools {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(180px, 1.5fr) repeat(2, minmax(120px, 0.75fr)) auto;
+  gap: 8px;
+  align-items: end;
+  padding-top: 2px;
+}
+
+.profile-page__watchlist-tools label {
+  display: grid;
+  gap: 4px;
+}
+
+.profile-page__watchlist-tools input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.profile-page__watchlist-tools input:focus {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.profile-page__watchlist-sync-note {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .profile-page__empty {
   padding: 12px;
   background: var(--bg-input);
@@ -286,6 +322,10 @@
 
   .profile-page__watchlist-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-page__watchlist-tools {
+    grid-template-columns: 1fr;
   }
 }
 

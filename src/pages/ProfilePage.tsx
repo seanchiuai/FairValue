@@ -58,7 +58,13 @@ export default function ProfilePage() {
     refreshReputation,
   } = useUserReputation(userToken);
   const { properties, loading: propertiesLoading } = useProperties();
-  const { watchlistItems, removeProperty } = usePropertyWatchlist();
+  const {
+    watchlistItems,
+    syncStatus,
+    isServerBacked,
+    removeProperty,
+    updateProperty,
+  } = usePropertyWatchlist({ userToken });
 
   const marketFormatRows = useMemo(
     () => Object.entries(reputation?.market_formats || {})
@@ -228,7 +234,7 @@ export default function ProfilePage() {
             <Bookmark size={16} />
             Watchlist
           </div>
-          <span>{watchlistItems.length} saved</span>
+          <span>{watchlistItems.length} saved · {isServerBacked ? 'Signed sync' : syncStatus === 'syncing' ? 'Syncing' : 'Browser local'}</span>
         </div>
 
         {propertiesLoading && watchedProperties.length === 0 ? (
@@ -268,6 +274,41 @@ export default function ProfilePage() {
                   >
                     <X size={14} />
                   </button>
+                  <div className="profile-page__watchlist-tools">
+                    <label>
+                      <span>Note</span>
+                      <input
+                        type="text"
+                        value={item.note || ''}
+                        onChange={(event) => updateProperty(item.property_id, { note: event.target.value })}
+                        aria-label={`Watch note for ${label}`}
+                        placeholder="Private note"
+                      />
+                    </label>
+                    <label>
+                      <span>Alert below</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.alert_below ?? ''}
+                        onChange={(event) => updateProperty(item.property_id, { alert_below: event.target.value ? Number(event.target.value) : null })}
+                        aria-label={`Alert below for ${label}`}
+                        placeholder="Price"
+                      />
+                    </label>
+                    <label>
+                      <span>Alert above</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.alert_above ?? ''}
+                        onChange={(event) => updateProperty(item.property_id, { alert_above: event.target.value ? Number(event.target.value) : null })}
+                        aria-label={`Alert above for ${label}`}
+                        placeholder="Price"
+                      />
+                    </label>
+                    <span className="profile-page__watchlist-sync-note">Saved thresholds only</span>
+                  </div>
                 </article>
               );
             })}

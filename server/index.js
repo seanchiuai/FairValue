@@ -21,6 +21,7 @@ const { validateSettlementEvidencePayload } = require('./settlementEvidence');
 const { createPublicVerificationArtifact } = require('./publicVerification');
 const { createRoomReputationSummary } = require('./playerReputation');
 const { createUserReputationStore } = require('./userReputationStore');
+const { createUserProfileStore } = require('./userProfileStore');
 const {
   DEFAULT_MARKET_FORMAT,
   marketTemplateAuditProjection,
@@ -99,6 +100,7 @@ const rateLimitBuckets = new Map();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
 let roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: sql }));
 let userReputationStore = createUserReputationStore(resolveUserReputationOptions());
+let userProfileStore = createUserProfileStore(resolveUserProfileOptions());
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
 
@@ -162,6 +164,12 @@ function resolveRoomEventLogOptions(persistence = roomPersistence, { configuredS
 function resolveUserReputationOptions() {
   const filePath = process.env.FAIRVALUE_USER_REPUTATION_PATH ||
     (require.main === module ? path.join(process.cwd(), '.fairvalue', 'user-reputation.json') : null);
+  return { filePath };
+}
+
+function resolveUserProfileOptions() {
+  const filePath = process.env.FAIRVALUE_USER_PROFILE_PATH ||
+    (require.main === module ? path.join(process.cwd(), '.fairvalue', 'user-profile.json') : null);
   return { filePath };
 }
 
@@ -517,6 +525,14 @@ function configureUserReputationPersistence(filePathOrOptions) {
     : { filePath: filePathOrOptions || null };
   userReputationStore = createUserReputationStore(options);
   return userReputationStore.load();
+}
+
+function configureUserProfilePersistence(filePathOrOptions) {
+  const options = typeof filePathOrOptions === 'object' && filePathOrOptions !== null
+    ? filePathOrOptions
+    : { filePath: filePathOrOptions || null };
+  userProfileStore = createUserProfileStore(options);
+  return userProfileStore.load();
 }
 
 function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
@@ -1197,6 +1213,45 @@ app.get('/api/me/reputation', limitRequests('identity:reputation', { max: 120 })
   const identity = requireExpectedUserIdentity(req, res);
   if (!identity) return;
   res.json(userReputationStore.getUser(identity.user_id));
+});
+
+app.get('/api/me/watchlist', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  res.json(userProfileStore.getWatchlist(identity.user_id));
+});
+
+app.put('/api/me/watchlist/:propertyId', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.upsertWatchlistItem(identity.user_id, req.params.propertyId, req.body || {});
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
+});
+
+app.patch('/api/me/watchlist/:propertyId', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.upsertWatchlistItem(identity.user_id, req.params.propertyId, req.body || {});
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
+});
+
+app.delete('/api/me/watchlist/:propertyId', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.removeWatchlistItem(identity.user_id, req.params.propertyId);
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
 });
 
 // ─── Server-side Cognee AI boundary ─────────────────────────────────
@@ -2220,9 +2275,11 @@ module.exports = {
   roomEventLog: () => roomEventLog,
   roomPersistence: () => roomPersistence,
   userReputationStore: () => userReputationStore,
+  userProfileStore: () => userProfileStore,
   observability,
   configureRoomPersistence,
   configureUserReputationPersistence,
+  configureUserProfilePersistence,
   loadPersistedRooms,
   persistRooms,
   replayRoomEvents,
