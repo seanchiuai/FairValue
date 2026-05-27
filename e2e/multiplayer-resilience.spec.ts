@@ -217,6 +217,9 @@ test('public recap route summarizes settled rooms without host-only audit data',
   });
   await expect(page.getByTestId('room-public-recap-evidence')).toContainText('Settlement result');
   await expect(page.getByTestId('room-public-recap-evidence')).toContainText('$735,000');
+  await expect(page.getByTestId('room-public-verification')).toContainText('Replay digest');
+  await expect(page.getByTestId('room-public-verification')).toContainText('Replay matches live state');
+  await expect(page.getByTestId('room-public-verification')).toContainText('Settlement evidence hash');
   await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('Host-only event log is not included');
   await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('host tokens/user tokens are never shown');
   await expect(page.getByTestId('room-public-recap-page')).not.toContainText(hostToken);

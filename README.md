@@ -110,6 +110,7 @@ Browser (React)
 | GET | `/api/rooms/:code/events` | Host-only room event log |
 | GET | `/api/rooms/:code/replay` | Host-only replayed room state |
 | GET | `/api/rooms/:code/replay/verify` | Host-only replay/live integrity verification |
+| GET | `/api/rooms/:code/public-verification` | Public settled-room verification digest |
 | POST | `/api/rooms/:code/bet` | Place bet |
 | POST | `/api/rooms/:code/settle` | Settle market |
 | POST | `/api/rooms/:code/toggle-ai` | Toggle AI bot |
@@ -119,7 +120,9 @@ Browser (React)
 
 `POST /api/rooms/:code/settle` accepts `actual_price` plus an optional `settlement_evidence` packet. The packet may include a public-safe summary and up to six metadata items of type `sale_record`, `appraisal`, `signed_valuation`, `mls_update`, `permit_record`, `rental_outcome`, `insurer_notice`, `public_record`, or `host_attestation`, each with source/reference metadata, confidence, observed date, and notes. The server sanitizes text, rejects unsupported item types, never stores private document contents, and creates a low-confidence host-attestation packet when no metadata is supplied. Settlement responses, room state, WebSocket settlement broadcasts, replay, operator review, and public recaps all carry the normalized `evidence_packet`.
 
-The `/recap/:roomCode` route is frontend-only and reads the public state endpoint. It does not request `/api/rooms/:code/events`, does not require or send host authority, and is covered by token-leakage checks.
+`GET /api/rooms/:code/public-verification` is public and available after settlement. It returns a share-safe `public-room-verification/v1` artifact with event counts, replay/live hashes, public recap digest hash, settlement evidence packet hash, replay parity status, trust limitations, and a signature when `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` or a non-default `FAIRVALUE_IDENTITY_SECRET` is configured. It does not return host tokens, user tokens, player session IDs, private evidence documents, or host-only event logs.
+
+The `/recap/:roomCode` route is frontend-only and reads the public state endpoint plus the settled-room public verification endpoint. It does not request `/api/rooms/:code/events`, does not require or send host authority, and is covered by token-leakage checks.
 
 ### Solo Markets (from Neon)
 
@@ -175,6 +178,7 @@ cp .env.example .env
 - `FAIRVALUE_LIVE_POSTGRES_DRIVER=postgres` can force the live readiness script to use a plain Postgres TCP client; otherwise it uses the app's Neon serverless driver for Neon hosts and the Postgres client for localhost.
 - `FAIRVALUE_OPS_TOKEN` protects `/api/ops/metrics`. Local development allows metrics without a token, but production requires this value and accepts either `Authorization: Bearer <token>` or `X-FairValue-Ops-Token`.
 - `FAIRVALUE_IDENTITY_SECRET` signs anonymous browser identities used for durable player sessions and host authority. Set a stable private value anywhere rooms need to survive server restarts.
+- `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` signs public settled-room verification artifacts. If unset, the public endpoint still returns deterministic hashes but marks the artifact as an unsigned local digest.
 
 Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room host tokens. The Postgres adapter stores the same sensitive snapshot payload in `fairvalue_room_snapshots`, which it creates if missing. Treat both stores as sensitive runtime state. Restored rooms keep their market, players, event history, settlement, bet idempotency receipts, and optional Market Studio draft audit envelopes; AI bot intervals are not auto-resumed after a backend restart. Draft audits intentionally keep source-text hashes and lengths, not raw pasted listing text. Local JSON retention prunes settled rooms only; active rooms and rooms without a room-specific timestamp are kept. Postgres retention is opt-in and prunes settled rows only. If `FAIRVALUE_ROOM_SNAPSHOT_SECRET` is set, local JSON snapshots are saved as encrypted envelopes; existing plaintext snapshots still load and are rewritten encrypted on the next save. If a local JSON snapshot is malformed, startup quarantines it beside the original path as `.corrupt-*`, logs the quarantine path without snapshot contents, and continues with an empty room snapshot so operators can inspect or restore the file manually.
 
@@ -188,7 +192,7 @@ HTTP hardening note: the Express server disables `X-Powered-By` and emits baseli
 - `GET /readyz` reports whether the process is ready for its configured dependencies. Local degraded mode is ready without `DATABASE_URL`; `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` makes the database requirement explicit.
 - `GET /api/ops/metrics` returns an in-memory JSON snapshot for local triage: request counts/latency, room lifecycle counters, active room/player/connection counts, WebSocket counters, rate-limit rejections, database errors, persistence failures, and AI degraded/error counts. It does not include room host tokens or player payloads. Set `FAIRVALUE_OPS_TOKEN` before exposing it outside local development.
 - `GET /metrics` exposes the same aggregate counters in Prometheus text format for an external scraper. It uses the same `FAIRVALUE_OPS_TOKEN` guard as `/api/ops/metrics`.
-- Replay integrity checks from `GET /api/rooms/:code/replay/verify` increment replay-integrity counters in both ops metrics surfaces, making replay/live drift visible without exposing room authority tokens.
+- Replay integrity checks from `GET /api/rooms/:code/replay/verify` and public settled-room verification digest generation increment replay-integrity counters in both ops metrics surfaces, making replay/live drift visible without exposing room authority tokens.
 
 ## Verification
 
@@ -229,7 +233,7 @@ npm run test:a11y:assistive
 
 `smoke:boot` starts `node server/index.js` on a free local port with an isolated temporary room snapshot file, checks health/readiness, verifies ops metrics token gating, creates/joins/bets/settles one room through HTTP plus a WebSocket join broadcast, verifies host token non-leakage, and confirms local room snapshot persistence wrote.
 
-`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, public recap privacy route, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, market trust explainer, host/player room trust notes, player pre-bet intelligence, join forms, Market Studio draft generation/matching/saved-draft/host-audit/live-intelligence/operator-review flow, identity-minting failure notifications, join-page create/join/host-auto-join API failure notifications, malformed join success responses, host/player room surfaces, settled operator review, room-state load failure notifications, missing-host-authority controls, settle modal, settlement evidence packet display, settlement recap trust notes, market-start room creation/host-auto-join failure notifications, settlement failure notifications, malformed settlement success handling, host-action failure notifications, malformed AI-toggle success handling, missing-key AI fallback, direct player join validation/API notifications, player bet failure rollback, player validation notifications, and mobile wager controls.
+`test:e2e:isolated` starts fresh backend/frontend ports (`8010`/`3010`), enables the local room snapshot file at `/tmp/fairvalue-e2e-rooms.json`, and includes the host/player flow plus multiplayer burst, public recap privacy and public verification route, serious axe accessibility checks, and keyboard/screen-reader-adjacent checks across the browse page, property route, market trust explainer, host/player room trust notes, player pre-bet intelligence, join forms, Market Studio draft generation/matching/saved-draft/host-audit/live-intelligence/operator-review flow, identity-minting failure notifications, join-page create/join/host-auto-join API failure notifications, malformed join success responses, host/player room surfaces, settled operator review, room-state load failure notifications, missing-host-authority controls, settle modal, settlement evidence packet display, settlement recap trust notes, market-start room creation/host-auto-join failure notifications, settlement failure notifications, malformed settlement success handling, host-action failure notifications, malformed AI-toggle success handling, missing-key AI fallback, direct player join validation/API notifications, player bet failure rollback, player validation notifications, and mobile wager controls.
 
 `test:e2e:matrix` starts fresh backend/frontend ports (`8030`/`3030`) and runs the rendered host/player room flow across Chromium, Firefox, and WebKit projects.
 
@@ -260,6 +264,7 @@ server/
   index.js          # Express + WebSocket backend
   db.js             # Neon database connection
   replayIntegrity.js # Host-only replay/live projection verification
+  publicVerification.js # Share-safe settled-room verification digests
   settlementEvidence.js # Public-safe settlement evidence packet normalization
   seed.js           # Database seeding script
 src/

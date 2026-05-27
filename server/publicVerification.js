@@ -1,0 +1,212 @@
+const crypto = require('crypto');
+const { createReplayIntegrityReport } = require('./replayIntegrity');
+const { replayRoomEvents } = require('./roomEventLog');
+const { getPublicMarketState } = require('../src/lib/marketEngine');
+
+const DEFAULT_IDENTITY_SECRET = 'fairvalue-local-dev-identity-secret';
+const SIGNED_SCHEMA_VERSION = 'public-room-verification/v1';
+
+function cloneJson(value) {
+  if (value == null) return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function sortJson(value) {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value)
+    .sort()
+    .reduce((result, key) => {
+      result[key] = sortJson(value[key]);
+      return result;
+    }, {});
+}
+
+function stableJson(value) {
+  return JSON.stringify(sortJson(value));
+}
+
+function hashJson(value) {
+  return crypto.createHash('sha256').update(stableJson(value)).digest('hex');
+}
+
+function publicActivityProjection(activity) {
+  return (activity || []).map((entry) => ({
+    type: entry.type,
+    nickname: entry.nickname || null,
+    outcome: entry.outcome || null,
+    wager: typeof entry.wager === 'number' ? entry.wager : null,
+    actual_price: typeof entry.actual_price === 'number' ? entry.actual_price : null,
+    winning_outcome: entry.winning_outcome || null,
+    event_sequence: typeof entry.event_sequence === 'number' ? entry.event_sequence : null,
+    timestamp: typeof entry.timestamp === 'number' ? entry.timestamp : null,
+  }));
+}
+
+function publicPlayerProjection(players) {
+  return Object.values(players || {})
+    .map((player) => {
+      const bets = Array.isArray(player.bets) ? player.bets : [];
+      return {
+        nickname: player.nickname || 'Player',
+        balance: typeof player.balance === 'number' ? player.balance : null,
+        bet_count: bets.length,
+        total_wagered: bets.reduce((sum, bet) => sum + (Number.isFinite(bet.wager) ? bet.wager : 0), 0),
+        over_bets: bets.filter((bet) => bet.outcome === 'over').length,
+        under_bets: bets.filter((bet) => bet.outcome === 'under').length,
+      };
+    })
+    .sort((a, b) => a.nickname.localeCompare(b.nickname));
+}
+
+function publicSettlementProjection(settlement) {
+  if (!settlement) return null;
+  const results = Array.isArray(settlement.results) ? settlement.results : [];
+  return {
+    winning_outcome: settlement.winning_outcome,
+    actual_price: settlement.actual_price,
+    result_count: results.length,
+    total_positive_payout: results.reduce((sum, result) => sum + Math.max(0, Number(result.payout) || 0), 0),
+    evidence_packet: settlement.evidence_packet ? cloneJson(settlement.evidence_packet) : null,
+  };
+}
+
+function publicLiveProjection(room) {
+  return {
+    room_code: room.code,
+    house: cloneJson(room.house),
+    draft_audit: room.draftAudit ? cloneJson(room.draftAudit) : null,
+    market: getPublicMarketState(room.market),
+    players: publicPlayerProjection(room.players),
+    activity: publicActivityProjection(room.activity),
+    settled: Boolean(room.settled),
+    settlement: publicSettlementProjection(room.settlement),
+  };
+}
+
+function publicReplayProjection(replay) {
+  return {
+    room_code: replay.room_code,
+    house: replay.house,
+    draft_audit: replay.draft_audit,
+    market: replay.market,
+    players: publicPlayerProjection(replay.players),
+    activity: publicActivityProjection(replay.activity),
+    settled: Boolean(replay.settled),
+    settlement: publicSettlementProjection(replay.settlement),
+  };
+}
+
+function resolveSigningSecret(env = process.env) {
+  const explicitSecret = String(env.FAIRVALUE_PUBLIC_VERIFICATION_SECRET || '').trim();
+  if (explicitSecret) {
+    return {
+      secret: explicitSecret,
+      key_hint: 'FAIRVALUE_PUBLIC_VERIFICATION_SECRET',
+    };
+  }
+
+  const identitySecret = String(env.FAIRVALUE_IDENTITY_SECRET || '').trim();
+  if (identitySecret && identitySecret !== DEFAULT_IDENTITY_SECRET) {
+    return {
+      secret: identitySecret,
+      key_hint: 'FAIRVALUE_IDENTITY_SECRET',
+    };
+  }
+
+  return null;
+}
+
+function attachSignature(artifact, env = process.env) {
+  const payloadHash = hashJson(artifact);
+  const signingSecret = resolveSigningSecret(env);
+  if (!signingSecret) {
+    return {
+      ...artifact,
+      signature: {
+        status: 'unsigned_local',
+        algorithm: null,
+        key_hint: null,
+        payload_hash: payloadHash,
+        value: null,
+        reason: 'Set FAIRVALUE_PUBLIC_VERIFICATION_SECRET to emit signed public verification artifacts.',
+      },
+    };
+  }
+
+  return {
+    ...artifact,
+    signature: {
+      status: 'signed',
+      algorithm: 'HMAC-SHA256',
+      key_hint: signingSecret.key_hint,
+      payload_hash: payloadHash,
+      value: crypto.createHmac('sha256', signingSecret.secret).update(stableJson(artifact)).digest('hex'),
+    },
+  };
+}
+
+function createPublicVerificationArtifact(room, events, options = {}) {
+  const replay = replayRoomEvents(events);
+  const integrityReport = options.integrityReport || createReplayIntegrityReport(room, events);
+  const liveProjection = publicLiveProjection(room);
+  const replayProjection = publicReplayProjection(replay);
+  const settlement = room.settlement || replay.settlement || null;
+  const evidencePacket = settlement?.evidence_packet || null;
+  const evidencePacketHash = evidencePacket ? hashJson(evidencePacket) : null;
+
+  const artifact = {
+    schema_version: SIGNED_SCHEMA_VERSION,
+    room_code: room.code,
+    generated_at: options.generatedAt || new Date().toISOString(),
+    status: !room.settled ? 'unsettled' : integrityReport.ok ? 'verified' : 'replay_mismatch',
+    settled: Boolean(room.settled),
+    event_stream: {
+      event_count: events.length,
+      last_sequence: events.at(-1)?.sequence || 0,
+    },
+    replay: {
+      live_match: Boolean(integrityReport.ok),
+      mismatch_count: integrityReport.mismatch_count,
+      replay_hash: hashJson(replayProjection),
+      live_hash: hashJson(liveProjection),
+    },
+    settlement: settlement
+      ? {
+        winning_outcome: settlement.winning_outcome,
+        actual_price: settlement.actual_price,
+        evidence_packet_status: evidencePacket?.status || 'missing',
+        evidence_packet_hash: evidencePacketHash,
+        evidence_item_count: Array.isArray(evidencePacket?.items) ? evidencePacket.items.length : 0,
+      }
+      : null,
+    public_recap: {
+      digest_hash: hashJson({
+        room_code: room.code,
+        house: liveProjection.house,
+        market: liveProjection.market,
+        player_count: liveProjection.players.length,
+        activity_count: liveProjection.activity.length,
+        settlement: liveProjection.settlement,
+        evidence_packet_hash: evidencePacketHash,
+      }),
+      source: 'Public room state plus canonical event replay.',
+    },
+    trust_limitations: [
+      'This artifact proves public hashes, counts, replay parity, and settlement metadata only.',
+      'It does not expose host tokens, user tokens, player session IDs, private evidence documents, or host-only event logs.',
+      'FairValue settlement artifacts are simulation-credit records and are not appraisals, brokerage records, lending decisions, or investment advice.',
+      'A signed artifact requires FAIRVALUE_PUBLIC_VERIFICATION_SECRET or a non-default FAIRVALUE_IDENTITY_SECRET.',
+    ],
+  };
+
+  return attachSignature(artifact, options.env || process.env);
+}
+
+module.exports = {
+  createPublicVerificationArtifact,
+  hashJson,
+  publicLiveProjection,
+  publicReplayProjection,
+  resolveSigningSecret,
+};

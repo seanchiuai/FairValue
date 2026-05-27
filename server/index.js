@@ -14,6 +14,7 @@ const {
 const { createReplayIntegrityReport } = require('./replayIntegrity');
 const { createRoomPersistence } = require('./roomPersistence');
 const { validateSettlementEvidencePayload } = require('./settlementEvidence');
+const { createPublicVerificationArtifact } = require('./publicVerification');
 const observability = require('./observability');
 const {
   DEFAULT_B,
@@ -1398,6 +1399,25 @@ app.get('/api/rooms/:code/replay/verify', async (req, res) => {
   res.status(report.ok ? 200 : 409).json(report);
 });
 
+app.get('/api/rooms/:code/public-verification', (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+
+  const events = roomEventStore.list(room.code);
+  const report = createReplayIntegrityReport(room, events);
+  recordReplayIntegrity(report);
+  const artifact = createPublicVerificationArtifact(room, events, { integrityReport: report });
+
+  if (!artifact.settled) {
+    return res.status(409).json({
+      error: 'Public verification is available after settlement',
+      ...artifact,
+    });
+  }
+
+  res.status(artifact.replay.live_match ? 200 : 409).json(artifact);
+});
+
 app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
@@ -1850,6 +1870,7 @@ module.exports = {
   persistRooms,
   replayRoomEvents,
   createReplayIntegrityReport,
+  createPublicVerificationArtifact,
   EVENT_TYPES,
   startSimulations,
 };

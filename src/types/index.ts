@@ -127,6 +127,44 @@ export interface SettleResult {
   evidence_packet?: SettlementEvidencePacket | null;
 }
 
+export interface PublicVerificationArtifact {
+  schema_version: string;
+  room_code: string;
+  generated_at: string;
+  status: 'verified' | 'replay_mismatch' | 'unsettled';
+  settled: boolean;
+  event_stream: {
+    event_count: number;
+    last_sequence: number;
+  };
+  replay: {
+    live_match: boolean;
+    mismatch_count: number;
+    replay_hash: string;
+    live_hash: string;
+  };
+  settlement: {
+    winning_outcome: string;
+    actual_price: number;
+    evidence_packet_status: string;
+    evidence_packet_hash: string | null;
+    evidence_item_count: number;
+  } | null;
+  public_recap: {
+    digest_hash: string;
+    source: string;
+  };
+  trust_limitations: string[];
+  signature: {
+    status: 'signed' | 'unsigned_local';
+    algorithm: string | null;
+    key_hint: string | null;
+    payload_hash: string;
+    value: string | null;
+    reason?: string;
+  };
+}
+
 // --- WebSocket message types (discriminated union) ---
 
 export type WsBetMessage = {

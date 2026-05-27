@@ -14,6 +14,7 @@ import {
   RoomArtifactTimeline,
 } from '../components/roomArtifact/RoomArtifact';
 import { generatePublicRoomRecap } from '../lib/publicRoomRecap';
+import type { PublicVerificationArtifact } from '../types';
 import {
   getRoomStateError,
   readRoomMutationResponse,
@@ -23,6 +24,8 @@ import {
 export default function RoomRecapPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const [roomState, setRoomState] = useState<RoomMutationResponse | null>(null);
+  const [verification, setVerification] = useState<PublicVerificationArtifact | null>(null);
+  const [verificationError, setVerificationError] = useState('');
   const [loadingState, setLoadingState] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -55,6 +58,36 @@ export default function RoomRecapPage() {
     };
   }, [roomCode]);
 
+  useEffect(() => {
+    if (!roomCode || !roomState?.settled) {
+      setVerification(null);
+      setVerificationError('');
+      return;
+    }
+
+    let cancelled = false;
+    setVerification(null);
+    setVerificationError('');
+
+    fetch(`/api/rooms/${roomCode}/public-verification`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!response.ok || data.error) {
+          setVerificationError(data.error || 'Public verification unavailable');
+          return;
+        }
+        setVerification(data as PublicVerificationArtifact);
+      })
+      .catch(() => {
+        if (!cancelled) setVerificationError('Public verification unavailable');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomCode, roomState?.settled]);
+
   const recap = useMemo(() => {
     if (!roomCode || !roomState?.house || !roomState.market || !Array.isArray(roomState.players)) {
       return null;
@@ -85,6 +118,27 @@ export default function RoomRecapPage() {
     label: item.label,
     detail: item.detail,
   }));
+  const verificationEvidence = verification ? [
+    {
+      label: 'Replay digest',
+      value: verification.replay.live_match ? 'Replay matches live state' : 'Replay mismatch detected',
+      detail: `Replay hash ${verification.replay.replay_hash.slice(0, 12)}... over ${verification.event_stream.event_count} canonical event${verification.event_stream.event_count === 1 ? '' : 's'}, last sequence #${verification.event_stream.last_sequence}.`,
+    },
+    {
+      label: 'Settlement evidence hash',
+      value: verification.settlement?.evidence_packet_hash
+        ? verification.settlement.evidence_packet_hash.slice(0, 12) + '...'
+        : 'Missing evidence hash',
+      detail: `${verification.settlement?.evidence_item_count ?? 0} public-safe evidence metadata item${verification.settlement?.evidence_item_count === 1 ? '' : 's'} in this settled-room artifact.`,
+    },
+    {
+      label: 'Signature',
+      value: verification.signature.status === 'signed' ? 'Signed HMAC-SHA256' : 'Unsigned local digest',
+      detail: verification.signature.status === 'signed'
+        ? `Payload hash ${verification.signature.payload_hash.slice(0, 12)}... signed with ${verification.signature.key_hint}.`
+        : verification.signature.reason || 'Local artifact hash only; configure a signing secret to emit signatures.',
+    },
+  ] : [];
 
   return (
     <RoomArtifactPage testId="room-public-recap-page">
@@ -119,6 +173,23 @@ export default function RoomRecapPage() {
         >
           <RoomArtifactEvidenceList items={recap.evidence} />
         </RoomArtifactPanel>
+
+        {recap.status === 'settled' && (
+          <RoomArtifactPanel
+            icon={<ShieldCheck size={17} aria-hidden="true" />}
+            title="Public verification"
+            ariaLabel="Public verification"
+            testId="room-public-verification"
+          >
+            {verification ? (
+              <RoomArtifactEvidenceList items={verificationEvidence} />
+            ) : (
+              <p className="room-artifact-empty">
+                {verificationError || 'Generating public verification digest...'}
+              </p>
+            )}
+          </RoomArtifactPanel>
+        )}
 
         <RoomArtifactPanel
           icon={<RadioTower size={17} aria-hidden="true" />}
