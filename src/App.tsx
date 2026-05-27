@@ -9,6 +9,7 @@ const Markets = React.lazy(() => import('./pages/Markets'));
 const MarketPage = React.lazy(() => import('./pages/MarketPage'));
 const HostView = React.lazy(() => import('./pages/HostView'));
 const PlayerView = React.lazy(() => import('./pages/PlayerView'));
+const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const RoomReviewPage = React.lazy(() => import('./pages/RoomReviewPage'));
 const RoomRecapPage = React.lazy(() => import('./pages/RoomRecapPage'));
 
@@ -42,6 +43,7 @@ function App() {
               <Route path="/join" element={<JoinPage />} />
               <Route path="/host/:roomCode" element={<HostView />} />
               <Route path="/play/:roomCode" element={<PlayerView />} />
+              <Route path="/me" element={<ProfilePage />} />
               <Route path="/review/:roomCode" element={<RoomReviewPage />} />
               <Route path="/recap/:roomCode" element={<RoomRecapPage />} />
               <Route path="/market/:propertyId" element={<MarketPage />} />

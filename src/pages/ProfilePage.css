@@ -1,0 +1,241 @@
+.profile-page {
+  min-height: 100vh;
+  padding: 24px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+.profile-page__header,
+.profile-page__intro,
+.profile-page__section-head,
+.profile-page__panel-title,
+.profile-page__identity,
+.profile-page__back,
+.profile-page__refresh {
+  display: flex;
+  align-items: center;
+}
+
+.profile-page__header {
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto 22px;
+}
+
+.profile-page__back,
+.profile-page__refresh,
+.profile-page__identity {
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.profile-page__back:hover,
+.profile-page__refresh:hover {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.profile-page__identity {
+  color: var(--accent-success);
+}
+
+.profile-page__intro {
+  justify-content: space-between;
+  gap: 18px;
+  max-width: 1120px;
+  margin: 0 auto 16px;
+}
+
+.profile-page__title-block {
+  min-width: 0;
+}
+
+.profile-page__eyebrow {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.profile-page h1 {
+  margin: 3px 0 2px;
+  color: var(--text-primary);
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.profile-page__title-block p,
+.profile-page__copy,
+.profile-page__section-head > span,
+.profile-page__empty,
+.profile-page__history-row span {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.profile-page__refresh {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.profile-page__refresh:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.profile-page__notice,
+.profile-page__panel,
+.profile-page .player-reputation {
+  max-width: 1120px;
+  margin: 0 auto 14px;
+  padding: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.profile-page__notice {
+  color: var(--accent-danger);
+  background: var(--accent-danger-subtle);
+}
+
+.profile-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.85fr);
+  gap: 14px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.profile-page__grid .profile-page__panel,
+.profile-page__grid .player-reputation {
+  max-width: none;
+  margin: 0 0 14px;
+}
+
+.profile-page__panel {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-page__section-head {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profile-page__panel-title {
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.profile-page__panel-title svg {
+  color: var(--accent-primary);
+}
+
+.profile-page__mini-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.profile-page__mini-stats--wide {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-page__mini-stats div,
+.profile-page__history-row {
+  min-width: 0;
+  padding: 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.profile-page__mini-stats span,
+.profile-page__history-row span {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.profile-page__mini-stats strong,
+.profile-page__history-row strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.profile-page__history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-page__history-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.25fr) repeat(5, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+.profile-page__room-main strong {
+  font-size: 15px;
+}
+
+.profile-page__room-main span {
+  text-transform: capitalize;
+}
+
+.profile-page__empty {
+  padding: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+@media (max-width: 860px) {
+  .profile-page {
+    padding: 16px;
+  }
+
+  .profile-page__header,
+  .profile-page__intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-page__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-page__history-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .profile-page h1 {
+    font-size: 24px;
+  }
+
+  .profile-page__identity {
+    width: 100%;
+  }
+
+  .profile-page__mini-stats,
+  .profile-page__mini-stats--wide,
+  .profile-page__history-row {
+    grid-template-columns: 1fr;
+  }
+}
