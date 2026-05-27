@@ -24,6 +24,7 @@ const { createUserReputationStore } = require('./userReputationStore');
 const { createUserProfileStore } = require('./userProfileStore');
 const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
 const { createPropertySnapshot } = require('./propertySnapshot');
+const { buildOperatorIncidentQueue } = require('./operatorIncidentQueue');
 const { buildPropertyIntelligenceProviderContract } = require('./structuredIntelligenceAdapter');
 const {
   DEFAULT_MARKET_FORMAT,
@@ -1323,6 +1324,19 @@ app.get('/api/ai/intelligence/properties/:propertyId/contract', limitRequests('a
 app.get('/api/ops/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
   res.json(observability.snapshot({ rooms, roomPersistence, roomEventLog, sql }));
+});
+
+app.get('/api/ops/incidents', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  res.json(buildOperatorIncidentQueue({
+    rooms,
+    roomEventsByCode: (code) => roomEventStore.list(code),
+    filters: {
+      roomCode: req.query.room_code,
+      severity: req.query.severity,
+      limit: req.query.limit,
+    },
+  }));
 });
 
 app.get('/metrics', (req, res) => {

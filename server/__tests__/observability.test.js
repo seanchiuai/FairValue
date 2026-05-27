@@ -166,6 +166,53 @@ test('ops metrics require a configured token before exposing counters', async ()
   assert.equal(allowed.data.service, 'fairvalue');
 });
 
+test('ops incidents expose redacted operator triage behind the ops token', async () => {
+  process.env.FAIRVALUE_OPS_TOKEN = 'incident-test-token';
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'incident-player', nickname: 'Incident Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'incident-bet-001' },
+    body: {
+      session_id: 'incident-player',
+      outcome: 'over',
+      wager: 25,
+      reason: 'The closing comp supports the host ask.',
+    },
+  });
+  assert.equal(bet.status, 200);
+
+  const settled = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: { actual_price: 750000 },
+  });
+  assert.equal(settled.status, 200);
+
+  const denied = await request('/api/ops/incidents');
+  assert.equal(denied.status, 403);
+
+  const allowed = await request('/api/ops/incidents?severity=high', {
+    headers: { Authorization: 'Bearer incident-test-token' },
+  });
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.data.schema_version, 'fairvalue.operatorIncidentQueue.v1');
+  assert.equal(allowed.data.count, 1);
+  assert.equal(allowed.data.incidents[0].room_code, code);
+  assert.equal(allowed.data.incidents[0].incident_type, 'settlement_packet_missing');
+  assert.equal(allowed.data.incidents[0].severity, 'high');
+  assert.equal(allowed.data.incidents[0].privacy_classification, 'operator_internal_redacted');
+  assert.equal(JSON.stringify(allowed.data).includes(room.host_token), false);
+  assert.match(allowed.data.limitations.join(' '), /redacted/);
+});
+
 test('prometheus metrics expose aggregate counters for external scrapers', async () => {
   observability.resetObservability();
   const room = await createHostedRoom();
