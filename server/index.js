@@ -32,6 +32,10 @@ const {
   executeStructuredIntelligenceProvider,
 } = require('./structuredIntelligenceAdapter');
 const {
+  buildNeighborhoodEvidenceProviderContract,
+  executeNeighborhoodEvidenceProvider,
+} = require('./neighborhoodEvidenceAdapter');
+const {
   DEFAULT_MARKET_FORMAT,
   marketTemplateAuditProjection,
   publicMarketTemplateRegistry,
@@ -210,6 +214,14 @@ function resolveStructuredIntelligenceProviderOptions() {
     providerUrl: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_URL || '',
     apiKey: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_API_KEY || '',
     providerName: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_NAME || 'external_property_intelligence_provider',
+  };
+}
+
+function resolveNeighborhoodEvidenceProviderOptions() {
+  return {
+    providerUrl: process.env.FAIRVALUE_NEIGHBORHOOD_EVIDENCE_PROVIDER_URL || '',
+    apiKey: process.env.FAIRVALUE_NEIGHBORHOOD_EVIDENCE_PROVIDER_API_KEY || '',
+    providerName: process.env.FAIRVALUE_NEIGHBORHOOD_EVIDENCE_PROVIDER_NAME || 'external_neighborhood_evidence_provider',
   };
 }
 
@@ -1301,6 +1313,59 @@ app.get('/api/neighborhoods', limitRequests('properties:query', { max: 240 }), (
     minProperties: req.query.min_properties,
     limit: req.query.limit,
   }));
+});
+
+function resolveNeighborhoodDraftContext(zipCode, draftId) {
+  const result = propertySnapshot.neighborhoodResponse({
+    zip: zipCode,
+    limit: 1,
+  });
+  if (!result.entities.length) {
+    return { error: 'Neighborhood entity not found', statusCode: 404 };
+  }
+  const drafts = buildNeighborhoodMarketDrafts({
+    entity: result.entities[0],
+    provenance: result.provenance,
+  });
+  const wanted = String(draftId || '').trim();
+  const draft = drafts.drafts.find((item) => item.draft_id === wanted || item.market_format === wanted);
+  if (!draft) {
+    return { error: 'Neighborhood market draft not found', statusCode: 404 };
+  }
+  return {
+    entity: result.entities[0],
+    provenance: result.provenance,
+    draft,
+    drafts,
+  };
+}
+
+app.get('/api/neighborhoods/:zipCode/market-drafts/:draftId/evidence-contract', limitRequests('ai:intelligence', { max: 120 }), (req, res) => {
+  const context = resolveNeighborhoodDraftContext(req.params.zipCode, req.params.draftId);
+  if (context.error) {
+    res.status(context.statusCode || 400).json({ error: context.error });
+    return;
+  }
+  res.json(buildNeighborhoodEvidenceProviderContract({
+    entity: context.entity,
+    drafts: [context.draft],
+    provenance: context.provenance,
+  }));
+});
+
+app.post('/api/neighborhoods/:zipCode/market-drafts/:draftId/evidence/generate', limitRequests('ai:intelligence', { max: 60 }), async (req, res) => {
+  const context = resolveNeighborhoodDraftContext(req.params.zipCode, req.params.draftId);
+  if (context.error) {
+    res.status(context.statusCode || 400).json({ error: context.error });
+    return;
+  }
+  const envelope = await executeNeighborhoodEvidenceProvider({
+    entity: context.entity,
+    drafts: [context.draft],
+    provenance: context.provenance,
+    providerOptions: resolveNeighborhoodEvidenceProviderOptions(),
+  });
+  res.json(envelope);
 });
 
 app.get('/api/neighborhoods/:zipCode/market-drafts', limitRequests('properties:query', { max: 240 }), (req, res) => {
