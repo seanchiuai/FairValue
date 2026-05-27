@@ -110,6 +110,38 @@ type StructuredIntelligenceEnvelope = {
   error?: string;
 };
 
+type NeighborhoodMarketDraft = {
+  draft_id: string;
+  market_format: string;
+  template_status: 'draft_only';
+  template_label: string;
+  pricing_engine: string;
+  label: string;
+  question: string;
+  baseline: {
+    metric?: string;
+    value?: number | null;
+    subject_baseline_median_price?: number | null;
+    observed_at?: string | null;
+    property_count?: number;
+    sample_confidence?: string;
+  };
+  default_config: Record<string, string | number | null>;
+  evidence_required: string[];
+  settlement_rule: string;
+  trust_notice: string;
+  limitations: string[];
+};
+
+type NeighborhoodMarketDraftsResponse = {
+  schema_version?: string;
+  label?: string;
+  count?: number;
+  drafts?: NeighborhoodMarketDraft[];
+  limitations?: string[];
+  error?: string;
+};
+
 async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
 }
@@ -146,6 +178,9 @@ const MarketPage: React.FC = () => {
   const [neighborhood, setNeighborhood] = useState<NeighborhoodIndexResponse | null>(null);
   const [neighborhoodLoading, setNeighborhoodLoading] = useState(false);
   const [neighborhoodError, setNeighborhoodError] = useState('');
+  const [neighborhoodDrafts, setNeighborhoodDrafts] = useState<NeighborhoodMarketDraftsResponse | null>(null);
+  const [neighborhoodDraftsLoading, setNeighborhoodDraftsLoading] = useState(false);
+  const [neighborhoodDraftsError, setNeighborhoodDraftsError] = useState('');
   const [structuredIntelligence, setStructuredIntelligence] = useState<StructuredIntelligenceEnvelope | null>(null);
   const [structuredIntelligenceLoading, setStructuredIntelligenceLoading] = useState(false);
   const [structuredIntelligenceError, setStructuredIntelligenceError] = useState('');
@@ -196,6 +231,33 @@ const MarketPage: React.FC = () => {
       })
       .finally(() => {
         if (!controller.signal.aborted) setNeighborhoodLoading(false);
+      });
+    return () => controller.abort();
+  }, [property?.zipCode]);
+
+  useEffect(() => {
+    if (!property?.zipCode) {
+      setNeighborhoodDrafts(null);
+      setNeighborhoodDraftsError('');
+      setNeighborhoodDraftsLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setNeighborhoodDraftsLoading(true);
+    setNeighborhoodDraftsError('');
+    fetch(`/api/neighborhoods/${encodeURIComponent(property.zipCode)}/market-drafts`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await readJson<NeighborhoodMarketDraftsResponse>(response);
+        if (!response.ok || data.error) throw new Error(data.error || 'Neighborhood scenario drafts unavailable');
+        setNeighborhoodDrafts(data);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setNeighborhoodDrafts(null);
+        setNeighborhoodDraftsError('Draft-only neighborhood scenarios unavailable from the local API.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNeighborhoodDraftsLoading(false);
       });
     return () => controller.abort();
   }, [property?.zipCode]);
@@ -373,6 +435,20 @@ const MarketPage: React.FC = () => {
   const formatYield = (value: number | null | undefined) => (
     value == null || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(1)}%`
   );
+  const formatDraftValue = (metric: string | undefined, value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value)) return 'Pending evidence';
+    const normalized = metric || '';
+    if (normalized.includes('yield') || normalized.includes('return')) return `${(value * 100).toFixed(2)}%`;
+    if (normalized.includes('price')) return formatPrice(value);
+    return value.toLocaleString();
+  };
+  const draftThresholdLabel = (draft: NeighborhoodMarketDraft) => {
+    const config = draft.default_config;
+    if (config.yield_threshold != null) return formatDraftValue('yield', Number(config.yield_threshold));
+    if (config.outperformance_threshold != null) return formatDraftValue('return', Number(config.outperformance_threshold));
+    return formatDraftValue('median_price', Number(config.price_momentum_threshold));
+  };
+  const draftCards = neighborhoodDrafts?.drafts || [];
 
   return (
     <div className="market-page">
@@ -569,6 +645,61 @@ const MarketPage: React.FC = () => {
               </div>
 
               <p className="neighborhood-limitation">{neighborhoodEntity.limitations[0]}</p>
+            </>
+          )}
+        </section>
+
+        {/* Neighborhood Market Drafts */}
+        <section className="detail-section neighborhood-drafts-section" aria-labelledby="neighborhood-drafts-title" data-testid="neighborhood-market-drafts-section">
+          <div className="neighborhood-drafts-head">
+            <div>
+              <h2 id="neighborhood-drafts-title" className="section-title"><Target size={18} /> Neighborhood Scenario Markets</h2>
+              <p className="neighborhood-drafts-summary">
+                {draftCards.length
+                  ? `${neighborhoodDrafts?.label || property.zipCode} has ${draftCards.length} static ZIP scenario contracts generated for future market design.`
+                  : neighborhoodDraftsLoading
+                    ? 'Loading draft-only neighborhood scenario contracts from the local property snapshot.'
+                    : neighborhoodDraftsError || 'No neighborhood scenario contracts are available for this ZIP code.'}
+              </p>
+            </div>
+            <span className="neighborhood-drafts-pill">Draft only</span>
+          </div>
+
+          {draftCards.length > 0 && (
+            <>
+              <div className="neighborhood-draft-grid">
+                {draftCards.map((draft) => (
+                  <article key={draft.draft_id} className="neighborhood-draft-card">
+                    <div className="neighborhood-draft-top">
+                      <span className="neighborhood-draft-label">{draft.template_label}</span>
+                      <span className="neighborhood-draft-status">{draft.template_status.replace(/_/g, ' ')}</span>
+                    </div>
+                    <p className="neighborhood-draft-question">{draft.question}</p>
+                    <div className="neighborhood-draft-facts">
+                      <div>
+                        <span>Baseline</span>
+                        <strong>{formatDraftValue(draft.baseline.metric, draft.baseline.value ?? draft.baseline.subject_baseline_median_price)}</strong>
+                      </div>
+                      <div>
+                        <span>Trigger</span>
+                        <strong>{draftThresholdLabel(draft)}</strong>
+                      </div>
+                      <div>
+                        <span>Window</span>
+                        <strong>{String(draft.default_config.comparison_window || 'pending').replace(/_/g, ' ')}</strong>
+                      </div>
+                    </div>
+                    <p className="neighborhood-draft-evidence">
+                      <span>Evidence required</span>
+                      {draft.evidence_required[0] || 'Provider-backed future neighborhood snapshot.'}
+                    </p>
+                    <p className="neighborhood-draft-rule">{draft.settlement_rule}</p>
+                  </article>
+                ))}
+              </div>
+              <p className="neighborhood-drafts-limitation">
+                {neighborhoodDrafts?.limitations?.[0] || 'These are draft-only scenario contracts, not playable rooms.'}
+              </p>
             </>
           )}
         </section>

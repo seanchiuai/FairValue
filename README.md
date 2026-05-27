@@ -18,7 +18,7 @@ A host creates a room and selects a property. Players join via QR code or room c
 - **Market Studio** — Hosts can use `/join` to paste listing text and generate a local market draft with normalized address, asking price, market question, evidence checklist, provenance, warnings, existing-property matches, local saved drafts, server-validated draft audit metadata, and editable fields before creating a real room.
 - **Operator review** — Hosts can open `/review/:roomCode` from the host dashboard to compare draft audits, event history, live market movement, settlement evidence, integrity checks, and a deterministic generated recap.
 - **Public recap** — Hosts and players can open `/recap/:roomCode` to share a deterministic recap generated only from public room state. It summarizes live or settled LMSR movement, public activity, settlement result, and trust guardrails without fetching host-only events or showing host/user tokens.
-- **Solo browsing** — Browse market cards at `/` and view individual markets at `/market/:propertyId` with chart, deterministic market intelligence, scenario prompts, settlement checklist, and trading panel.
+- **Solo browsing** — Browse market cards at `/` and view individual markets at `/market/:propertyId` with chart, static ZIP neighborhood context, draft-only neighborhood scenario market cards, deterministic market intelligence, provider/fallback status, scenario prompts, settlement checklist, and trading panel.
 - **Market trust** — Property detail, host, player, and settlement surfaces explain simulated credits, LMSR probability, implied fair value, listing provenance, and settlement evidence so FairValue does not imply unsupported real-money or appraisal authority.
 
 ## Tech Stack
@@ -278,7 +278,7 @@ npm run verify
 
 This runs a client secret scan, checks that the property data manifest is current, typechecks, runs server integration tests, runs the non-watch Vitest suite, builds the Vite bundle, enforces bundle budgets, and smoke-boots the local backend.
 
-`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 810 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
+`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 815 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
 
 For a deployment environment gate, run:
 

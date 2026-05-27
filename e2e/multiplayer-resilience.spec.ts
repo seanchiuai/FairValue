@@ -455,6 +455,11 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Median price');
     await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Gross rent yield');
     await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('static snapshot properties');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood Scenario Markets', { timeout: 15_000 });
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('draft only');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood price momentum');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Evidence required');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('not playable rooms');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Market Intelligence');
     await expect(desktop.getByTestId('structured-intelligence-status')).toContainText('Structured provider', { timeout: 15_000 });
     await expect(desktop.getByTestId('structured-intelligence-status')).toContainText('local deterministic brief');
@@ -475,6 +480,8 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(mobile.getByTestId('market-trust-section')).toContainText('LMSR market probability');
     await expect(mobile.getByTestId('neighborhood-brief-section')).toContainText('Neighborhood Brief', { timeout: 15_000 });
     await expect(mobile.getByTestId('neighborhood-brief-section')).toContainText('Static ZIP entity');
+    await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood Scenario Markets', { timeout: 15_000 });
+    await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Draft only');
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Market Intelligence', { timeout: 15_000 });
     await expect(mobile.getByTestId('structured-intelligence-status')).toContainText('Structured provider', { timeout: 15_000 });
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Analyst case network');
