@@ -10,6 +10,7 @@ const ALERT_ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
 const MAX_NOTE_LENGTH = 240;
 const ALERT_TYPES = new Set(['price_below', 'price_above']);
 const ALERT_STATUSES = new Set(['ready', 'acknowledged']);
+const OUTBOUND_DELIVERY_STATUSES = new Set(['delivered', 'failed']);
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -50,6 +51,11 @@ function sanitizeTimestamp(value) {
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : null;
 }
 
+function sanitizeHttpStatus(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 100 && number <= 599 ? number : null;
+}
+
 function createAlertId(dedupeKey) {
   const digest = crypto.createHash('sha256').update(String(dedupeKey)).digest('hex').slice(0, 24);
   return `alrt_${digest}`;
@@ -71,6 +77,32 @@ function normalizeAlertProperty(raw, fallbackPropertyId) {
     zip_code: typeof raw.zip_code === 'string' ? raw.zip_code.trim().slice(0, 24) : '',
     provider_source: typeof raw.provider_source === 'string' ? raw.provider_source.trim().slice(0, 120) : 'FairValue property snapshot',
     observed_at: typeof raw.observed_at === 'string' && raw.observed_at.trim() ? raw.observed_at.trim().slice(0, 80) : null,
+  };
+}
+
+function normalizeAlertOutboundDelivery(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const status = OUTBOUND_DELIVERY_STATUSES.has(raw.status) ? raw.status : null;
+  const deliveryId = sanitizeAlertId(raw.delivery_id);
+  const lastAttemptedAt = sanitizeTimestamp(raw.last_attempted_at || raw.attempted_at);
+  if (!status || !deliveryId || !lastAttemptedAt) return null;
+  const attemptCount = Math.max(1, Math.min(1000, Math.floor(Number(raw.attempt_count) || 1)));
+  return {
+    channel: 'webhook',
+    status,
+    delivery_id: deliveryId,
+    attempt_count: attemptCount,
+    last_attempted_at: lastAttemptedAt,
+    last_delivered_at: status === 'delivered'
+      ? sanitizeTimestamp(raw.last_delivered_at) || lastAttemptedAt
+      : null,
+    last_failed_at: status === 'failed'
+      ? sanitizeTimestamp(raw.last_failed_at) || lastAttemptedAt
+      : null,
+    http_status: sanitizeHttpStatus(raw.http_status),
+    reason: status === 'failed' && typeof raw.reason === 'string'
+      ? raw.reason.trim().slice(0, 80) || null
+      : null,
   };
 }
 
@@ -97,6 +129,7 @@ function normalizeWatchlistAlert(raw, fallbackAlertId) {
     status,
     acknowledged_at: status === 'acknowledged' ? sanitizeTimestamp(raw.acknowledged_at) : null,
     delivery_channel: 'in_app_profile',
+    outbound_delivery: normalizeAlertOutboundDelivery(raw.outbound_delivery),
     property: normalizeAlertProperty(raw.property, propertyId),
     message: typeof raw.message === 'string' && raw.message.trim() ? raw.message.trim().slice(0, 240) : null,
   };
@@ -157,7 +190,7 @@ function projectWatchlist(user) {
     watchlist: items,
     limitations: [
       'Watchlist items, notes, and thresholds are private signed-user profile state.',
-      'Saved thresholds are evaluated into an in-app alert queue only; email, push, and SMS delivery are not enabled.',
+      'Saved thresholds are evaluated into an in-app alert queue; optional server-side webhook delivery is reported separately when configured.',
       'Property details are resolved from the current FairValue property snapshot, not a live provider feed.',
     ],
   };
@@ -184,7 +217,7 @@ function projectAlerts(user) {
     delivery_queue: deliveryQueue,
     limitations: [
       'Alerts are private signed-user profile state.',
-      'The delivery queue is in-app only and does not send email, SMS, push, or broker notifications.',
+      'The delivery_queue field is in-app only. Optional webhook delivery attempts are reported separately and never imply email, SMS, push, broker, or provider notifications.',
       'Thresholds are evaluated against the current static FairValue property snapshot, not a live provider feed.',
     ],
   };
@@ -220,6 +253,7 @@ function buildAlert({ item, property, alertType, threshold, currentPrice, nowSec
     status: 'ready',
     acknowledged_at: null,
     delivery_channel: 'in_app_profile',
+    outbound_delivery: null,
     property: propertySnapshot,
     message: `${propertyLabel} is ${direction} ${formatMoney(threshold)} in the current snapshot (${formatMoney(currentPrice)}).`,
   };
@@ -332,6 +366,32 @@ function createUserProfileStore({ filePath = null } = {}) {
     return { value: projectAlerts(user) };
   }
 
+  function recordWatchlistAlertDelivery(userId, attempt = {}) {
+    const normalizedAlertId = sanitizeAlertId(attempt.alert_id);
+    if (!normalizedAlertId) return { error: 'Alert ID is invalid', statusCode: 400 };
+    if (!OUTBOUND_DELIVERY_STATUSES.has(attempt.status)) return { value: projectAlerts(ensureUser(userId)) };
+    const user = ensureUser(userId);
+    const alert = user.alerts[normalizedAlertId];
+    if (!alert) return { error: 'Alert not found', statusCode: 404 };
+    const attemptedAt = sanitizeTimestamp(attempt.attempted_at) || Math.floor(Date.now() / 1000);
+    const deliveryId = sanitizeAlertId(attempt.delivery_id) ||
+      sanitizeAlertId(`dlv_${crypto.createHash('sha256').update(`${normalizedAlertId}:${attemptedAt}`).digest('hex').slice(0, 28)}`);
+    const previous = alert.outbound_delivery || {};
+    alert.outbound_delivery = normalizeAlertOutboundDelivery({
+      channel: 'webhook',
+      status: attempt.status,
+      delivery_id: deliveryId,
+      attempt_count: Number(previous.attempt_count || 0) + 1,
+      last_attempted_at: attemptedAt,
+      last_delivered_at: attempt.status === 'delivered' ? attemptedAt : previous.last_delivered_at,
+      last_failed_at: attempt.status === 'failed' ? attemptedAt : previous.last_failed_at,
+      http_status: attempt.http_status,
+      reason: attempt.reason,
+    });
+    save();
+    return { value: projectAlerts(user) };
+  }
+
   load();
 
   return {
@@ -346,6 +406,7 @@ function createUserProfileStore({ filePath = null } = {}) {
     removeWatchlistItem,
     evaluateWatchlistAlerts,
     acknowledgeWatchlistAlert,
+    recordWatchlistAlertDelivery,
     rawState: () => cloneJson(state),
   };
 }

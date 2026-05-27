@@ -22,6 +22,7 @@ const { createPublicVerificationArtifact } = require('./publicVerification');
 const { createRoomReputationSummary } = require('./playerReputation');
 const { createUserReputationStore } = require('./userReputationStore');
 const { createUserProfileStore } = require('./userProfileStore');
+const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
 const { createPropertySnapshot } = require('./propertySnapshot');
 const { buildPropertyIntelligenceProviderContract } = require('./structuredIntelligenceAdapter');
 const {
@@ -104,6 +105,7 @@ let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
 let roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: sql }));
 let userReputationStore = createUserReputationStore(resolveUserReputationOptions());
 let userProfileStore = createUserProfileStore(resolveUserProfileOptions());
+let alertDeliveryAdapter = createAlertDeliveryAdapter(resolveAlertDeliveryOptions());
 let propertySnapshot = createPropertySnapshot(resolvePropertySnapshotOptions());
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
@@ -181,6 +183,13 @@ function resolvePropertySnapshotOptions() {
   const filePath = process.env.FAIRVALUE_PROPERTY_SNAPSHOT_PATH ||
     path.join(process.cwd(), 'public', 'data', 'properties.json');
   return { filePath };
+}
+
+function resolveAlertDeliveryOptions() {
+  return {
+    webhookUrl: process.env.FAIRVALUE_ALERT_WEBHOOK_URL || '',
+    webhookSecret: process.env.FAIRVALUE_ALERT_WEBHOOK_SECRET || '',
+  };
 }
 
 function createRoomEventLog(options = {}) {
@@ -548,6 +557,11 @@ function configureUserProfilePersistence(filePathOrOptions) {
 function configurePropertySnapshot(options = null) {
   propertySnapshot = createPropertySnapshot(options || resolvePropertySnapshotOptions());
   return propertySnapshot.load();
+}
+
+function configureAlertDelivery(options = null) {
+  alertDeliveryAdapter = createAlertDeliveryAdapter(options || resolveAlertDeliveryOptions());
+  return alertDeliveryAdapter.status();
 }
 
 function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
@@ -1322,7 +1336,7 @@ app.get('/api/me/alerts', limitRequests('identity:alerts', { max: 180 }), (req, 
   res.json(userProfileStore.getAlerts(identity.user_id));
 });
 
-app.post('/api/me/alerts/evaluate', limitRequests('identity:alerts', { max: 120 }), (req, res) => {
+app.post('/api/me/alerts/evaluate', limitRequests('identity:alerts', { max: 120 }), async (req, res) => {
   const identity = requireExpectedUserIdentity(req, res);
   if (!identity) return;
   const result = userProfileStore.evaluateWatchlistAlerts(identity.user_id, {
@@ -1332,7 +1346,21 @@ app.post('/api/me/alerts/evaluate', limitRequests('identity:alerts', { max: 120 
     res.status(503).json({ error: result.error });
     return;
   }
-  res.json(result.value);
+  const outboundCandidates = result.value.alerts.filter((alert) =>
+    alert.status === 'ready' && alert.outbound_delivery?.status !== 'delivered'
+  );
+  const outboundDelivery = await alertDeliveryAdapter.deliverAlerts({
+    userId: identity.user_id,
+    alerts: outboundCandidates,
+  });
+  for (const attempt of outboundDelivery.attempts || []) {
+    userProfileStore.recordWatchlistAlertDelivery(identity.user_id, attempt);
+  }
+  const refreshed = userProfileStore.getAlerts(identity.user_id);
+  res.json({
+    ...refreshed,
+    outbound_delivery: outboundDelivery,
+  });
 });
 
 app.patch('/api/me/alerts/:alertId', limitRequests('identity:alerts', { max: 180 }), (req, res) => {
@@ -2408,6 +2436,7 @@ module.exports = {
   configureRoomPersistence,
   configureUserReputationPersistence,
   configureUserProfilePersistence,
+  configureAlertDelivery,
   configurePropertySnapshot,
   loadPersistedRooms,
   persistRooms,

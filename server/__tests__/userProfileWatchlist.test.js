@@ -6,6 +6,7 @@ const os = require('node:os');
 const {
   server,
   configureUserProfilePersistence,
+  configureAlertDelivery,
   configurePropertySnapshot,
 } = require('../index');
 
@@ -54,6 +55,7 @@ before(() => {
 
 afterEach(() => {
   configureUserProfilePersistence(null);
+  configureAlertDelivery(null);
   configurePropertySnapshot(null);
 });
 
@@ -166,6 +168,9 @@ test('signed-in users get a deduped in-app alert queue from saved thresholds', a
   assert.equal(evaluated.data.schema_version, 'fairvalue.userWatchlistAlerts.v1');
   assert.equal(evaluated.data.alerts.length, 1);
   assert.equal(evaluated.data.delivery_queue.length, 1);
+  assert.equal(evaluated.data.outbound_delivery.provider_status, 'disabled');
+  assert.equal(evaluated.data.outbound_delivery.attempts[0].status, 'skipped');
+  assert.equal(evaluated.data.outbound_delivery.attempts[0].reason, 'webhook_not_configured');
   assert.equal(evaluated.data.alerts[0].alert_type, 'price_below');
   assert.equal(evaluated.data.alerts[0].property.address, '101 Alert Ave');
   assert.equal(evaluated.data.alerts[0].current_price, 800000);
@@ -200,4 +205,79 @@ test('signed-in users get a deduped in-app alert queue from saved thresholds', a
     headers: userHeaders,
   });
   assert.equal(invalid.status, 400);
+});
+
+test('signed-in alert evaluation sends configured redacted webhook delivery once', async () => {
+  const profilePath = path.join(tempRoot, 'user-profile-alert-webhook.json');
+  configureUserProfilePersistence({ filePath: profilePath });
+  configurePropertySnapshot({
+    properties: [
+      {
+        zpid: 12345,
+        streetAddress: '101 Alert Ave',
+        city: 'San Francisco',
+        state: 'CA',
+        zipcode: '94110',
+        price: 800000,
+        listingDataSource: 'Fixture MLS',
+        attributionInfo: { lastChecked: '2026-05-27' },
+      },
+    ],
+  });
+  const deliveries = [];
+  configureAlertDelivery({
+    webhookUrl: 'https://alerts.example.test/fairvalue?tenant=local',
+    webhookSecret: 'delivery-secret',
+    nowSeconds: () => 1779864444,
+    fetchImpl: async (url, init) => {
+      deliveries.push({
+        url,
+        headers: init.headers,
+        body: JSON.parse(init.body),
+        rawBody: init.body,
+      });
+      return { status: 202 };
+    },
+  });
+  const identity = await createIdentity();
+  const userHeaders = { 'X-FairValue-User-Token': identity.user_token };
+
+  const added = await request('/api/me/watchlist/12345', {
+    method: 'PUT',
+    headers: userHeaders,
+    body: {
+      note: 'Webhook should never receive this private note.',
+      alert_below: 850000,
+    },
+  });
+  assert.equal(added.status, 200);
+
+  const evaluated = await request('/api/me/alerts/evaluate', {
+    method: 'POST',
+    headers: userHeaders,
+  });
+  assert.equal(evaluated.status, 200);
+  assert.equal(evaluated.data.outbound_delivery.provider_status, 'configured');
+  assert.equal(evaluated.data.outbound_delivery.attempts.length, 1);
+  assert.equal(evaluated.data.outbound_delivery.attempts[0].status, 'delivered');
+  assert.equal(evaluated.data.alerts[0].outbound_delivery.status, 'delivered');
+  assert.equal(evaluated.data.alerts[0].outbound_delivery.http_status, 202);
+  assert.equal(deliveries.length, 1);
+  assert.equal(deliveries[0].url, 'https://alerts.example.test/fairvalue?tenant=local');
+  assert.equal(deliveries[0].body.property.address, '101 Alert Ave');
+  assert.match(deliveries[0].body.user_ref, /^fvusr_[a-f0-9]{32}$/);
+  assert.match(deliveries[0].headers['X-FairValue-Signature'], /^sha256=[a-f0-9]{64}$/);
+  assert.equal(deliveries[0].rawBody.includes(identity.user_id), false);
+  assert.equal(deliveries[0].rawBody.includes(identity.user_token), false);
+  assert.equal(deliveries[0].rawBody.includes('Webhook should never receive this private note.'), false);
+
+  const repeated = await request('/api/me/alerts/evaluate', {
+    method: 'POST',
+    headers: userHeaders,
+  });
+  assert.equal(repeated.status, 200);
+  assert.equal(repeated.data.outbound_delivery.provider_status, 'configured');
+  assert.equal(repeated.data.outbound_delivery.attempts.length, 0);
+  assert.equal(repeated.data.alerts[0].outbound_delivery.status, 'delivered');
+  assert.equal(deliveries.length, 1);
 });
