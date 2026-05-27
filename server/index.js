@@ -25,6 +25,7 @@ const { createUserProfileStore } = require('./userProfileStore');
 const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
 const { createPropertySnapshot } = require('./propertySnapshot');
 const { buildOperatorIncidentQueue } = require('./operatorIncidentQueue');
+const { createOperatorIncidentWorkflowStore } = require('./operatorIncidentWorkflowStore');
 const { buildPropertyIntelligenceProviderContract } = require('./structuredIntelligenceAdapter');
 const {
   DEFAULT_MARKET_FORMAT,
@@ -108,6 +109,7 @@ let userReputationStore = createUserReputationStore(resolveUserReputationOptions
 let userProfileStore = createUserProfileStore(resolveUserProfileOptions());
 let alertDeliveryAdapter = createAlertDeliveryAdapter(resolveAlertDeliveryOptions());
 let propertySnapshot = createPropertySnapshot(resolvePropertySnapshotOptions());
+let operatorIncidentWorkflowStore = createOperatorIncidentWorkflowStore(resolveOperatorIncidentWorkflowOptions());
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
 
@@ -191,6 +193,12 @@ function resolveAlertDeliveryOptions() {
     webhookUrl: process.env.FAIRVALUE_ALERT_WEBHOOK_URL || '',
     webhookSecret: process.env.FAIRVALUE_ALERT_WEBHOOK_SECRET || '',
   };
+}
+
+function resolveOperatorIncidentWorkflowOptions() {
+  const filePath = process.env.FAIRVALUE_OPERATOR_INCIDENT_WORKFLOW_PATH ||
+    (require.main === module ? path.join(process.cwd(), '.fairvalue', 'operator-incidents.json') : null);
+  return { filePath };
 }
 
 function createRoomEventLog(options = {}) {
@@ -563,6 +571,14 @@ function configurePropertySnapshot(options = null) {
 function configureAlertDelivery(options = null) {
   alertDeliveryAdapter = createAlertDeliveryAdapter(options || resolveAlertDeliveryOptions());
   return alertDeliveryAdapter.status();
+}
+
+function configureOperatorIncidentWorkflowPersistence(filePathOrOptions) {
+  const options = typeof filePathOrOptions === 'object' && filePathOrOptions !== null
+    ? filePathOrOptions
+    : { filePath: filePathOrOptions || null };
+  operatorIncidentWorkflowStore = createOperatorIncidentWorkflowStore(options);
+  return operatorIncidentWorkflowStore.load();
 }
 
 function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
@@ -1328,7 +1344,7 @@ app.get('/api/ops/metrics', (req, res) => {
 
 app.get('/api/ops/incidents', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
-  res.json(buildOperatorIncidentQueue({
+  const queue = buildOperatorIncidentQueue({
     rooms,
     roomEventsByCode: (code) => roomEventStore.list(code),
     filters: {
@@ -1336,7 +1352,30 @@ app.get('/api/ops/incidents', (req, res) => {
       severity: req.query.severity,
       limit: req.query.limit,
     },
-  }));
+  });
+  res.json(operatorIncidentWorkflowStore.projectQueue(queue));
+});
+
+app.patch('/api/ops/incidents/:incidentId', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  const queue = buildOperatorIncidentQueue({
+    rooms,
+    roomEventsByCode: (code) => roomEventStore.list(code),
+    filters: {
+      limit: 250,
+    },
+  });
+  const incident = queue.incidents.find((item) => item.incident_id === req.params.incidentId);
+  if (!incident) {
+    res.status(404).json({ error: 'Operator incident not found in current queue' });
+    return;
+  }
+  const result = operatorIncidentWorkflowStore.updateIncidentWorkflow(incident, req.body || {});
+  if (result.error) {
+    res.status(result.statusCode || 400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
 });
 
 app.get('/metrics', (req, res) => {
@@ -2468,12 +2507,14 @@ module.exports = {
   userReputationStore: () => userReputationStore,
   userProfileStore: () => userProfileStore,
   propertySnapshot: () => propertySnapshot,
+  operatorIncidentWorkflowStore: () => operatorIncidentWorkflowStore,
   observability,
   configureRoomPersistence,
   configureUserReputationPersistence,
   configureUserProfilePersistence,
   configureAlertDelivery,
   configurePropertySnapshot,
+  configureOperatorIncidentWorkflowPersistence,
   loadPersistedRooms,
   persistRooms,
   replayRoomEvents,

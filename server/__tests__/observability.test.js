@@ -4,6 +4,7 @@ const {
   server,
   rooms,
   configureRoomPersistence,
+  configureOperatorIncidentWorkflowPersistence,
   observability,
   roomEventStore,
 } = require('../index');
@@ -66,6 +67,7 @@ afterEach(() => {
   restoreEnv('FAIRVALUE_OPS_TOKEN', originalOpsToken);
   restoreEnv('NODE_ENV', originalNodeEnv);
   configureRoomPersistence(null);
+  configureOperatorIncidentWorkflowPersistence(null);
   observability.resetObservability();
   roomEventStore.clearAll();
   for (const room of Object.values(rooms)) {
@@ -209,8 +211,42 @@ test('ops incidents expose redacted operator triage behind the ops token', async
   assert.equal(allowed.data.incidents[0].incident_type, 'settlement_packet_missing');
   assert.equal(allowed.data.incidents[0].severity, 'high');
   assert.equal(allowed.data.incidents[0].privacy_classification, 'operator_internal_redacted');
+  assert.equal(allowed.data.incidents[0].workflow.status, 'open');
+  assert.equal(allowed.data.workflow_summary.by_status.open, 1);
   assert.equal(JSON.stringify(allowed.data).includes(room.host_token), false);
   assert.match(allowed.data.limitations.join(' '), /redacted/);
+
+  const deniedWorkflow = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}`, {
+    method: 'PATCH',
+    body: { status: 'investigating' },
+  });
+  assert.equal(deniedWorkflow.status, 403);
+
+  const updated = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer incident-test-token' },
+    body: {
+      status: 'investigating',
+      assignee: 'Ops Lead',
+      note: `Review host_token=${room.host_token} before sharing the recap.`,
+    },
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.data.schema_version, 'fairvalue.operatorIncidentWorkflow.v1');
+  assert.equal(updated.data.status, 'investigating');
+  assert.equal(updated.data.timeline[0].action, 'status_changed');
+  assert.equal(JSON.stringify(updated.data).includes(room.host_token), false);
+
+  const listedAgain = await request('/api/ops/incidents?severity=high', {
+    headers: { Authorization: 'Bearer incident-test-token' },
+  });
+  assert.equal(listedAgain.status, 200);
+  assert.equal(listedAgain.data.workflow_summary.total_tracked, 1);
+  assert.equal(listedAgain.data.workflow_summary.by_status.investigating, 1);
+  assert.equal(listedAgain.data.incidents[0].status, 'investigating');
+  assert.equal(listedAgain.data.incidents[0].workflow.tracked, true);
+  assert.equal(listedAgain.data.incidents[0].workflow.timeline[0].note.includes('[redacted-token]'), true);
+  assert.equal(JSON.stringify(listedAgain.data).includes(room.host_token), false);
 });
 
 test('prometheus metrics expose aggregate counters for external scrapers', async () => {
