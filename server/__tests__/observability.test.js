@@ -232,8 +232,20 @@ test('ops incidents expose redacted operator triage behind the ops token', async
   assert.equal(replayReview.data.replay_summary.winning_outcome, 'over');
   assert.equal(replayReview.data.replay_summary.settlement_evidence_status, 'host_attested');
   assert.equal(replayReview.data.checks.some((check) => check.path === 'settlement' && check.ok), true);
+  assert.equal(replayReview.data.event_rows_meta.total_count, replayReview.data.replay_status.event_count);
+  assert.equal(replayReview.data.event_rows_meta.truncated, false);
+  assert.ok(replayReview.data.event_rows.some((row) => row.type === 'room_created'));
+  assert.ok(replayReview.data.event_rows.some((row) => row.type === 'bet_placed'));
+  assert.ok(replayReview.data.event_rows.some((row) => row.type === 'settlement_completed'));
+  const betRow = replayReview.data.event_rows.find((row) => row.type === 'bet_placed');
+  assert.equal(betRow.redacted_payload.outcome, 'over');
+  assert.equal(betRow.redacted_payload.reason_present, true);
+  assert.match(betRow.redacted_payload.reason_hash, /^[a-f0-9]{64}$/);
+  assert.match(betRow.redacted_payload_hash, /^[a-f0-9]{64}$/);
+  assert.equal(betRow.payload_keys.includes('session_id'), false);
   assert.match(replayReview.data.limitations.join(' '), /operator-only redacted projection check/);
   assert.equal(JSON.stringify(replayReview.data).includes(room.host_token), false);
+  assert.equal(JSON.stringify(replayReview.data).includes('incident-player'), false);
 
   const deniedWorkflow = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}`, {
     method: 'PATCH',

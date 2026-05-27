@@ -1529,7 +1529,7 @@ app.get('/api/ops/incidents/:incidentId/replay', (req, res) => {
   const integrityReport = createReplayIntegrityReport(room, events);
   recordReplayIntegrity(integrityReport);
   const replay = replayRoomEvents(events);
-  const review = buildOperatorIncidentReplayReview({ incident, replay, integrityReport });
+  const review = buildOperatorIncidentReplayReview({ incident, replay, integrityReport, events });
   res.status(integrityReport.ok ? 200 : 409).json(review);
 });
 

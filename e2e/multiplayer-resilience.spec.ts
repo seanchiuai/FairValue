@@ -520,6 +520,10 @@ test('operator incident console renders redacted workflow queue', async ({ page,
   await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('Replay match', { timeout: 15_000 });
   await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('host attested');
   await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('Events');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('Canonical event rows');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('room created');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('settlement completed');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('payload');
 
   await page.getByTestId('operator-incident-status-select').selectOption('investigating');
   await page.getByTestId('operator-incident-assignee').fill('Ops Desk');

@@ -98,6 +98,11 @@ type OperatorReplayReview = {
     activity_count?: number;
     room_phase?: string;
   };
+  event_rows?: Array<{
+    sequence: number;
+    type: string;
+    summary?: string;
+  }>;
   limitations?: string[];
   error?: string;
 };
@@ -481,32 +486,53 @@ export default function OperatorIncidentsPage() {
                 </div>
                 {replayError && <p className="operator-incidents__replay-alert">{replayError}</p>}
                 {replayReview ? (
-                  <dl className="operator-incidents__replay-grid">
-                    <div>
-                      <dt>Status</dt>
-                      <dd>{replayReview.replay_status?.ok ? 'Replay match' : 'Replay mismatch'}</dd>
-                    </div>
-                    <div>
-                      <dt>Events</dt>
-                      <dd>{replayReview.replay_status?.event_count ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Last seq</dt>
-                      <dd>{replayReview.replay_status?.last_sequence ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Outcome</dt>
-                      <dd>{replayReview.replay_summary?.winning_outcome || 'Pending'}</dd>
-                    </div>
-                    <div>
-                      <dt>Evidence</dt>
-                      <dd>{formatLabel(replayReview.replay_summary?.settlement_evidence_status || 'missing')}</dd>
-                    </div>
-                    <div>
-                      <dt>Trades</dt>
-                      <dd>{replayReview.replay_summary?.total_trades ?? 0}</dd>
-                    </div>
-                  </dl>
+                  <>
+                    <dl className="operator-incidents__replay-grid">
+                      <div>
+                        <dt>Status</dt>
+                        <dd>{replayReview.replay_status?.ok ? 'Replay match' : 'Replay mismatch'}</dd>
+                      </div>
+                      <div>
+                        <dt>Events</dt>
+                        <dd>{replayReview.replay_status?.event_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt>Last seq</dt>
+                        <dd>{replayReview.replay_status?.last_sequence ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt>Outcome</dt>
+                        <dd>{replayReview.replay_summary?.winning_outcome || 'Pending'}</dd>
+                      </div>
+                      <div>
+                        <dt>Evidence</dt>
+                        <dd>{formatLabel(replayReview.replay_summary?.settlement_evidence_status || 'missing')}</dd>
+                      </div>
+                      <div>
+                        <dt>Trades</dt>
+                        <dd>{replayReview.replay_summary?.total_trades ?? 0}</dd>
+                      </div>
+                    </dl>
+                    {(replayReview.event_rows?.length || 0) > 0 && (
+                      <div className="operator-incidents__event-rows" data-testid="operator-incident-replay-events">
+                        <div className="operator-incidents__event-rows-head">
+                          <h4>Canonical event rows</h4>
+                          <span>{replayReview.event_rows?.length || 0} rows</span>
+                        </div>
+                        <ol>
+                          {replayReview.event_rows?.map((eventRow) => (
+                            <li key={`${eventRow.sequence}-${eventRow.type}`}>
+                              <div>
+                                <strong>#{eventRow.sequence} {formatLabel(eventRow.type)}</strong>
+                              </div>
+                              <p>{eventRow.summary || 'Redacted payload hash only'}</p>
+                              <code>redacted payload</code>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p className="operator-incidents__empty">
                     Run a redacted replay projection check before changing workflow status or exporting review links.
