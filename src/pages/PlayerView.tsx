@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
+import { useUserReputation } from '../hooks/useUserReputation';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
 import { generatePlayerBetPreview } from '../lib/playerBetPreview';
@@ -12,6 +13,7 @@ import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
 import PreBetIntelligenceCard from '../components/player/PreBetIntelligenceCard';
 import PlayerBetReasonControl from '../components/player/PlayerBetReasonControl';
+import PlayerReputationPanel from '../components/player/PlayerReputationPanel';
 import PlayerSettlementResultCard from '../components/player/PlayerSettlementResultCard';
 import PlayerJoinGate from '../components/player/PlayerJoinGate';
 import { RateLimiter } from '../lib/rateLimiter';
@@ -45,6 +47,12 @@ export default function PlayerView() {
     placeBet,
     joinRoom,
   } = useRoom(roomCode || '', sessionId, userToken);
+  const {
+    reputation,
+    reputationLoading,
+    reputationError,
+    refreshReputation,
+  } = useUserReputation(userToken);
 
   // Chart
   const { addPoint, loadHistory, setRef: chartRef } = useMarketChart({ height: 200 });
@@ -79,6 +87,11 @@ export default function PlayerView() {
       fairValue: calculateImpliedPrice(market.prob_over, house.asking_price),
     });
   }, [market, house, addPoint]);
+
+  useEffect(() => {
+    if (!settled || !userToken) return;
+    refreshReputation();
+  }, [settled, userToken, refreshReputation]);
 
   const [wager, setWager] = useState<number>(25);
   const [betReason, setBetReason] = useState('');
@@ -194,6 +207,10 @@ export default function PlayerView() {
   }
 
   const probPercent = Math.round(market.prob_over * 100);
+  const showReputationPanel = Boolean(
+    userToken &&
+    (settled || reputationLoading || reputationError || (reputation && reputation.rooms_played > 0))
+  );
 
   return (
     <div style={s.page}>
@@ -237,6 +254,15 @@ export default function PlayerView() {
 
       {settled && settleResult && (
         <PlayerSettlementResultCard roomCode={roomCode} settleResult={settleResult} />
+      )}
+
+      {showReputationPanel && (
+        <PlayerReputationPanel
+          reputation={reputation}
+          loading={reputationLoading}
+          error={reputationError}
+          onRefresh={refreshReputation}
+        />
       )}
 
       {/* Market State */}

@@ -186,6 +186,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         actual_price: data.actual_price,
         results: data.results,
         evidence_packet: data.evidence_packet || null,
+        reputation_summary: data.reputation_summary || null,
       });
       if (data.activity) {
         const entry = data.activity;

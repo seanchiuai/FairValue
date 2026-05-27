@@ -146,6 +146,10 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(host.getByTestId('activity-feed')).toContainText('Market settled');
     await expect(playerOne.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
     await expect(playerOne.getByTestId('player-settlement-result')).toContainText('Player One');
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('My prediction record', { timeout: 15_000 });
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('100%');
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('1/1 correct');
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('Simulation-credit rooms only');
     await expect(playerTwo.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
     await expect(playerTwo.getByTestId('player-settlement-result')).toContainText('Player Two');
   } finally {

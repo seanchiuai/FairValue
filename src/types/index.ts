@@ -176,6 +176,40 @@ export interface RoomReputationSummary {
   limitations: string[];
 }
 
+export interface UserReputationRoom {
+  room_code: string;
+  market_format: string;
+  settled_at: number;
+  nickname: string;
+  winning_outcome: string | null;
+  bet_count: number;
+  correct_bets: number;
+  reason_count: number;
+  total_wagered: number;
+  payout: number;
+  average_brier_score: number | null;
+  calibration_score: number | null;
+}
+
+export interface UserReputation {
+  schema_version: string;
+  user_id: string;
+  nickname: string;
+  rooms_played: number;
+  total_bets: number;
+  correct_bets: number;
+  accuracy: number | null;
+  reason_count: number;
+  total_wagered: number;
+  total_payout: number;
+  average_brier_score: number | null;
+  average_calibration_score: number | null;
+  market_formats: Record<string, number>;
+  last_settled_at: number | null;
+  recent_rooms: UserReputationRoom[];
+  limitations: string[];
+}
+
 export interface SettlementEvidenceItem {
   type: string;
   label: string;

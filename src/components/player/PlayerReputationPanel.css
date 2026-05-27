@@ -1,0 +1,172 @@
+.player-reputation {
+  display: grid;
+  gap: 10px;
+  margin: 0 16px 12px;
+  padding: 12px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.player-reputation__header,
+.player-reputation__title-block,
+.player-reputation__totals,
+.player-reputation__room {
+  display: flex;
+  align-items: center;
+}
+
+.player-reputation__header {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.player-reputation__title-block {
+  gap: 8px;
+  min-width: 0;
+}
+
+.player-reputation__eyebrow {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.player-reputation h2 {
+  margin: 1px 0 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.player-reputation__refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 36px;
+  padding: 0 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.player-reputation__refresh:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.player-reputation__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.player-reputation__stat {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.player-reputation__stat span,
+.player-reputation__totals,
+.player-reputation__room-main span,
+.player-reputation__room-score span,
+.player-reputation__message,
+.player-reputation__limits {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.player-reputation__stat strong {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.player-reputation__totals {
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.player-reputation__recent {
+  display: grid;
+  gap: 7px;
+}
+
+.player-reputation__room {
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.player-reputation__room-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.player-reputation__room-main strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.player-reputation__room-main span {
+  overflow-wrap: anywhere;
+  text-transform: capitalize;
+}
+
+.player-reputation__room-score {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 2px;
+  text-align: right;
+}
+
+.player-reputation__room-score strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.player-reputation__message {
+  padding: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.player-reputation__limits {
+  margin: 0;
+}
+
+@media (max-width: 420px) {
+  .player-reputation {
+    margin-right: 12px;
+    margin-left: 12px;
+  }
+
+  .player-reputation__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
