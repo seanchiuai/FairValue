@@ -33,7 +33,7 @@ import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
-import { generateMarketIntelligence } from '../lib/marketIntelligence';
+import { generateMarketIntelligence, type MarketIntelligence } from '../lib/marketIntelligence';
 import { useToast } from '../contexts/ToastContext';
 import './MarketPage.css';
 
@@ -92,6 +92,24 @@ type NeighborhoodIndexResponse = {
   error?: string;
 };
 
+type StructuredIntelligenceEnvelope = {
+  schema_version?: string;
+  provider_status?: 'provider_backed' | 'local_fallback';
+  provider_name?: string;
+  request_hash?: string;
+  provider_attempt?: {
+    status?: string;
+    reason?: string;
+    http_status?: number;
+  } | null;
+  validation?: {
+    accepted?: boolean;
+    issues?: string[];
+  };
+  intelligence?: MarketIntelligence | null;
+  error?: string;
+};
+
 async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
 }
@@ -128,6 +146,9 @@ const MarketPage: React.FC = () => {
   const [neighborhood, setNeighborhood] = useState<NeighborhoodIndexResponse | null>(null);
   const [neighborhoodLoading, setNeighborhoodLoading] = useState(false);
   const [neighborhoodError, setNeighborhoodError] = useState('');
+  const [structuredIntelligence, setStructuredIntelligence] = useState<StructuredIntelligenceEnvelope | null>(null);
+  const [structuredIntelligenceLoading, setStructuredIntelligenceLoading] = useState(false);
+  const [structuredIntelligenceError, setStructuredIntelligenceError] = useState('');
   const property = properties.find(p => p.id === propertyId) || properties[0];
 
   // Chart with historical data from DB
@@ -178,6 +199,36 @@ const MarketPage: React.FC = () => {
       });
     return () => controller.abort();
   }, [property?.zipCode]);
+
+  useEffect(() => {
+    if (!property?.id) {
+      setStructuredIntelligence(null);
+      setStructuredIntelligenceError('');
+      setStructuredIntelligenceLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setStructuredIntelligenceLoading(true);
+    setStructuredIntelligenceError('');
+    fetch(`/api/ai/intelligence/properties/${encodeURIComponent(property.id)}/generate`, {
+      method: 'POST',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await readJson<StructuredIntelligenceEnvelope>(response);
+        if (!response.ok || data.error) throw new Error(data.error || 'Structured intelligence unavailable');
+        setStructuredIntelligence(data);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setStructuredIntelligence(null);
+        setStructuredIntelligenceError('Structured provider adapter unavailable from the local API.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setStructuredIntelligenceLoading(false);
+      });
+    return () => controller.abort();
+  }, [property?.id]);
 
   const handleStartBid = async () => {
     if (!property || creating) return;
@@ -284,7 +335,32 @@ const MarketPage: React.FC = () => {
   const datasetText = manifest
     ? `${manifest.property_count} records, latest source observation ${latestObserved || 'undated'}, providers ${providerSummary || 'unspecified'}, source hash ${sourceHash}.`
     : 'The manifest check runs in repo verification so stale static data changes fail fast.';
-  const intelligence = generateMarketIntelligence(property);
+  const localIntelligence = generateMarketIntelligence(property);
+  const providerIntelligenceAccepted = structuredIntelligence?.provider_status === 'provider_backed' && structuredIntelligence.intelligence;
+  const intelligence = providerIntelligenceAccepted ? structuredIntelligence.intelligence as MarketIntelligence : localIntelligence;
+  const providerAttemptReason = structuredIntelligence?.provider_attempt?.reason?.replace(/_/g, ' ');
+  const providerRequest = structuredIntelligence?.request_hash ? structuredIntelligence.request_hash.slice(0, 8) : null;
+  const structuredStatusKind = structuredIntelligenceError
+    ? 'error'
+    : structuredIntelligenceLoading
+      ? 'loading'
+      : structuredIntelligence?.provider_status === 'provider_backed'
+        ? 'provider'
+        : 'fallback';
+  const structuredStatusLabel = structuredStatusKind === 'provider'
+    ? 'Structured provider accepted'
+    : structuredStatusKind === 'loading'
+      ? 'Structured provider checking'
+      : structuredStatusKind === 'error'
+        ? 'Structured provider unavailable'
+        : 'Structured provider fallback';
+  const structuredStatusDetail = structuredStatusKind === 'provider'
+    ? `${structuredIntelligence?.provider_name || 'External provider'} passed adapter validation${providerRequest ? `, request ${providerRequest}` : ''}.`
+    : structuredStatusKind === 'loading'
+      ? 'Posting the redacted contract to the server-side adapter.'
+      : structuredStatusKind === 'error'
+        ? structuredIntelligenceError
+        : `${providerAttemptReason || 'provider not configured'}; local deterministic brief remains visible.`;
   const watched = isWatched(property.id);
   const neighborhoodEntity = neighborhood?.entities?.[0] || null;
   const neighborhoodQuality = neighborhoodEntity?.data_quality
@@ -507,6 +583,11 @@ const MarketPage: React.FC = () => {
             <span className={`intelligence-confidence ${intelligence.confidence}`}>
               {intelligence.confidence} confidence
             </span>
+          </div>
+
+          <div className={`intelligence-provider-status ${structuredStatusKind}`} data-testid="structured-intelligence-status">
+            <span className="intelligence-provider-label">{structuredStatusLabel}</span>
+            <span className="intelligence-provider-detail">{structuredStatusDetail}</span>
           </div>
 
           <div className="intelligence-metrics" aria-label="Market intelligence metrics">
