@@ -1,0 +1,56 @@
+{
+  "schema_version": "public-room-verification/v1",
+  "room_code": "FVR2",
+  "generated_at": "2026-05-27T09:45:00.000Z",
+  "status": "verified",
+  "settled": true,
+  "event_stream": {
+    "event_count": 4,
+    "last_sequence": 4
+  },
+  "replay": {
+    "live_match": true,
+    "mismatch_count": 0,
+    "replay_hash": "c4151d647a1d9d1812bacc998229895133b73a4e27e2bdab77a65f529b998fe2",
+    "live_hash": "c4151d647a1d9d1812bacc998229895133b73a4e27e2bdab77a65f529b998fe2"
+  },
+  "settlement": {
+    "winning_outcome": "inside_band",
+    "actual_price": 810000,
+    "evidence_packet_status": "metadata_attached",
+    "evidence_packet_hash": "3fff6c61b820b21644a58801e8ef62ce6537c6ab8ea9a11a5a977a509d6abb98",
+    "evidence_item_count": 1,
+    "reputation_schema_version": "room-reputation/v1",
+    "reputation_player_count": 1,
+    "reputation_eligible_player_count": 1,
+    "reputation_average_calibration_score": 90,
+    "reputation_top_players": [
+      {
+        "rank": 1,
+        "nickname": "Range Fixture",
+        "badge": "well_calibrated_reasoner",
+        "bet_count": 1,
+        "reason_count": 1,
+        "accuracy": 1,
+        "calibration_score": 90
+      }
+    ]
+  },
+  "public_recap": {
+    "digest_hash": "a3676585fbffb0b3e61267223e1cc3bbdec7dc79d1f26ef7ad2b9d88eca3757d",
+    "source": "Public room state plus canonical event replay."
+  },
+  "trust_limitations": [
+    "This artifact proves public hashes, counts, replay parity, and settlement metadata only.",
+    "It does not expose host tokens, user tokens, player session IDs, private evidence documents, or host-only event logs.",
+    "FairValue settlement artifacts are simulation-credit records and are not appraisals, brokerage records, lending decisions, or investment advice.",
+    "A signed artifact requires FAIRVALUE_PUBLIC_VERIFICATION_SECRET or a non-default FAIRVALUE_IDENTITY_SECRET."
+  ],
+  "signature": {
+    "status": "signed",
+    "algorithm": "HMAC-SHA256",
+    "key_hint": "FAIRVALUE_PUBLIC_VERIFICATION_SECRET",
+    "payload_hash": "27320e1a1706d44267c29402c7bf90b335e35d9bbeba968cf9179d6c73a53842",
+    "value": "3fdd3c1c76320ac139551ad9d22f9e0655db78202799d38c2cbf84c2c74f1cff"
+  }
+}

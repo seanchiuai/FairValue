@@ -187,3 +187,25 @@ test('public verification fixture is signed and safe for external consumers', ()
   assert.equal(serialized.includes('session_id'), false);
   assert.equal(serialized.includes(fixtureSecret), false);
 });
+
+test('range price-band public verification fixture is signed and pins non-binary settlement shape', () => {
+  const fixturePath = path.join(__dirname, '../../docs/fixtures/public-room-verification-range-price-band-v1.json');
+  const artifact = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  const fixtureSecret = 'fixture-public-verification-secret-with-32-characters';
+
+  assert.equal(artifact.schema_version, 'public-room-verification/v1');
+  assert.equal(artifact.room_code, 'FVR2');
+  assert.equal(artifact.status, 'verified');
+  assert.equal(artifact.settlement.winning_outcome, 'inside_band');
+  assert.equal(artifact.settlement.reputation_schema_version, 'room-reputation/v1');
+  assert.equal(artifact.settlement.reputation_top_players[0].nickname, 'Range Fixture');
+  assert.equal(artifact.replay.live_match, true);
+  assert.equal(artifact.signature.status, 'signed');
+  assert.equal(verifyPublicVerificationArtifactSignature(artifact, fixtureSecret), true);
+  assert.match(artifact.public_recap.digest_hash, /^[a-f0-9]{64}$/);
+  assert.match(artifact.settlement.evidence_packet_hash, /^[a-f0-9]{64}$/);
+  const serialized = JSON.stringify(artifact);
+  assert.equal(serialized.includes('host_token'), false);
+  assert.equal(serialized.includes('session_id'), false);
+  assert.equal(serialized.includes(fixtureSecret), false);
+});

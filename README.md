@@ -140,7 +140,7 @@ Browser (React)
 
 `GET /api/rooms/:code/public-verification` is public and available after settlement. It returns a share-safe `public-room-verification/v1` artifact with event counts, replay/live hashes, public recap digest hash, settlement evidence packet hash, replay parity status, reputation/calibration counts and leaders, trust limitations, and a signature when `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` or a non-default `FAIRVALUE_IDENTITY_SECRET` is configured. It does not return host tokens, user tokens, player session IDs, private evidence documents, or host-only event logs. The public recap and settled host review surfaces can copy or download the same JSON artifact for external audit, newsletter, SDK, or webhook consumers.
 
-A signed example artifact lives at `docs/fixtures/public-room-verification-v1.json` so future SDK, webhook, and embed consumers can lock against the export shape without needing live room credentials.
+Signed example artifacts live at `docs/fixtures/public-room-verification-v1.json` and `docs/fixtures/public-room-verification-range-price-band-v1.json` so future SDK, webhook, and embed consumers can lock against binary and range export shapes without needing live room credentials.
 
 The `/recap/:roomCode` route is frontend-only and reads the public state endpoint plus the settled-room public verification endpoint. It does not request `/api/rooms/:code/events`, does not require or send host authority, and is covered by token-leakage checks.
 
