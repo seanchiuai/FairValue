@@ -18,6 +18,12 @@ describe('market template registry', () => {
         pricing_engine: 'lmsr_binary_v1',
       })
     );
+    expect(getMarketTemplate('range_price_band')).toEqual(
+      expect.objectContaining({
+        status: 'draft_only',
+        pricing_engine: 'lmsr_multi_outcome_v1',
+      })
+    );
     expect(isRegisteredMarketFormat('range_price_band')).toBe(true);
     expect(isPlayableMarketFormat('range_price_band')).toBe(false);
   });

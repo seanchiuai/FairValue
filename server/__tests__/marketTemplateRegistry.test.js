@@ -22,12 +22,13 @@ test('market template registry exposes playable binary and draft-only future for
   assert.deepEqual(binary.outcome_schema.outcomes, ['over', 'under']);
   assert.equal(isRegisteredMarketFormat('range_price_band'), true);
   assert.equal(isPlayableMarketFormat('range_price_band'), false);
+  assert.equal(getMarketTemplate('range_price_band').pricing_engine, 'lmsr_multi_outcome_v1');
 
   registry.templates[0].label = 'mutated outside';
   assert.equal(publicMarketTemplateRegistry().templates[0].label, 'Binary over/under');
 });
 
-test('room market format validation blocks registered formats without a pricing engine', () => {
+test('room market format validation blocks registered formats without a playable room workflow', () => {
   const binary = validateMarketFormatForRoom('binary_over_under');
   assert.equal(binary.value, 'binary_over_under');
   assert.equal(binary.template.status, 'playable');

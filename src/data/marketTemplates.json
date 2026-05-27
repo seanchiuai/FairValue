@@ -29,13 +29,13 @@
         "type": "range",
         "outcomes": ["below_band", "inside_band", "above_band"]
       },
-      "pricing_engine": "not_implemented",
+      "pricing_engine": "lmsr_multi_outcome_v1",
       "settlement_inputs": ["actual_price", "band_low", "band_high", "settlement_evidence"],
       "settlement_rule": "Resolve to below_band, inside_band, or above_band using the configured price band.",
       "supported_surfaces": ["market_studio_registry", "developer_api"],
       "limitations": [
-        "Registered for schema planning only.",
-        "Room creation is blocked until a multi-outcome pricing engine exists."
+        "Registered for schema and pricing-core planning only.",
+        "Room creation is blocked until range settlement, replay, and UI workflows exist."
       ]
     },
     {
