@@ -10,7 +10,7 @@ const {
   validateMarketFormatForRoom,
 } = require('../marketTemplateRegistry');
 
-test('market template registry exposes playable binary/range/rent-yield and draft-only future formats', () => {
+test('market template registry exposes playable binary/range/rent-yield/renovation and draft-only future formats', () => {
   const registry = publicMarketTemplateRegistry();
   assert.equal(registry.schema_version, 'market-template-registry/v1');
   assert.equal(registry.default_market_format, 'binary_over_under');
@@ -26,12 +26,15 @@ test('market template registry exposes playable binary/range/rent-yield and draf
   assert.equal(isRegisteredMarketFormat('rent_yield_over_under'), true);
   assert.equal(isPlayableMarketFormat('rent_yield_over_under'), true);
   assert.equal(getMarketTemplate('rent_yield_over_under').pricing_engine, 'lmsr_binary_v1');
+  assert.equal(isRegisteredMarketFormat('renovation_budget_over_under'), true);
+  assert.equal(isPlayableMarketFormat('renovation_budget_over_under'), true);
+  assert.equal(getMarketTemplate('renovation_budget_over_under').pricing_engine, 'lmsr_binary_v1');
 
   registry.templates[0].label = 'mutated outside';
   assert.equal(publicMarketTemplateRegistry().templates[0].label, 'Binary over/under');
 });
 
-test('room market format validation accepts playable rent-yield and blocks remaining draft-only formats', () => {
+test('room market format validation accepts playable renovation and blocks remaining draft-only formats', () => {
   const binary = validateMarketFormatForRoom('binary_over_under');
   assert.equal(binary.value, 'binary_over_under');
   assert.equal(binary.template.status, 'playable');
@@ -43,6 +46,10 @@ test('room market format validation accepts playable rent-yield and blocks remai
   const rentYield = validateMarketFormatForRoom('rent_yield_over_under');
   assert.equal(rentYield.value, 'rent_yield_over_under');
   assert.equal(rentYield.template.status, 'playable');
+
+  const renovation = validateMarketFormatForRoom('renovation_budget_over_under');
+  assert.equal(renovation.value, 'renovation_budget_over_under');
+  assert.equal(renovation.template.status, 'playable');
 
   const draftOnly = validateMarketFormatForRoom('time_on_market_over_under');
   assert.match(draftOnly.error, /registered but not playable yet/);

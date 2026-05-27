@@ -1,0 +1,61 @@
+{
+  "schema_version": "public-room-verification/v1",
+  "room_code": "FVRN",
+  "generated_at": "2026-05-27T12:25:00.000Z",
+  "status": "verified",
+  "settled": true,
+  "event_stream": {
+    "event_count": 4,
+    "last_sequence": 4
+  },
+  "replay": {
+    "live_match": true,
+    "mismatch_count": 0,
+    "replay_hash": "6813a220267aa818c1e39c4ff13c2b6db31193f51c827dafe5112c021cd09d3d",
+    "live_hash": "6813a220267aa818c1e39c4ff13c2b6db31193f51c827dafe5112c021cd09d3d"
+  },
+  "settlement": {
+    "winning_outcome": "over",
+    "actual_price": 140000,
+    "settlement_price": null,
+    "annual_rent": null,
+    "rent_yield": null,
+    "verified_cost": 140000,
+    "budget_threshold": 125000,
+    "evidence_packet_status": "metadata_attached",
+    "evidence_packet_hash": "6c7721bee15fb4407996a4368da27c9f099c1a7d03ea9db02a6a5daf30a7ff66",
+    "evidence_item_count": 1,
+    "reputation_schema_version": "room-reputation/v1",
+    "reputation_player_count": 1,
+    "reputation_eligible_player_count": 1,
+    "reputation_average_calibration_score": 94,
+    "reputation_top_players": [
+      {
+        "rank": 1,
+        "nickname": "Reno Fixture",
+        "badge": "well_calibrated_reasoner",
+        "bet_count": 1,
+        "reason_count": 1,
+        "accuracy": 1,
+        "calibration_score": 94
+      }
+    ]
+  },
+  "public_recap": {
+    "digest_hash": "785da0c30864739ef2d585c62bd0d9135408b03e206a4d68375def25b6a197e5",
+    "source": "Public room state plus canonical event replay."
+  },
+  "trust_limitations": [
+    "This artifact proves public hashes, counts, replay parity, and settlement metadata only.",
+    "It does not expose host tokens, user tokens, player session IDs, private evidence documents, or host-only event logs.",
+    "FairValue settlement artifacts are simulation-credit records and are not appraisals, brokerage records, lending decisions, or investment advice.",
+    "A signed artifact requires FAIRVALUE_PUBLIC_VERIFICATION_SECRET or a non-default FAIRVALUE_IDENTITY_SECRET."
+  ],
+  "signature": {
+    "status": "signed",
+    "algorithm": "HMAC-SHA256",
+    "key_hint": "FAIRVALUE_PUBLIC_VERIFICATION_SECRET",
+    "payload_hash": "68eb5f5fb97d42b26d563f098a68c272cb26bdf49161e785ed3f99967b2c696f",
+    "value": "66c2c2fb51aeaa922232535923267f20c73713ef791fb725dab7da65434788cb"
+  }
+}

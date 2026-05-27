@@ -811,14 +811,26 @@ function validateBetPayload(body, room) {
 }
 
 function validateSettlePayload(body, room = null) {
-  const actualPrice = parsePositiveNumber(body?.actual_price ?? body?.settlement_price, MAX_ASKING_PRICE);
-  if (actualPrice === null) return { error: 'Actual price must be between $1 and $100M' };
+  const renovationBudgetRoom = room?.marketFormat === 'renovation_budget_over_under';
+  const rawActualPrice = renovationBudgetRoom
+    ? body?.verified_cost ?? body?.actual_price
+    : body?.actual_price ?? body?.settlement_price;
+  const actualPrice = parsePositiveNumber(rawActualPrice, MAX_ASKING_PRICE);
+  if (actualPrice === null) {
+    return {
+      error: renovationBudgetRoom
+        ? 'Verified renovation cost must be between $1 and $100M'
+        : 'Actual price must be between $1 and $100M',
+    };
+  }
   const settlementInput = { actual_price: actualPrice };
   if (room?.marketFormat === 'rent_yield_over_under') {
     const annualRent = parsePositiveNumber(body?.annual_rent, 10_000_000);
     if (annualRent === null) return { error: 'Annual rent must be between $1 and $10M for rent-yield settlement' };
     settlementInput.settlement_price = actualPrice;
     settlementInput.annual_rent = annualRent;
+  } else if (renovationBudgetRoom) {
+    settlementInput.verified_cost = actualPrice;
   }
   const rawEvidence = Object.prototype.hasOwnProperty.call(body || {}, 'settlement_evidence')
     ? body.settlement_evidence

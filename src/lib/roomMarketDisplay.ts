@@ -3,17 +3,22 @@ import type { Market, RoomMarketConfig } from '../types';
 export const BINARY_MARKET_FORMAT = 'binary_over_under';
 export const RANGE_PRICE_BAND_FORMAT = 'range_price_band';
 export const RENT_YIELD_MARKET_FORMAT = 'rent_yield_over_under';
+export const RENOVATION_BUDGET_MARKET_FORMAT = 'renovation_budget_over_under';
 
 export function isRangeMarket(format?: string | null) {
   return format === RANGE_PRICE_BAND_FORMAT;
 }
 
 export function isBinaryMarket(format?: string | null) {
-  return !format || format === BINARY_MARKET_FORMAT || format === RENT_YIELD_MARKET_FORMAT;
+  return !format || format === BINARY_MARKET_FORMAT || format === RENT_YIELD_MARKET_FORMAT || format === RENOVATION_BUDGET_MARKET_FORMAT;
 }
 
 export function isRentYieldMarket(format?: string | null) {
   return format === RENT_YIELD_MARKET_FORMAT;
+}
+
+export function isRenovationBudgetMarket(format?: string | null) {
+  return format === RENOVATION_BUDGET_MARKET_FORMAT;
 }
 
 export function formatOutcomeLabel(outcome: string) {
@@ -29,6 +34,7 @@ export function formatOutcomeLabel(outcome: string) {
 export function formatMarketLabel(format?: string | null) {
   if (format === RANGE_PRICE_BAND_FORMAT) return 'Range price band';
   if (format === RENT_YIELD_MARKET_FORMAT) return 'Rent yield over/under';
+  if (format === RENOVATION_BUDGET_MARKET_FORMAT) return 'Renovation budget over/under';
   return 'Over/Under';
 }
 
@@ -74,6 +80,20 @@ export function rentYieldSettlementOutcome(annualRent: number, settlementPrice: 
     return '';
   }
   return annualRent / settlementPrice >= threshold ? 'over' : 'under';
+}
+
+export function renovationBudgetThresholdLabel(config?: RoomMarketConfig | null) {
+  const threshold = Number(config?.budget_threshold);
+  if (!Number.isFinite(threshold) || threshold <= 0) return 'configured budget';
+  return formatMoney(threshold);
+}
+
+export function renovationBudgetSettlementOutcome(verifiedCost: number, config?: RoomMarketConfig | null) {
+  const threshold = Number(config?.budget_threshold);
+  if (!Number.isFinite(threshold) || threshold <= 0 || !Number.isFinite(verifiedCost) || verifiedCost <= 0) {
+    return '';
+  }
+  return verifiedCost >= threshold ? 'over' : 'under';
 }
 
 export function roomOutcomeIds(market: Market | null, config?: RoomMarketConfig | null) {

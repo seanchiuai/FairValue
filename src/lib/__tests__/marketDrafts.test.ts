@@ -82,6 +82,13 @@ describe('market draft generation', () => {
     });
     expect(rentYield.valid).toBe(true);
 
+    const renovation = validateMarketDraft({
+      address: '1428 Dolores Street',
+      asking_price: 1_250_000,
+      market_format: 'renovation_budget_over_under',
+    });
+    expect(renovation.valid).toBe(true);
+
     const draftOnly = validateMarketDraft({
       address: '1428 Dolores Street',
       asking_price: 1_250_000,

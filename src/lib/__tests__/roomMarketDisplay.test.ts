@@ -4,6 +4,8 @@ import {
   leadingOutcome,
   outcomeProbability,
   rangeSettlementOutcome,
+  renovationBudgetSettlementOutcome,
+  renovationBudgetThresholdLabel,
   rentYieldSettlementOutcome,
   rentYieldThresholdLabel,
   roomOutcomeIds,
@@ -44,6 +46,12 @@ const rentYieldConfig: RoomMarketConfig = {
   outcomes: ['over', 'under'],
 };
 
+const renovationBudgetConfig: RoomMarketConfig = {
+  market_format: 'renovation_budget_over_under',
+  budget_threshold: 125000,
+  outcomes: ['over', 'under'],
+};
+
 describe('roomMarketDisplay', () => {
   it('labels and ranks range market outcomes', () => {
     expect(formatOutcomeLabel('inside_band')).toBe('Inside band');
@@ -62,5 +70,11 @@ describe('roomMarketDisplay', () => {
     expect(rentYieldThresholdLabel(rentYieldConfig)).toBe('5%');
     expect(rentYieldSettlementOutcome(48_000, 800_000, rentYieldConfig)).toBe('over');
     expect(rentYieldSettlementOutcome(35_000, 800_000, rentYieldConfig)).toBe('under');
+  });
+
+  it('labels and maps renovation budget settlement outcomes', () => {
+    expect(renovationBudgetThresholdLabel(renovationBudgetConfig)).toBe('$125,000');
+    expect(renovationBudgetSettlementOutcome(140_000, renovationBudgetConfig)).toBe('over');
+    expect(renovationBudgetSettlementOutcome(90_000, renovationBudgetConfig)).toBe('under');
   });
 });

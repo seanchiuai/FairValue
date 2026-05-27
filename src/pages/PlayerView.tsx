@@ -10,12 +10,14 @@ import {
   formatMoney,
   formatOutcomeLabel,
   isBinaryMarket,
+  isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
   leadingOutcome,
   outcomeProbability,
   rangeBandLabel,
   rangeOutcomeDescription,
+  renovationBudgetThresholdLabel,
   rentYieldThresholdLabel,
   roomOutcomeIds,
 } from '../lib/roomMarketDisplay';
@@ -224,6 +226,7 @@ export default function PlayerView() {
   const probPercent = Number.isFinite(market.prob_over) ? Math.round(market.prob_over * 100) : 0;
   const isRangeRoom = isRangeMarket(marketFormat);
   const isRentYieldRoom = isRentYieldMarket(marketFormat);
+  const isRenovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
   const isBinaryRoom = isBinaryMarket(marketFormat);
   const rangeOutcomes = isRangeRoom ? roomOutcomeIds(market, marketConfig) : [];
   const leadingRangeOutcome = isRangeRoom ? leadingOutcome(market, marketConfig) : null;
@@ -268,9 +271,13 @@ export default function PlayerView() {
               ? `Range prices come from LMSR probabilities around ${rangeBandLabel(marketConfig)}, not an appraisal.`
               : isRentYieldRoom
                 ? `Rent-yield prices come from LMSR probabilities around ${rentYieldThresholdLabel(marketConfig)} annual yield, not a rent roll.`
+                : isRenovationBudgetRoom
+                  ? `Renovation-budget prices come from LMSR probabilities around ${renovationBudgetThresholdLabel(marketConfig)}, not a construction estimate.`
               : 'Over/Under prices come from LMSR probability, not an appraisal.',
             isRentYieldRoom
               ? 'The host settles with settlement price and annual-rent evidence.'
+              : isRenovationBudgetRoom
+                ? 'The host settles with public-safe renovation cost evidence.'
               : 'The host settles with actual sale or appraisal evidence.',
           ]}
         />
@@ -313,7 +320,7 @@ export default function PlayerView() {
               aria-valuenow={probPercent}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : 'going over asking price'}`}
+              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : isRenovationBudgetRoom ? 'going over renovation budget' : 'going over asking price'}`}
             >
               <div
                 style={{

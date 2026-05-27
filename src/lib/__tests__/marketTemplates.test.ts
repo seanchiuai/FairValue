@@ -30,10 +30,18 @@ describe('market template registry', () => {
         pricing_engine: 'lmsr_binary_v1',
       })
     );
+    expect(getMarketTemplate('renovation_budget_over_under')).toEqual(
+      expect.objectContaining({
+        status: 'playable',
+        pricing_engine: 'lmsr_binary_v1',
+      })
+    );
     expect(isRegisteredMarketFormat('range_price_band')).toBe(true);
     expect(isPlayableMarketFormat('range_price_band')).toBe(true);
     expect(isRegisteredMarketFormat('rent_yield_over_under')).toBe(true);
     expect(isPlayableMarketFormat('rent_yield_over_under')).toBe(true);
+    expect(isRegisteredMarketFormat('renovation_budget_over_under')).toBe(true);
+    expect(isPlayableMarketFormat('renovation_budget_over_under')).toBe(true);
   });
 
   it('returns cloned templates so consumers cannot mutate the registry singleton', () => {

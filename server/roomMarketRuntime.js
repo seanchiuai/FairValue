@@ -18,9 +18,10 @@ const {
 const BINARY_MARKET_FORMAT = 'binary_over_under';
 const RANGE_PRICE_BAND_FORMAT = 'range_price_band';
 const RENT_YIELD_FORMAT = 'rent_yield_over_under';
+const RENOVATION_BUDGET_FORMAT = 'renovation_budget_over_under';
 const RANGE_OUTCOMES = Object.freeze(['below_band', 'inside_band', 'above_band']);
 const BINARY_OUTCOMES = Object.freeze(['over', 'under']);
-const BINARY_LMSR_FORMATS = new Set([BINARY_MARKET_FORMAT, RENT_YIELD_FORMAT]);
+const BINARY_LMSR_FORMATS = new Set([BINARY_MARKET_FORMAT, RENT_YIELD_FORMAT, RENOVATION_BUDGET_FORMAT]);
 const MAX_PRICE = 100_000_000;
 const MAX_ANNUAL_RENT = 10_000_000;
 
@@ -104,6 +105,30 @@ function createMarketConfigForRoom(format, house, rawDraft = {}, liquidityB = DE
         yield_threshold: yieldThreshold,
         threshold_percent: Math.round(yieldThreshold * 10000) / 100,
         settlement_price_hint: askingPrice,
+        outcomes: [...BINARY_OUTCOMES],
+        liquidity_b: liquidityB,
+      },
+    };
+  }
+
+  if (marketFormat === RENOVATION_BUDGET_FORMAT) {
+    const rawThreshold = readFirstPresent(rawDraft, [
+      'budget_threshold',
+      'renovation_budget',
+      'verified_cost_threshold',
+      'target_budget',
+      'threshold',
+    ]);
+    const defaultThreshold = roundMoney(Math.max(25_000, askingPrice * 0.1));
+    const budgetThreshold = rawThreshold === undefined || rawThreshold === null || rawThreshold === ''
+      ? defaultThreshold
+      : positiveNumberOrNull(rawThreshold);
+    if (!budgetThreshold) return { error: 'Renovation budget threshold must be between $1 and $100M' };
+    return {
+      value: {
+        schema_version: 'renovation-budget-over-under-config/v1',
+        market_format: RENOVATION_BUDGET_FORMAT,
+        budget_threshold: roundMoney(budgetThreshold),
         outcomes: [...BINARY_OUTCOMES],
         liquidity_b: liquidityB,
       },
@@ -243,6 +268,16 @@ function winningOutcomeForRoom(room, actualPrice) {
     if (!threshold) throw new Error('Rent yield config is invalid');
     return annualRent / settlementPrice >= threshold ? 'over' : 'under';
   }
+  if (marketFormatFrom(room) === RENOVATION_BUDGET_FORMAT) {
+    const input = typeof actualPrice === 'object' && actualPrice !== null
+      ? actualPrice
+      : { verified_cost: actualPrice };
+    const verifiedCost = positiveNumberOrNull(input.verified_cost ?? input.actual_price);
+    const budgetThreshold = positiveNumberOrNull(marketConfigFrom(room)?.budget_threshold);
+    if (!verifiedCost) throw new Error('verified_cost must be positive');
+    if (!budgetThreshold) throw new Error('Renovation budget config is invalid');
+    return verifiedCost >= budgetThreshold ? 'over' : 'under';
+  }
   if (isRangeMarket(room)) {
     const actual = Number(typeof actualPrice === 'object' && actualPrice !== null ? actualPrice.actual_price : actualPrice);
     const config = marketConfigFrom(room);
@@ -259,6 +294,13 @@ function winningOutcomeForRoom(room, actualPrice) {
 }
 
 function settlementMetricsForRoom(room, settlementInput) {
+  if (marketFormatFrom(room) === RENOVATION_BUDGET_FORMAT) {
+    const verifiedCost = positiveNumberOrNull(settlementInput?.verified_cost ?? settlementInput?.actual_price);
+    return {
+      verified_cost: verifiedCost,
+      budget_threshold: positiveNumberOrNull(marketConfigFrom(room)?.budget_threshold),
+    };
+  }
   if (marketFormatFrom(room) !== RENT_YIELD_FORMAT) return {};
   const settlementPrice = positiveNumberOrNull(settlementInput?.settlement_price ?? settlementInput?.actual_price);
   const annualRent = positiveNumberOrNull(settlementInput?.annual_rent, MAX_ANNUAL_RENT);
@@ -287,6 +329,7 @@ module.exports = {
   BINARY_MARKET_FORMAT,
   RANGE_PRICE_BAND_FORMAT,
   RENT_YIELD_FORMAT,
+  RENOVATION_BUDGET_FORMAT,
   RANGE_OUTCOMES,
   createMarketConfigForRoom,
   createInitialMarketState,

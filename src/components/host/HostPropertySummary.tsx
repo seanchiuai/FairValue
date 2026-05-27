@@ -1,10 +1,12 @@
 import {
   formatMarketLabel,
   formatOutcomeLabel,
+  isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
   leadingOutcome,
   rangeBandLabel,
+  renovationBudgetThresholdLabel,
   rentYieldThresholdLabel,
 } from '../../lib/roomMarketDisplay';
 import type { House, Market, RoomMarketConfig } from '../../types';
@@ -25,6 +27,7 @@ export default function HostPropertySummary({
 }: HostPropertySummaryProps) {
   const rangeRoom = isRangeMarket(marketFormat);
   const rentYieldRoom = isRentYieldMarket(marketFormat);
+  const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
   const leading = leadingOutcome(market, marketConfig);
   const probPercent = rangeRoom
     ? Math.round(leading.probability * 100)
@@ -49,6 +52,7 @@ export default function HostPropertySummary({
           {formatMarketLabel(marketFormat)}
           {rangeRoom ? ` · ${rangeBandLabel(marketConfig)}` : ''}
           {rentYieldRoom ? ` · Threshold ${rentYieldThresholdLabel(marketConfig)}` : ''}
+          {renovationBudgetRoom ? ` · Budget ${renovationBudgetThresholdLabel(marketConfig)}` : ''}
         </div>
       </div>
       <div className="host-property-summary__probability">

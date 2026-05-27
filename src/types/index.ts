@@ -36,6 +36,7 @@ export interface RoomMarketConfig {
   yield_threshold?: number;
   threshold_percent?: number;
   settlement_price_hint?: number;
+  budget_threshold?: number;
   outcomes?: string[];
   liquidity_b?: number;
 }
@@ -255,6 +256,8 @@ export interface SettleResult {
   settlement_price?: number | null;
   annual_rent?: number | null;
   rent_yield?: number | null;
+  verified_cost?: number | null;
+  budget_threshold?: number | null;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
   reputation_summary?: RoomReputationSummary | null;

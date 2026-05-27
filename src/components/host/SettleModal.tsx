@@ -3,10 +3,13 @@ import type { House, RoomMarketConfig, SettlementEvidencePacket } from '../../ty
 import { buildHostAuthHeaders } from '../../lib/fairValueAuth';
 import {
   formatOutcomeLabel,
+  isRenovationBudgetMarket,
   isRangeMarket,
   isRentYieldMarket,
   rangeBandLabel,
   rangeSettlementOutcome,
+  renovationBudgetSettlementOutcome,
+  renovationBudgetThresholdLabel,
   rentYieldSettlementOutcome,
   rentYieldThresholdLabel,
 } from '../../lib/roomMarketDisplay';
@@ -106,6 +109,7 @@ export default function SettleModal({
       return;
     }
     const rentYieldRoom = isRentYieldMarket(marketFormat);
+    const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
     const parsedAnnualRent = parseFloat(annualRent.replace(/,/g, ''));
     if (rentYieldRoom && (isNaN(parsedAnnualRent) || parsedAnnualRent <= 0 || parsedAnnualRent > 10_000_000)) {
       setError('Enter a valid annual rent (up to $10M)');
@@ -157,6 +161,7 @@ export default function SettleModal({
         body: JSON.stringify({
           actual_price: price,
           ...(rentYieldRoom ? { annual_rent: parsedAnnualRent } : {}),
+          ...(renovationBudgetRoom ? { verified_cost: price } : {}),
           ...(settlementEvidence ? { settlement_evidence: settlementEvidence } : {}),
         }),
       });
@@ -210,11 +215,14 @@ export default function SettleModal({
   const parsedAnnualRent = parseFloat(annualRent.replace(/,/g, ''));
   const rangeRoom = isRangeMarket(marketFormat);
   const rentYieldRoom = isRentYieldMarket(marketFormat);
+  const renovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
   const settlementHint = actualPrice && !isNaN(parsedActualPrice)
     ? rentYieldRoom
       ? annualRent && !isNaN(parsedAnnualRent)
         ? `${formatOutcomeLabel(rentYieldSettlementOutcome(parsedAnnualRent, parsedActualPrice, marketConfig))} wins at ${Math.round((parsedAnnualRent / parsedActualPrice) * 10000) / 100}% yield`
         : `enter annual rent; threshold ${rentYieldThresholdLabel(marketConfig)}`
+      : renovationBudgetRoom
+        ? `${formatOutcomeLabel(renovationBudgetSettlementOutcome(parsedActualPrice, marketConfig))} wins vs ${renovationBudgetThresholdLabel(marketConfig)} budget`
       : rangeRoom
       ? `${formatOutcomeLabel(rangeSettlementOutcome(parsedActualPrice, marketConfig))} wins`
       : parsedActualPrice >= house.asking_price
@@ -236,6 +244,8 @@ export default function SettleModal({
         <p id="settle-desc" style={s.desc}>
           {rentYieldRoom
             ? `Enter settlement price and annual rent to resolve against ${rentYieldThresholdLabel(marketConfig)} yield.`
+            : renovationBudgetRoom
+              ? `Enter verified renovation cost to resolve against the ${renovationBudgetThresholdLabel(marketConfig)} budget.`
             : 'Enter the actual appraisal/sale price to determine the winner.'}
           {rangeRoom ? ` Band: ${rangeBandLabel(marketConfig)}.` : ''}
         </p>
@@ -247,19 +257,22 @@ export default function SettleModal({
           points={[
             'Confirm against actual sale or appraisal evidence.',
             ...(rentYieldRoom ? ['Confirm annual rent with lease, rent roll, or public-safe rental evidence.'] : []),
+            ...(renovationBudgetRoom ? ['Confirm renovation cost with invoice, permit, or scope metadata.'] : []),
             'This value decides simulation-credit payouts only.',
             'The settlement is written into the room event history.',
           ]}
         />
         <div style={s.field}>
-          <label style={s.label} htmlFor="settle-actual-price">{rentYieldRoom ? 'Settlement Price ($)' : 'Actual Price ($)'}</label>
+          <label style={s.label} htmlFor="settle-actual-price">
+            {rentYieldRoom ? 'Settlement Price ($)' : renovationBudgetRoom ? 'Verified Cost ($)' : 'Actual Price ($)'}
+          </label>
           <input
             id="settle-actual-price"
             ref={inputRef}
             style={s.input}
             value={actualPrice}
             onChange={(e) => setActualPrice(e.target.value)}
-            aria-label={rentYieldRoom ? 'Settlement price' : 'Actual price'}
+            aria-label={rentYieldRoom ? 'Settlement price' : renovationBudgetRoom ? 'Verified cost' : 'Actual price'}
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={error ? 'settle-error' : undefined}
             placeholder="450,000"

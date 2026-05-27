@@ -17,6 +17,7 @@ export default function HostSettlementResultCard({ settleResult }: HostSettlemen
       : '';
   const evidencePacket = settleResult.evidence_packet;
   const hasRentYield = Number.isFinite(settleResult.rent_yield);
+  const hasRenovationBudget = Number.isFinite(settleResult.verified_cost);
   const rentYieldPercent = hasRentYield ? `${Math.round(Number(settleResult.rent_yield) * 10000) / 100}%` : '';
 
   return (
@@ -26,6 +27,8 @@ export default function HostSettlementResultCard({ settleResult }: HostSettlemen
       <div className="host-settlement-result__actual">
         {hasRentYield
           ? `Settlement: $${settleResult.actual_price.toLocaleString()} · Annual rent: $${Number(settleResult.annual_rent || 0).toLocaleString()} · Yield: ${rentYieldPercent}`
+          : hasRenovationBudget
+            ? `Verified cost: $${Number(settleResult.verified_cost || 0).toLocaleString()} · Budget: $${Number(settleResult.budget_threshold || 0).toLocaleString()}`
           : `Actual: $${settleResult.actual_price.toLocaleString()}`}
       </div>
       <div className={`host-settlement-result__outcome ${outcomeClass}`}>
@@ -56,6 +59,8 @@ export default function HostSettlementResultCard({ settleResult }: HostSettlemen
           'This recap uses simulation credits only.',
           hasRentYield
             ? 'Settlement price and annual rent are host-entered evidence, not a FairValue appraisal or rent roll.'
+            : hasRenovationBudget
+              ? 'Verified cost and budget threshold are host-entered evidence, not a FairValue construction audit.'
             : 'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
           evidencePacket
             ? `${evidencePacket.items.length} public-safe evidence metadata item${evidencePacket.items.length === 1 ? '' : 's'} attached.`
