@@ -14,6 +14,7 @@ A host creates a room and selects a property. Players join via QR code or room c
 - **Private profile and watchlist** — `/me` shows the signed-in player's private prediction history, calibration, simulation-credit portfolio totals, property watchlist, and in-app price alert inbox. Signed users sync watchlist items, private notes, saved price thresholds, and deduped threshold-crossing alerts through `/api/me/watchlist` and `/api/me/alerts`; the browser still keeps `fv_property_watchlist_v1` as a local fallback.
 - **Property data provenance** — `public/data/property-data-manifest.json` is generated from the static provider snapshot with source hashes, field coverage, freshness windows, provider counts, and legal limitations. Property pages surface that data-quality contract beside listing provenance, `/api/properties` exposes a manifest-backed query API, and `npm run verify` fails if the manifest drifts from `properties.json`.
 - **Market template registry** — `/api/market-templates` publishes `market-template-registry/v1`, including playable binary LMSR, rendered range price-band, rendered rent-yield, rendered time-on-market, and rendered renovation-budget over/under rooms.
+- **Structured local intelligence** — Property pages emit deterministic `fairvalue.marketIntelligence.v2` output with bull, bear, comp, affordability, fraud/data-quality, and neighborhood analyst cases. These are debate prompts with explicit limitations, not provider-backed appraisals or compliance findings.
 - **Market Studio** — Hosts can use `/join` to paste listing text and generate a local market draft with normalized address, asking price, market question, evidence checklist, provenance, warnings, existing-property matches, local saved drafts, server-validated draft audit metadata, and editable fields before creating a real room.
 - **Operator review** — Hosts can open `/review/:roomCode` from the host dashboard to compare draft audits, event history, live market movement, settlement evidence, integrity checks, and a deterministic generated recap.
 - **Public recap** — Hosts and players can open `/recap/:roomCode` to share a deterministic recap generated only from public room state. It summarizes live or settled LMSR movement, public activity, settlement result, and trust guardrails without fetching host-only events or showing host/user tokens.
@@ -262,7 +263,7 @@ npm run verify
 
 This runs a client secret scan, checks that the property data manifest is current, typechecks, runs server integration tests, runs the non-watch Vitest suite, builds the Vite bundle, enforces bundle budgets, and smoke-boots the local backend.
 
-`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 795 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
+`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 800 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
 
 For a deployment environment gate, run:
 

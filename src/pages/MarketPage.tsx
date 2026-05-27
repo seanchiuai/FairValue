@@ -397,6 +397,23 @@ const MarketPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="intelligence-agent-network" aria-label="Analyst case network">
+            <h3><Sparkles size={16} /> Analyst case network</h3>
+            <div className="agent-case-list">
+              {intelligence.analyst_cases.map((agentCase) => (
+                <article key={agentCase.role} className={`agent-case ${agentCase.tone}`}>
+                  <span className="agent-case-label">{agentCase.label}</span>
+                  <ul>
+                    {agentCase.evidence.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                  <p className="agent-case-limitation">{agentCase.limitation}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
           <div className="intelligence-prompts" aria-label="Scenario prompts">
             <h3><Target size={16} /> Scenario prompts</h3>
             <div className="prompt-list">

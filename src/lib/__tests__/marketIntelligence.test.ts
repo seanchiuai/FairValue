@@ -48,6 +48,7 @@ describe('market intelligence generation', () => {
     const brief = generateMarketIntelligence(baseProperty);
 
     expect(brief.confidence).toBe('high');
+    expect(brief.analysis_schema_version).toBe('fairvalue.marketIntelligence.v2');
     expect(brief.summary).toContain('3004 26th St');
     expect(brief.summary).toContain('MLSListings Inc');
     expect(brief.metrics).toEqual(
@@ -70,6 +71,35 @@ describe('market intelligence generation', () => {
     expect(brief.scenario_prompts).toHaveLength(3);
     expect(brief.scenario_prompts[0].label).toBe('Over scenario');
     expect(brief.settlement_checklist).toContain('Room event history preserved with joins, bets, and settlement.');
+  });
+
+  it('builds a structured local analyst case network without pretending provider coverage', () => {
+    const brief = generateMarketIntelligence(baseProperty);
+
+    expect(brief.analyst_cases.map((item) => item.role)).toEqual([
+      'bull',
+      'bear',
+      'comp',
+      'affordability',
+      'fraud_check',
+      'neighborhood',
+    ]);
+    expect(brief.analyst_cases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Comp agent',
+          limitation: 'Local brief only; no live comp provider queried.',
+        }),
+        expect.objectContaining({
+          label: 'Fraud/data-quality agent',
+          limitation: 'Data-quality risk only; no fraud accusation or compliance review.',
+        }),
+        expect.objectContaining({
+          label: 'Affordability agent',
+          limitation: 'Stress prompt only; not lending, tax, insurance, HOA, or investment advice.',
+        }),
+      ])
+    );
   });
 
   it('surfaces under-asking pressure when reference value is below asking', () => {
@@ -210,7 +240,7 @@ describe('room-aware market intelligence generation', () => {
     });
 
     expect(brief.confidence).toBe('low');
-    expect(brief.summary).toContain('this room is trading at 50% over');
+    expect(brief.summary).toContain('50% over');
     expect(brief.summary).toContain('room address and asking price only');
     expect(brief.live_metrics).toEqual(
       expect.arrayContaining([

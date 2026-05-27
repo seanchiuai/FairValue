@@ -666,6 +666,68 @@
   line-height: 1.45;
 }
 
+.intelligence-agent-network {
+  padding: 16px 0;
+  border-top: 1px solid #ECE3D0;
+  border-bottom: 1px solid #ECE3D0;
+  margin-bottom: 16px;
+}
+
+.intelligence-agent-network h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  color: #2B2924;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.agent-case-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.agent-case {
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 4px solid #7A766B;
+}
+
+.agent-case.positive { border-left-color: #0B6F32; }
+.agent-case.negative { border-left-color: #B42318; }
+.agent-case.caution { border-left-color: #A65F00; }
+
+.agent-case-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #6B6254;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.agent-case-limitation {
+  margin: 0;
+  color: #3A342A;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.agent-case ul {
+  margin: 8px 0;
+  padding-left: 18px;
+  color: #4D473C;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.agent-case-limitation {
+  color: #6B6254;
+  font-size: 12px;
+}
+
 .intelligence-prompts {
   padding: 16px 0;
   border-top: 1px solid #ECE3D0;
@@ -1178,6 +1240,7 @@
   .intelligence-head { flex-direction: column; gap: 10px; }
   .intelligence-confidence { align-self: flex-start; }
   .intelligence-cases,
+  .agent-case-list,
   .prompt-list {
     grid-template-columns: 1fr;
   }

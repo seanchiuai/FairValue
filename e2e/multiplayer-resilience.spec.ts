@@ -453,6 +453,9 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Gross rent yield');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Bull case');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Bear case');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Analyst case network');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Fraud/data-quality agent');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Affordability agent');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Scenario prompts');
     await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Settlement checklist');
     await expectNoSeriousAxeViolations(desktop, 'desktop market trust explainer');
@@ -462,6 +465,7 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(mobile.getByTestId('market-trust-section')).toContainText('play-money credits');
     await expect(mobile.getByTestId('market-trust-section')).toContainText('LMSR market probability');
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Market Intelligence', { timeout: 15_000 });
+    await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Analyst case network');
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Uncertainty map');
     await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Settlement checklist');
     await expectNoSeriousAxeViolations(mobile, 'mobile market trust explainer');
