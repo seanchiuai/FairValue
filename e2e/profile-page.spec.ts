@@ -112,6 +112,8 @@ test('signed-in profile route renders private prediction history from settled ro
   );
 
   await page.goto(`/market/${watchProperty.id}`);
+  await expect(page.getByTestId('market-trust-section')).toContainText('Data quality contract');
+  await expect(page.getByTestId('market-trust-section')).toContainText('source hash');
   await page.getByRole('button', { name: 'Add to watchlist' }).click();
   await expect(page.getByRole('button', { name: 'Remove from watchlist' })).toBeVisible();
 

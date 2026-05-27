@@ -1,0 +1,964 @@
+{
+  "schema_version": "fairvalue.propertyDataManifest.v1",
+  "dataset_id": "fairvalue-static-zillow-san-francisco-snapshot",
+  "source_kind": "static_provider_snapshot",
+  "source_files": [
+    {
+      "path": "public/data/properties.json",
+      "bytes": 7871542,
+      "sha256": "b4c4f2bb4ed76b07e10d80d420590d29aa60dca43a1e8aaaaafbcbb83882401e"
+    }
+  ],
+  "property_count": 50,
+  "provider_summary": [
+    {
+      "provider": "SFAR",
+      "count": 29
+    },
+    {
+      "provider": "Legacy",
+      "count": 16
+    },
+    {
+      "provider": "MLSListings Inc",
+      "count": 5
+    }
+  ],
+  "freshness": {
+    "dated_records": 50,
+    "undated_records": 0,
+    "earliest_observed_at": "2021-08-17",
+    "latest_observed_at": "2026-02-07"
+  },
+  "field_coverage": [
+    {
+      "field": "zpid",
+      "label": "Provider property id",
+      "critical": true,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "address",
+      "label": "Street address",
+      "critical": true,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "price",
+      "label": "Asking price",
+      "critical": true,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "zestimate",
+      "label": "Zestimate",
+      "critical": false,
+      "present": 46,
+      "missing": 4,
+      "coverage_percent": 92
+    },
+    {
+      "field": "rentZestimate",
+      "label": "Rent estimate",
+      "critical": false,
+      "present": 49,
+      "missing": 1,
+      "coverage_percent": 98
+    },
+    {
+      "field": "bedrooms",
+      "label": "Bedrooms",
+      "critical": false,
+      "present": 45,
+      "missing": 5,
+      "coverage_percent": 90
+    },
+    {
+      "field": "bathrooms",
+      "label": "Bathrooms",
+      "critical": false,
+      "present": 47,
+      "missing": 3,
+      "coverage_percent": 94
+    },
+    {
+      "field": "livingArea",
+      "label": "Living area",
+      "critical": false,
+      "present": 45,
+      "missing": 5,
+      "coverage_percent": 90
+    },
+    {
+      "field": "yearBuilt",
+      "label": "Year built",
+      "critical": false,
+      "present": 42,
+      "missing": 8,
+      "coverage_percent": 84
+    },
+    {
+      "field": "homeType",
+      "label": "Home type",
+      "critical": false,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "propertyTaxRate",
+      "label": "Property tax rate",
+      "critical": false,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "schools",
+      "label": "Schools",
+      "critical": false,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "priceHistory",
+      "label": "Price history",
+      "critical": false,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "attributionInfo",
+      "label": "Attribution",
+      "critical": false,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "coordinates",
+      "label": "Coordinates",
+      "critical": false,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    },
+    {
+      "field": "photos",
+      "label": "Photos",
+      "critical": false,
+      "present": 50,
+      "missing": 0,
+      "coverage_percent": 100
+    }
+  ],
+  "legal_limitations": [
+    "This is a static provider snapshot, not a live listing feed.",
+    "MLS/Zillow attribution remains the source of record; FairValue does not verify measurements, calculations, school data, estimates, or listing status.",
+    "Prediction markets must settle from independent public-safe evidence such as sale records, appraisals, or host-attested documents."
+  ],
+  "records": [
+    {
+      "property_id": "440298192",
+      "address": "3004 26th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "MLSListings Inc",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "8407ec820355733254caf739e1956370218a2250e69eb05344bbc342568ce84a",
+        "excerpt": "Based on information from the MLSListings MLS as of 2026-02-07 14:00:29 PST. All data, including all measurements and calculations of area, is obtained from various sources and ha..."
+      }
+    },
+    {
+      "property_id": "2061100130",
+      "address": "3002 26th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "MLSListings Inc",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "8407ec820355733254caf739e1956370218a2250e69eb05344bbc342568ce84a",
+        "excerpt": "Based on information from the MLSListings MLS as of 2026-02-07 14:00:29 PST. All data, including all measurements and calculations of area, is obtained from various sources and ha..."
+      }
+    },
+    {
+      "property_id": "184817623",
+      "address": "45 Bartlett St Unit 417",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "2061812083",
+      "address": "3000 26th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "MLSListings Inc",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "1afef1807c9d8fedd5113dd17e15bedb3452783525d82cac7ee0eaf2cd67e236",
+        "excerpt": "Based on information from the MLSListings MLS as of 2026-02-07 13:00:28 PST. All data, including all measurements and calculations of area, is obtained from various sources and ha..."
+      }
+    },
+    {
+      "property_id": "15163207",
+      "address": "3954 Folsom St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2026-01-09",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "457974758",
+      "address": "2926 25th St #2926",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "449336880",
+      "address": "350 San Jose Ave #6",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "15162713",
+      "address": "108 Cortland Ave",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "MLSListings Inc",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "8407ec820355733254caf739e1956370218a2250e69eb05344bbc342568ce84a",
+        "excerpt": "Based on information from the MLSListings MLS as of 2026-02-07 14:00:29 PST. All data, including all measurements and calculations of area, is obtained from various sources and ha..."
+      }
+    },
+    {
+      "property_id": "331633000",
+      "address": "139-141 Kingston St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-12-24",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "111711170",
+      "address": "2125 Bryant St APT 403",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "338980483",
+      "address": "3310 Mission St #2",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "82785799",
+      "address": "3452 A 18th St #A",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-12-19",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "2075615777",
+      "address": "3452 18th St #A",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "livingArea"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "457350880",
+      "address": "2922 25th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "59700399",
+      "address": "2130 Harrison St APT 10",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "456520495",
+      "address": "350 San Jose Ave #12",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "456539638",
+      "address": "150 San Carlos St #A",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "111711177",
+      "address": "2101 Bryant St APT 107",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "zestimate"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "460272086",
+      "address": "250-256 Coleridge St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-12-11",
+      "field_coverage_percent": 81.3,
+      "missing_fields": [
+        "zestimate",
+        "rentZestimate",
+        "bedrooms"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "80733268",
+      "address": "3118 18th St APT 6",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "249664599",
+      "address": "2677 Harrison St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 68.8,
+      "missing_fields": [
+        "zestimate",
+        "bedrooms",
+        "bathrooms",
+        "livingArea",
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "2112151784",
+      "address": "2946 22nd St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "332861212",
+      "address": "1384-1386 Florida St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-12-04",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "2101945516",
+      "address": "2169 Folsom St APT A100",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-24",
+      "field_coverage_percent": 81.3,
+      "missing_fields": [
+        "bedrooms",
+        "bathrooms",
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "125243058",
+      "address": "1506 Dolores St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-26",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "2078456186",
+      "address": "150 San Carlos St #150",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "332862615",
+      "address": "14-16 Lucky St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "MLSListings Inc",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "8407ec820355733254caf739e1956370218a2250e69eb05344bbc342568ce84a",
+        "excerpt": "Based on information from the MLSListings MLS as of 2026-02-07 14:00:29 PST. All data, including all measurements and calculations of area, is obtained from various sources and ha..."
+      }
+    },
+    {
+      "property_id": "15152431",
+      "address": "1222 York St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-17",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "456802482",
+      "address": "1222 York St Unit C",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "332859532",
+      "address": "150-152A San Carlos St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-19",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "2057324581",
+      "address": "1222 York St Unit A",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "livingArea"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "184818106",
+      "address": "340 San Jose Ave",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "119685079",
+      "address": "49 Liberty St APT 2",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "82785812",
+      "address": "3470 20th St #2",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "241586805",
+      "address": "3266-3270 24th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "325728762",
+      "address": "3214 17th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-10",
+      "field_coverage_percent": 87.5,
+      "missing_fields": [
+        "zestimate",
+        "bedrooms"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "456708045",
+      "address": "3214-3216 17th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "bathrooms"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "15162476",
+      "address": "255 Bocana St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "332862103",
+      "address": "334 Alemany Blvd",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-06",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "2122855931",
+      "address": "334 Alemany Blvd APT 3",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "456762370",
+      "address": "250 Coleridge St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "96012978",
+      "address": "2553A Folsom St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-10-31",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "119684784",
+      "address": "23 Richland Ave",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "457189125",
+      "address": "129 Ellert St #1/2",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "livingArea"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "305155225",
+      "address": "129 Ellert St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-10-22",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "2098960305",
+      "address": "2758 23rd St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "53153433",
+      "address": "88 Hoff St APT 108",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    },
+    {
+      "property_id": "332862604",
+      "address": "3130-3132 25th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2025-11-26",
+      "field_coverage_percent": 87.5,
+      "missing_fields": [
+        "bedrooms",
+        "yearBuilt"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "15162781",
+      "address": "129 Ellert St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "Legacy",
+      "last_observed_at": "2021-08-17",
+      "field_coverage_percent": 93.8,
+      "missing_fields": [
+        "livingArea"
+      ],
+      "missing_critical_fields": [],
+      "legal_disclaimer": null
+    },
+    {
+      "property_id": "2077537713",
+      "address": "2920 25th St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110",
+      "provider_source": "SFAR",
+      "last_observed_at": "2026-02-07",
+      "field_coverage_percent": 100,
+      "missing_fields": [],
+      "missing_critical_fields": [],
+      "legal_disclaimer": {
+        "sha256": "34feb82d3b504ff6f2e1c0849d16862d53d707b2369d80ddf7541da1bc873ea0",
+        "excerpt": "IDX information is provided exclusively for personal, non-commercial use, and may not be used for any purpose other than to identify prospective properties consumers may be intere..."
+      }
+    }
+  ]
+}

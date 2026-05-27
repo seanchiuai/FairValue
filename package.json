@@ -41,9 +41,11 @@
     "typecheck": "tsc --noEmit",
     "check:bundle": "node scripts/check-bundle-size.js",
     "check:production": "node scripts/check-production-readiness.js",
+    "data:manifest": "node scripts/property-data-manifest.js",
+    "check:data": "node scripts/property-data-manifest.js --check",
     "test:server": "node --test server/__tests__/*.test.js",
     "scan:secrets": "node scripts/scan-client-secrets.js",
-    "verify": "npm run scan:secrets && npm run typecheck && npm run test:server && npm test && npm run build && npm run check:bundle && npm run smoke:boot"
+    "verify": "npm run scan:secrets && npm run check:data && npm run typecheck && npm run test:server && npm test && npm run build && npm run check:bundle && npm run smoke:boot"
   },
   "browserslist": {
     "production": [

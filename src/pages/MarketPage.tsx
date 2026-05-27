@@ -26,6 +26,7 @@ import {
   Target
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
+import { usePropertyDataManifest } from '../data/propertyManifest';
 import { useSession } from '../hooks/useSession';
 import { usePropertyWatchlist } from '../hooks/usePropertyWatchlist';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
@@ -50,6 +51,14 @@ async function readJson<T>(response: Response): Promise<T> {
 
 function formatDataTimestamp(value?: string | null) {
   if (!value) return null;
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateOnly) {
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
   const parsed = new Date(value.replace(' ', 'T'));
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString(undefined, {
@@ -63,6 +72,7 @@ const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
   const navigate = useNavigate();
   const { properties, loading } = useProperties();
+  const { manifest, loading: manifestLoading } = usePropertyDataManifest();
   const { ensureIdentity } = useSession();
   const { isWatched, toggleProperty } = usePropertyWatchlist();
   const { showToast } = useToast();
@@ -181,6 +191,22 @@ const MarketPage: React.FC = () => {
       || null
   );
   const freshnessLabel = freshnessDate ? ` Checked ${freshnessDate}.` : '';
+  const manifestRecord = manifest?.records.find((record) => record.property_id === property.id) || null;
+  const sourceHash = manifest?.source_files[0]?.sha256.slice(0, 12) || null;
+  const latestObserved = formatDataTimestamp(manifest?.freshness.latest_observed_at || null);
+  const providerSummary = manifest?.provider_summary.slice(0, 2).map((entry) => `${entry.provider} (${entry.count})`).join(', ');
+  const dataQualityText = manifestRecord
+    ? `${manifestRecord.field_coverage_percent}% tracked-field coverage; ${
+        manifestRecord.missing_critical_fields.length
+          ? `missing critical fields: ${manifestRecord.missing_critical_fields.join(', ')}`
+          : 'critical fields present'
+      }.`
+    : manifestLoading
+      ? 'Dataset manifest loading.'
+      : 'Dataset manifest unavailable for this property.';
+  const datasetText = manifest
+    ? `${manifest.property_count} records, latest source observation ${latestObserved || 'undated'}, providers ${providerSummary || 'unspecified'}, source hash ${sourceHash}.`
+    : 'The manifest check runs in repo verification so stale static data changes fail fast.';
   const intelligence = generateMarketIntelligence(property);
   const watched = isWatched(property.id);
 
@@ -303,6 +329,13 @@ const MarketPage: React.FC = () => {
               <div>
                 <span className="trust-row-title">Listing provenance</span>
                 <p>Property context comes from {provenanceSource}.{freshnessLabel} Zestimate, rent, tax, and school values are reference data, not settlement authority.</p>
+              </div>
+            </div>
+            <div className="market-trust-row">
+              <ListChecks size={17} aria-hidden="true" />
+              <div>
+                <span className="trust-row-title">Data quality contract</span>
+                <p>{dataQualityText} {datasetText}</p>
               </div>
             </div>
             <div className="market-trust-row">
