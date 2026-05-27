@@ -62,6 +62,10 @@ function formatProbability(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function formatScore(value: number | null | undefined) {
+  return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}/100` : 'Unscored';
+}
+
 function winnerFor(actualPrice: number, askingPrice: number) {
   return actualPrice >= askingPrice ? 'over' : 'under';
 }
@@ -155,6 +159,8 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
   const impliedPrice = calculateImpliedPrice(overProbability, house.asking_price);
   const tradeDepth = market.total_trades;
   const hasEventLog = events.length > 0;
+  const reputation = settlement?.reputation_summary || null;
+  const topReputationPlayer = reputation?.top_players?.[0];
   const status: RoomReviewReport['status'] = settled
     ? 'settled'
     : tradeDepth > 0
@@ -201,6 +207,15 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
         detail: `${settlement.evidence_packet.summary} Sources: ${settlement.evidence_packet.items.map((item) => `${item.label} (${item.confidence})`).join('; ')}.`,
       });
     }
+    if (reputation) {
+      evidence.push({
+        label: 'Reputation calibration',
+        value: `${reputation.eligible_player_count} scored player${reputation.eligible_player_count === 1 ? '' : 's'}`,
+        detail: topReputationPlayer
+          ? `${topReputationPlayer.nickname} leads at ${formatScore(topReputationPlayer.calibration_score)}; room average is ${formatScore(reputation.average_calibration_score)} across ${reputation.total_bets} public bet${reputation.total_bets === 1 ? '' : 's'}.`
+          : `Room average is ${formatScore(reputation.average_calibration_score)} across ${reputation.total_bets} public bet${reputation.total_bets === 1 ? '' : 's'}.`,
+      });
+    }
   }
 
   const integrityChecks = [
@@ -216,6 +231,9 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
     settlement?.evidence_packet
       ? `Settlement evidence packet is ${settlement.evidence_packet.status.replace(/_/g, ' ')} with ${settlement.evidence_packet.items.length} public-safe metadata item${settlement.evidence_packet.items.length === 1 ? '' : 's'}.`
       : 'Settlement evidence packet has not been recorded yet.',
+    reputation
+      ? `Reputation summary ${reputation.schema_version} scored ${reputation.eligible_player_count} player${reputation.eligible_player_count === 1 ? '' : 's'} without session IDs.`
+      : 'Reputation calibration is pending until settlement produces a scoreable room summary.',
     'All balances and payouts are simulation credits only.',
   ];
 
@@ -229,6 +247,9 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
     settlement
       ? `Settlement recap: ${settlement.winning_outcome.toUpperCase()} won at ${formatMoney(settlement.actual_price)}.`
       : 'Settlement recap is pending until the host records an actual sale, appraisal, or signed valuation.',
+    reputation
+      ? `Calibration recap: ${reputation.eligible_player_count} player${reputation.eligible_player_count === 1 ? '' : 's'} averaged ${formatScore(reputation.average_calibration_score)} in this settled room.`
+      : 'Calibration recap is pending until the room settles.',
   ];
 
   return {
@@ -269,6 +290,18 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
         value: settlement ? settlement.winning_outcome.toUpperCase() : 'Pending',
         detail: settlement ? `Actual value ${formatMoney(settlement.actual_price)}.` : 'Host has not settled this room.',
         tone: settlement ? 'positive' : 'neutral',
+      },
+      {
+        label: 'Calibration',
+        value: reputation ? formatScore(reputation.average_calibration_score) : 'Pending',
+        detail: reputation
+          ? `${reputation.eligible_player_count} scored player${reputation.eligible_player_count === 1 ? '' : 's'}; ${reputation.reason_count} public reason${reputation.reason_count === 1 ? '' : 's'} counted.`
+          : 'Room reputation scores are created at settlement.',
+        tone: reputation?.average_calibration_score == null
+          ? 'neutral'
+          : reputation.average_calibration_score >= 80
+            ? 'positive'
+            : 'caution',
       },
     ],
     evidence,

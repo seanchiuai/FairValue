@@ -186,6 +186,52 @@ describe('room review generation', () => {
         results: [
           { nickname: 'Ada', payout: 48.2, final_balance: 998.2 },
         ],
+        reputation_summary: {
+          schema_version: 'room-reputation/v1',
+          scoring_model: 'single-room-brier-v1',
+          status: 'settled',
+          winning_outcome: 'over',
+          player_count: 1,
+          eligible_player_count: 1,
+          total_bets: 1,
+          reason_count: 1,
+          correct_bets: 1,
+          accuracy: 1,
+          average_entry_confidence: 0.62,
+          average_brier_score: 0.144,
+          average_calibration_score: 86,
+          top_players: [
+            {
+              rank: 1,
+              nickname: 'Ada',
+              badge: 'well_calibrated_reasoner',
+              bet_count: 1,
+              reason_count: 1,
+              accuracy: 1,
+              calibration_score: 86,
+            },
+          ],
+          players: [
+            {
+              rank: 1,
+              nickname: 'Ada',
+              bet_count: 1,
+              reason_count: 1,
+              correct_bets: 1,
+              incorrect_bets: 0,
+              total_wagered: 50,
+              winning_wagered: 50,
+              accuracy: 1,
+              average_entry_confidence: 0.62,
+              average_brier_score: 0.144,
+              calibration_score: 86,
+              payout: 48.2,
+              final_balance: 998.2,
+              badge: 'well_calibrated_reasoner',
+            },
+          ],
+          limitations: ['Single-room simulation signal.'],
+        },
       },
       eventSequence: 8,
     });
@@ -197,10 +243,16 @@ describe('room review generation', () => {
         expect.objectContaining({ label: 'Event history', value: 'Locked' }),
         expect.objectContaining({ label: 'Settlement evidence', value: 'OVER at $835,000' }),
         expect.objectContaining({ label: 'Settlement evidence packet', value: '1 public item' }),
+        expect.objectContaining({ label: 'Reputation calibration', value: '1 scored player' }),
       ])
     );
+    expect(review.metrics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Calibration', value: '86/100' }),
+    ]));
     expect(review.integrity_checks).toContain('Settlement outcome OVER matches the asking-price comparison.');
     expect(review.integrity_checks.join(' ')).toContain('metadata attached');
+    expect(review.integrity_checks.join(' ')).toContain('room-reputation/v1');
     expect(review.recap).toContain('Settlement recap: OVER won at $835,000.');
+    expect(review.recap).toContain('Calibration recap: 1 player averaged 86/100 in this settled room.');
   });
 });

@@ -117,6 +117,53 @@ export interface SettleResultEntry {
   final_balance: number;
 }
 
+export interface PlayerReputationEntry {
+  rank: number | null;
+  nickname: string;
+  bet_count: number;
+  reason_count: number;
+  correct_bets: number;
+  incorrect_bets: number;
+  total_wagered: number;
+  winning_wagered: number;
+  accuracy: number | null;
+  average_entry_confidence: number | null;
+  average_brier_score: number | null;
+  calibration_score: number | null;
+  payout: number;
+  final_balance: number;
+  badge: string;
+}
+
+export interface ReputationLeader {
+  rank: number | null;
+  nickname: string;
+  badge: string;
+  bet_count: number;
+  reason_count: number;
+  accuracy: number | null;
+  calibration_score: number | null;
+}
+
+export interface RoomReputationSummary {
+  schema_version: string;
+  scoring_model: string;
+  status: 'settled' | 'unscored';
+  winning_outcome: string | null;
+  player_count: number;
+  eligible_player_count: number;
+  total_bets: number;
+  reason_count: number;
+  correct_bets: number;
+  accuracy: number | null;
+  average_entry_confidence: number | null;
+  average_brier_score: number | null;
+  average_calibration_score: number | null;
+  top_players: ReputationLeader[];
+  players: PlayerReputationEntry[];
+  limitations: string[];
+}
+
 export interface SettlementEvidenceItem {
   type: string;
   label: string;
@@ -141,6 +188,7 @@ export interface SettleResult {
   actual_price: number;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
+  reputation_summary?: RoomReputationSummary | null;
 }
 
 export interface PublicVerificationArtifact {
@@ -165,6 +213,11 @@ export interface PublicVerificationArtifact {
     evidence_packet_status: string;
     evidence_packet_hash: string | null;
     evidence_item_count: number;
+    reputation_schema_version?: string | null;
+    reputation_player_count?: number;
+    reputation_eligible_player_count?: number;
+    reputation_average_calibration_score?: number | null;
+    reputation_top_players?: ReputationLeader[];
   } | null;
   public_recap: {
     digest_hash: string;
@@ -214,6 +267,7 @@ export type WsSettleMessage = {
   actual_price: number;
   results: SettleResultEntry[];
   evidence_packet?: SettlementEvidencePacket | null;
+  reputation_summary?: RoomReputationSummary | null;
   phase?: RoomPhase;
   activity?: ActivityEntry;
 };

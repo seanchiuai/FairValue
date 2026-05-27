@@ -19,6 +19,7 @@ const { createReplayIntegrityReport } = require('./replayIntegrity');
 const { createRoomPersistence } = require('./roomPersistence');
 const { validateSettlementEvidencePayload } = require('./settlementEvidence');
 const { createPublicVerificationArtifact } = require('./publicVerification');
+const { createRoomReputationSummary } = require('./playerReputation');
 const observability = require('./observability');
 const {
   DEFAULT_B,
@@ -1750,13 +1751,25 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
     room.players[player.session_id] = player;
   }
   const { results } = settlement;
+  const reputation_summary = createRoomReputationSummary(Object.values(room.players), {
+    winning_outcome: winningOutcome,
+    actual_price,
+    results,
+  });
 
-  room.settlement = { winning_outcome: winningOutcome, actual_price, results, evidence_packet };
+  room.settlement = {
+    winning_outcome: winningOutcome,
+    actual_price,
+    results,
+    evidence_packet,
+    reputation_summary,
+  };
   const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
     actual_price,
     winning_outcome: winningOutcome,
     evidence_packet,
     results,
+    reputation_summary,
     settlement: room.settlement,
     room_phase: room.phase,
     players: Object.values(room.players).map((player) => cloneJson(player)),

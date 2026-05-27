@@ -133,6 +133,11 @@ test('public verification artifact is signed, replay-backed, and share-safe', as
   assert.match(verification.data.public_recap.digest_hash, /^[a-f0-9]{64}$/);
   assert.match(verification.data.settlement.evidence_packet_hash, /^[a-f0-9]{64}$/);
   assert.equal(verification.data.settlement.evidence_item_count, 1);
+  assert.equal(verification.data.settlement.reputation_schema_version, 'room-reputation/v1');
+  assert.equal(verification.data.settlement.reputation_player_count, 1);
+  assert.equal(verification.data.settlement.reputation_eligible_player_count, 1);
+  assert.equal(typeof verification.data.settlement.reputation_average_calibration_score, 'number');
+  assert.equal(verification.data.settlement.reputation_top_players[0].nickname, 'Verify Player');
   assert.equal(verification.data.signature.status, 'signed');
   assert.equal(verification.data.signature.algorithm, 'HMAC-SHA256');
   assert.equal(verification.data.signature.key_hint, 'FAIRVALUE_PUBLIC_VERIFICATION_SECRET');

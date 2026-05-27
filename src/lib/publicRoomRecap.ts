@@ -43,6 +43,10 @@ function formatProbability(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function formatScore(value: number | null | undefined) {
+  return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}/100` : 'Unscored';
+}
+
 function recentBets(activity: ActivityEntry[]) {
   return activity
     .filter((entry) => entry.type === 'bet' && entry.outcome && typeof entry.wager === 'number')
@@ -95,6 +99,11 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
   const settlementLine = settlement
     ? `${settlement.winning_outcome.toUpperCase()} won at ${formatMoney(settlement.actual_price)}.`
     : 'Settlement has not been recorded yet.';
+  const reputation = settlement?.reputation_summary || null;
+  const topReputationPlayer = reputation?.top_players?.[0];
+  const reputationLine = reputation
+    ? `${reputation.eligible_player_count} scored player${reputation.eligible_player_count === 1 ? '' : 's'} averaged ${formatScore(reputation.average_calibration_score)} calibration.`
+    : 'Reputation and calibration are pending until settlement.';
 
   const evidence: PublicRecapEvidence[] = [
     {
@@ -124,6 +133,15 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
         detail: `${settlement.evidence_packet.summary} FairValue stores public-safe metadata, not private document contents.`,
       });
     }
+    if (reputation) {
+      evidence.push({
+        label: 'Reputation and calibration',
+        value: `${reputation.eligible_player_count} scored player${reputation.eligible_player_count === 1 ? '' : 's'}`,
+        detail: topReputationPlayer
+          ? `Average calibration is ${formatScore(reputation.average_calibration_score)} using ${reputation.total_bets} public bet${reputation.total_bets === 1 ? '' : 's'}; top signal is ${topReputationPlayer.nickname} at ${formatScore(topReputationPlayer.calibration_score)}.`
+          : `Average calibration is ${formatScore(reputation.average_calibration_score)} using ${reputation.total_bets} public bet${reputation.total_bets === 1 ? '' : 's'}.`,
+      });
+    }
   }
 
   return {
@@ -139,6 +157,7 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
         ? `Latest public movement: ${latestBets.map((bet) => `${bet.nickname || 'player'} ${String(bet.outcome).toUpperCase()} ${formatMoney(bet.wager)}`).join('; ')}.`
         : 'No public player bets are available in this recap yet.',
       settlementLine,
+      reputationLine,
     ],
     evidence,
     guardrails: [
@@ -146,6 +165,7 @@ export function generatePublicRoomRecap(input: PublicRoomRecapInput): PublicRoom
       'This recap is not a FairValue appraisal, investment product, or real-money market.',
       'Host-only event log is not included, and host tokens/user tokens are never shown here.',
       'Settlement evidence packets include public-safe metadata only, not private document contents.',
+      'Reputation and calibration are single-room simulation signals, not professional rankings.',
       'No provider-backed comps were queried for this public recap.',
     ],
     timeline: buildTimeline(activity),

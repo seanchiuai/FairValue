@@ -199,6 +199,78 @@ test('settlement evidence packet is sanitized, replayed, and kept public-safe', 
   assert.equal(JSON.stringify(replay.data).includes(room.host_token), false);
 });
 
+test('settlement creates replayed reputation calibration without leaking session IDs', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+  const hostHeaders = { 'X-FairValue-Host-Token': room.host_token };
+
+  const ada = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'reputation-ada-session', nickname: 'Ada' },
+  });
+  assert.equal(ada.status, 200);
+  const lin = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'reputation-lin-session', nickname: 'Lin' },
+  });
+  assert.equal(lin.status, 200);
+
+  const adaBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'reputation-ada-bet-001' },
+    body: {
+      session_id: 'reputation-ada-session',
+      outcome: 'over',
+      wager: 50,
+      reason: 'Tour comps point over the ask.',
+    },
+  });
+  assert.equal(adaBet.status, 200);
+
+  const linBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'reputation-lin-bet-001' },
+    body: {
+      session_id: 'reputation-lin-session',
+      outcome: 'under',
+      wager: 25,
+    },
+  });
+  assert.equal(linBet.status, 200);
+
+  const settled = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: hostHeaders,
+    body: { actual_price: 650000 },
+  });
+  assert.equal(settled.status, 200);
+  assert.equal(settled.data.reputation_summary.schema_version, 'room-reputation/v1');
+  assert.equal(settled.data.reputation_summary.scoring_model, 'single-room-brier-v1');
+  assert.equal(settled.data.reputation_summary.player_count, 2);
+  assert.equal(settled.data.reputation_summary.total_bets, 2);
+  assert.equal(settled.data.reputation_summary.reason_count, 1);
+  assert.equal(settled.data.reputation_summary.top_players.length, 2);
+  const adaScore = settled.data.reputation_summary.players.find((player) => player.nickname === 'Ada');
+  assert.equal(adaScore.correct_bets, 1);
+  assert.equal(adaScore.reason_count, 1);
+  assert.equal(JSON.stringify(settled.data.reputation_summary).includes('reputation-ada-session'), false);
+  assert.equal(JSON.stringify(settled.data.reputation_summary).includes('reputation-lin-session'), false);
+
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.settlement.reputation_summary.players.find((player) => player.nickname === 'Ada').correct_bets, 1);
+
+  const replay = await request(`/api/rooms/${code}/replay`, { headers: hostHeaders });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.replay.settlement.reputation_summary.average_calibration_score, settled.data.reputation_summary.average_calibration_score);
+  assert.equal(JSON.stringify(replay.data.replay.settlement.reputation_summary).includes('reputation-ada-session'), false);
+
+  const projection = publicLiveProjection(rooms[code]);
+  assert.equal(projection.settlement.reputation_summary.schema_version, 'room-reputation/v1');
+  assert.equal(projection.settlement.reputation_summary.player_count, 2);
+  assert.equal(JSON.stringify(projection.settlement.reputation_summary).includes('reputation-lin-session'), false);
+});
+
 test('market studio draft metadata is server-validated and preserved for audit', async () => {
   const invalidDraft = await request('/api/rooms', {
     method: 'POST',

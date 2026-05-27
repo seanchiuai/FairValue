@@ -543,6 +543,8 @@ test('room event log supports audit access, ordered replay, and settlement recon
   assert.equal(replayResponse.data.replay.settled, true);
   assert.equal(replayResponse.data.replay.settlement.winning_outcome, 'over');
   assert.equal(replayResponse.data.replay.settlement.evidence_packet.schema_version, 'settlement-evidence/v1');
+  assert.equal(replayResponse.data.replay.settlement.reputation_summary.schema_version, 'room-reputation/v1');
+  assert.equal(replayResponse.data.replay.settlement.reputation_summary.total_bets, 1);
   assert.equal(replayResponse.data.replay.market.total_trades, 1);
   assert.equal(replayResponse.data.replay.players['player-1'].balance, settlement.data.results[0].final_balance);
 

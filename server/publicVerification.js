@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { createReplayIntegrityReport } = require('./replayIntegrity');
 const { normalizeRoomPhase, replayRoomEvents } = require('./roomEventLog');
+const { publicReputationProjection } = require('./playerReputation');
 const { getPublicMarketState } = require('../src/lib/marketEngine');
 
 const DEFAULT_IDENTITY_SECRET = 'fairvalue-local-dev-identity-secret';
@@ -68,12 +69,14 @@ function publicPlayerProjection(players) {
 function publicSettlementProjection(settlement) {
   if (!settlement) return null;
   const results = Array.isArray(settlement.results) ? settlement.results : [];
+  const reputationSummary = publicReputationProjection(settlement.reputation_summary);
   return {
     winning_outcome: settlement.winning_outcome,
     actual_price: settlement.actual_price,
     result_count: results.length,
     total_positive_payout: results.reduce((sum, result) => sum + Math.max(0, Number(result.payout) || 0), 0),
     evidence_packet: settlement.evidence_packet ? cloneJson(settlement.evidence_packet) : null,
+    reputation_summary: reputationSummary,
   };
 }
 
@@ -203,6 +206,17 @@ function createPublicVerificationArtifact(room, events, options = {}) {
         evidence_packet_status: evidencePacket?.status || 'missing',
         evidence_packet_hash: evidencePacketHash,
         evidence_item_count: Array.isArray(evidencePacket?.items) ? evidencePacket.items.length : 0,
+        reputation_schema_version: settlement.reputation_summary?.schema_version || null,
+        reputation_player_count: Number.isFinite(settlement.reputation_summary?.player_count)
+          ? settlement.reputation_summary.player_count
+          : 0,
+        reputation_eligible_player_count: Number.isFinite(settlement.reputation_summary?.eligible_player_count)
+          ? settlement.reputation_summary.eligible_player_count
+          : 0,
+        reputation_average_calibration_score: Number.isFinite(settlement.reputation_summary?.average_calibration_score)
+          ? settlement.reputation_summary.average_calibration_score
+          : null,
+        reputation_top_players: publicReputationProjection(settlement.reputation_summary)?.top_players || [],
       }
       : null,
     public_recap: {
