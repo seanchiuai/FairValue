@@ -32,6 +32,13 @@ test('market template registry exposes playable binary/range/rent-yield/time/ren
   assert.equal(isRegisteredMarketFormat('renovation_budget_over_under'), true);
   assert.equal(isPlayableMarketFormat('renovation_budget_over_under'), true);
   assert.equal(getMarketTemplate('renovation_budget_over_under').pricing_engine, 'lmsr_binary_v1');
+  assert.equal(isRegisteredMarketFormat('neighborhood_price_momentum_over_under'), true);
+  assert.equal(isPlayableMarketFormat('neighborhood_price_momentum_over_under'), false);
+  assert.equal(getMarketTemplate('neighborhood_price_momentum_over_under').status, 'draft_only');
+  assert.equal(isRegisteredMarketFormat('neighborhood_rent_yield_over_under'), true);
+  assert.equal(isPlayableMarketFormat('neighborhood_rent_yield_over_under'), false);
+  assert.equal(isRegisteredMarketFormat('neighborhood_outperformance_over_under'), true);
+  assert.equal(isPlayableMarketFormat('neighborhood_outperformance_over_under'), false);
 
   registry.templates[0].label = 'mutated outside';
   assert.equal(publicMarketTemplateRegistry().templates[0].label, 'Binary over/under');
@@ -60,6 +67,16 @@ test('room market format validation accepts playable real-estate market formats'
 
   const missing = validateMarketFormatForRoom('weather_derivative');
   assert.equal(missing.error, 'Market draft format is not registered');
+});
+
+test('room market format validation blocks registered neighborhood draft-only formats', () => {
+  const draftOnly = validateMarketFormatForRoom('neighborhood_outperformance_over_under');
+  assert.equal(
+    draftOnly.error,
+    'Market draft format neighborhood_outperformance_over_under is registered but not playable yet'
+  );
+  assert.equal(draftOnly.template.status, 'draft_only');
+  assert.deepEqual(draftOnly.template.outcome_schema.outcomes, ['over', 'under']);
 });
 
 test('market template audit projection keeps only stable contract fields', () => {

@@ -7,7 +7,10 @@ export type MarketFormat =
   | 'range_price_band'
   | 'rent_yield_over_under'
   | 'time_on_market_over_under'
-  | 'renovation_budget_over_under';
+  | 'renovation_budget_over_under'
+  | 'neighborhood_price_momentum_over_under'
+  | 'neighborhood_rent_yield_over_under'
+  | 'neighborhood_outperformance_over_under';
 
 export interface MarketTemplate {
   market_format: MarketFormat;

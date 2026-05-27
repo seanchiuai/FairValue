@@ -175,7 +175,38 @@ test('neighborhood API builds static zip entities with aggregate metrics and pro
   assert.equal(single.status, 200);
   assert.equal(single.data.entities[0].entity_id, 'zip:CA:94607');
 
+  const drafts = await request('/api/neighborhoods/94607/market-drafts');
+  assert.equal(drafts.status, 200);
+  assert.equal(drafts.data.schema_version, 'fairvalue.neighborhoodMarketDrafts.v1');
+  assert.equal(drafts.data.neighborhood_entity_id, 'zip:CA:94607');
+  assert.equal(drafts.data.zip_code, '94607');
+  assert.equal(drafts.data.count, 3);
+  assert.deepEqual(drafts.data.template_formats, [
+    'neighborhood_price_momentum_over_under',
+    'neighborhood_rent_yield_over_under',
+    'neighborhood_outperformance_over_under',
+  ]);
+  const priceMomentum = drafts.data.drafts.find(
+    (draft) => draft.market_format === 'neighborhood_price_momentum_over_under'
+  );
+  assert.equal(priceMomentum.template_status, 'draft_only');
+  assert.equal(priceMomentum.pricing_engine, 'pending_neighborhood_market_engine');
+  assert.equal(priceMomentum.baseline.value, 950000);
+  assert.equal(priceMomentum.default_config.price_momentum_threshold, 978500);
+  assert.match(priceMomentum.trust_notice, /Draft-only scenario contract/);
+  const rentYield = drafts.data.drafts.find(
+    (draft) => draft.market_format === 'neighborhood_rent_yield_over_under'
+  );
+  assert.equal(rentYield.baseline.value, 0.05);
+  assert.equal(rentYield.default_config.yield_threshold, 0.055);
+  assert.equal(drafts.data.provenance.source_sha256, 'fixture-source-hash');
+  assert.match(drafts.data.limitations.join(' '), /not playable rooms/);
+
   const missing = await request('/api/neighborhoods/99999');
   assert.equal(missing.status, 404);
   assert.match(missing.data.error, /Neighborhood entity not found/);
+
+  const missingDrafts = await request('/api/neighborhoods/99999/market-drafts');
+  assert.equal(missingDrafts.status, 404);
+  assert.match(missingDrafts.data.error, /Neighborhood entity not found/);
 });

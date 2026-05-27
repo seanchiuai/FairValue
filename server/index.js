@@ -24,6 +24,7 @@ const { createUserReputationStore } = require('./userReputationStore');
 const { createUserProfileStore } = require('./userProfileStore');
 const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
 const { createPropertySnapshot } = require('./propertySnapshot');
+const { buildNeighborhoodMarketDrafts } = require('./neighborhoodMarketDrafts');
 const { buildOperatorIncidentQueue } = require('./operatorIncidentQueue');
 const { createOperatorIncidentWorkflowStore } = require('./operatorIncidentWorkflowStore');
 const {
@@ -1299,6 +1300,21 @@ app.get('/api/neighborhoods', limitRequests('properties:query', { max: 240 }), (
     zip: req.query.zip || req.query.zip_code,
     minProperties: req.query.min_properties,
     limit: req.query.limit,
+  }));
+});
+
+app.get('/api/neighborhoods/:zipCode/market-drafts', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const result = propertySnapshot.neighborhoodResponse({
+    zip: req.params.zipCode,
+    limit: 1,
+  });
+  if (!result.entities.length) {
+    res.status(404).json({ error: 'Neighborhood entity not found' });
+    return;
+  }
+  res.json(buildNeighborhoodMarketDrafts({
+    entity: result.entities[0],
+    provenance: result.provenance,
   }));
 });
 
