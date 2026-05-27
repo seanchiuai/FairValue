@@ -339,6 +339,8 @@ test('market studio generates a draft and creates a host room from pasted listin
   await expect(page.getByTestId('room-review-evidence')).toContainText('Required settlement evidence');
   await expect(page.getByTestId('room-review-evidence')).toContainText('Final sale price, appraisal report');
   await expect(page.getByTestId('room-review-evidence')).toContainText('Event history');
+  await expect(page.getByTestId('room-review-dispute-brief')).toContainText('Evidence and dispute brief');
+  await expect(page.getByTestId('room-review-dispute-brief')).toContainText('Settlement evidence packet is still missing');
   await expect(page.getByTestId('room-review-integrity')).toContainText('raw pasted listing text is not stored');
   await expect(page.getByTestId('room-review-timeline')).toContainText('Room created');
   await expect(page.getByTestId('room-review-recap')).toContainText('Settlement recap is pending');
@@ -545,6 +547,8 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
     await expect(host).toHaveURL(new RegExp(`/review/${roomCode}$`));
     await expect(host.getByTestId('room-review-evidence')).toContainText('Settlement evidence');
     await expect(host.getByTestId('room-review-evidence')).toContainText('$735,000');
+    await expect(host.getByTestId('room-review-dispute-brief')).toContainText('Evidence and dispute brief');
+    await expect(host.getByTestId('room-review-dispute-brief')).toContainText('Review public verification replay digest before exporting');
     await expect(host.getByTestId('room-review-integrity')).toContainText('Settlement outcome OVER matches');
     await expect(host.getByTestId('room-review-public-verification')).toContainText('Replay matches live state');
     await expect(host.getByTestId('room-review-public-verification-download')).toBeVisible();

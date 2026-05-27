@@ -202,6 +202,23 @@ export default function RoomReviewPage() {
         : publicVerification.signature.reason || 'Local artifact hash only; configure a signing secret to emit signatures.',
     },
   ] : [];
+  const disputeBriefEvidence = [
+    {
+      label: 'Evidence summary',
+      value: review.dispute_brief.status.replace(/_/g, ' '),
+      detail: review.dispute_brief.evidence_summary.join(' '),
+    },
+    {
+      label: 'Dispute questions',
+      value: `${review.dispute_brief.dispute_questions.length} prompt${review.dispute_brief.dispute_questions.length === 1 ? '' : 's'}`,
+      detail: review.dispute_brief.dispute_questions.join(' '),
+    },
+    {
+      label: 'Operator actions',
+      value: `${review.dispute_brief.operator_actions.length} next step${review.dispute_brief.operator_actions.length === 1 ? '' : 's'}`,
+      detail: review.dispute_brief.operator_actions.join(' '),
+    },
+  ];
 
   return (
     <RoomArtifactPage testId="room-review-page">
@@ -243,6 +260,16 @@ export default function RoomReviewPage() {
           testId="room-review-evidence"
         >
           <RoomArtifactEvidenceList items={review.evidence} />
+        </RoomArtifactPanel>
+
+        <RoomArtifactPanel
+          icon={<ClipboardCheck size={17} aria-hidden="true" />}
+          title="Evidence and dispute brief"
+          ariaLabel="Evidence and dispute brief"
+          testId="room-review-dispute-brief"
+        >
+          <RoomArtifactEvidenceList items={disputeBriefEvidence} />
+          <RoomArtifactBulletList items={review.dispute_brief.limitations} />
         </RoomArtifactPanel>
 
         <RoomArtifactPanel

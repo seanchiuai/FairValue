@@ -152,6 +152,10 @@ describe('room review generation', () => {
       ])
     );
     expect(review.integrity_checks.join(' ')).toContain('raw pasted listing text is not stored');
+    expect(review.dispute_brief.status).toBe('ready_to_review');
+    expect(review.dispute_brief.evidence_summary.join(' ')).toContain('Settlement evidence packet is still missing');
+    expect(review.dispute_brief.dispute_questions.join(' ')).toContain('What evidence could still make the UNDER side right?');
+    expect(review.dispute_brief.operator_actions).toContain('Capture the settlement packet before final recap.');
     expect(review.timeline.map((item) => item.label)).toEqual(['Room created', 'Player joined', 'Bet placed']);
     expect(review.timeline[2].detail).toContain('Reason: Local comps support the ask.');
     expect(review.recap.join(' ')).toContain('Latest movement');
@@ -252,6 +256,9 @@ describe('room review generation', () => {
     expect(review.integrity_checks).toContain('Settlement outcome OVER matches the asking-price comparison.');
     expect(review.integrity_checks.join(' ')).toContain('metadata attached');
     expect(review.integrity_checks.join(' ')).toContain('room-reputation/v1');
+    expect(review.dispute_brief.status).toBe('settled_with_packet');
+    expect(review.dispute_brief.evidence_summary.join(' ')).toContain('Settlement packet attached with 1 public item');
+    expect(review.dispute_brief.operator_actions).toContain('Review public verification replay digest before exporting.');
     expect(review.recap).toContain('Settlement recap: OVER won at $835,000.');
     expect(review.recap).toContain('Calibration recap: 1 player averaged 86/100 in this settled room.');
   });

@@ -28,12 +28,21 @@ export interface RoomReviewEvidenceItem {
   detail: string;
 }
 
+export interface RoomReviewDisputeBrief {
+  status: 'needs_evidence' | 'ready_to_review' | 'settled_with_packet' | 'settled_needs_packet';
+  evidence_summary: string[];
+  dispute_questions: string[];
+  operator_actions: string[];
+  limitations: string[];
+}
+
 export interface RoomReviewReport {
   status: 'live' | 'ready_to_settle' | 'settled';
   headline: string;
   summary: string;
   metrics: RoomReviewMetric[];
   evidence: RoomReviewEvidenceItem[];
+  dispute_brief: RoomReviewDisputeBrief;
   integrity_checks: string[];
   timeline: RoomReviewTimelineItem[];
   recap: string[];
@@ -189,6 +198,61 @@ function buildTimeline(events: RoomEvent[], activity: ActivityEntry[]) {
   }));
 }
 
+function buildDisputeBrief({
+  roomCode,
+  house,
+  market,
+  draftAudit,
+  settlement,
+  events,
+  activity,
+}: Pick<RoomReviewInput, 'roomCode' | 'house' | 'market' | 'draftAudit' | 'settlement' | 'events' | 'activity'>): RoomReviewDisputeBrief {
+  const hasEventLog = events.length > 0;
+  const hasPacket = Boolean(settlement?.evidence_packet);
+  const reasonedBets = activity.filter((entry) => entry.type === 'bet' && entry.reason).length;
+  const evidenceSummary = [
+    hasEventLog ? `Host event log has ${events.length} canonical event${events.length === 1 ? '' : 's'}.` : 'Host event log is not loaded.',
+    draftAudit ? `Draft audit source: ${draftAudit.provenance.source}.` : 'No Market Studio draft audit is attached.',
+    hasPacket
+      ? `Settlement packet attached with ${settlement?.evidence_packet?.items.length || 0} public item${settlement?.evidence_packet?.items.length === 1 ? '' : 's'}.`
+      : 'Settlement evidence packet is still missing.',
+    `${reasonedBets} public bet reason${reasonedBets === 1 ? '' : 's'} available for dispute review.`,
+  ];
+  const disputeQuestions = [
+    settlement
+      ? `Does the packet directly support ${settlementValue(settlement)} for ${house.address}?`
+      : `What public-safe document will settle ${house.address}?`,
+    market.prob_over >= 0.62
+      ? 'What evidence could still make the UNDER side right?'
+      : market.prob_over <= 0.38
+        ? 'What evidence could still make the OVER side right?'
+        : 'Which side has the clearest evidence gap?',
+    hasEventLog ? `Which event in ${roomCode} changed the room most?` : 'Can the host load the event log before final review?',
+  ];
+  const operatorActions = settlement
+    ? [
+        hasPacket ? 'Compare packet metadata with settlement result before sharing.' : 'Attach a public-safe settlement packet before sharing.',
+        'Review public verification replay digest before exporting.',
+        'Use this brief as an audit prompt, not a dispute ruling.',
+      ]
+    : [
+        'Read the required settlement checklist before closing the room.',
+        'Ask each side to answer the strongest dispute question.',
+        'Capture the settlement packet before final recap.',
+      ];
+
+  return {
+    status: settlement ? (hasPacket ? 'settled_with_packet' : 'settled_needs_packet') : hasEventLog ? 'ready_to_review' : 'needs_evidence',
+    evidence_summary: evidenceSummary,
+    dispute_questions: disputeQuestions,
+    operator_actions: operatorActions,
+    limitations: [
+      'Deterministic local audit prompt only.',
+      'Not arbitration, legal advice, appraisal authority, or compliance review.',
+    ],
+  };
+}
+
 export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
   const {
     roomCode,
@@ -283,6 +347,15 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
       : 'Reputation calibration is pending until settlement produces a scoreable room summary.',
     'All balances and payouts are simulation credits only.',
   ];
+  const disputeBrief = buildDisputeBrief({
+    roomCode,
+    house,
+    market,
+    draftAudit,
+    settlement,
+    events,
+    activity,
+  });
 
   const latestBets = recentBets(activity);
   const recap = [
@@ -352,6 +425,7 @@ export function generateRoomReview(input: RoomReviewInput): RoomReviewReport {
       },
     ],
     evidence,
+    dispute_brief: disputeBrief,
     integrity_checks: integrityChecks,
     timeline: buildTimeline(events, activity),
     recap,
