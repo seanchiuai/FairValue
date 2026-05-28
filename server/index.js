@@ -7,21 +7,64 @@ const { WebSocketServer, WebSocket } = require('ws');
 const sql = require('./db');
 const {
   EVENT_TYPES,
+  createDefaultRoomPhase,
+  createJsonRoomEventLog,
+  createPostgresRoomEventLog,
   createInMemoryRoomEventStore,
+  normalizeRoomPhase,
   replayRoomEvents,
   roomEventToActivity,
 } = require('./roomEventLog');
+const { createReplayIntegrityReport } = require('./replayIntegrity');
 const { createRoomPersistence } = require('./roomPersistence');
+const { validateSettlementEvidencePayload } = require('./settlementEvidence');
+const { createPublicVerificationArtifact } = require('./publicVerification');
+const { createRoomReputationSummary } = require('./playerReputation');
+const { createUserReputationStore } = require('./userReputationStore');
+const { createUserProfileStore } = require('./userProfileStore');
+const { createAlertDeliveryAdapter } = require('./alertDeliveryAdapter');
+const { createPropertySnapshot } = require('./propertySnapshot');
+const { createPropertyPostgresProjection } = require('./propertyPostgresProjection');
+const { buildNeighborhoodMarketDrafts } = require('./neighborhoodMarketDrafts');
+const { buildOperatorIncidentQueue } = require('./operatorIncidentQueue');
+const { buildOperatorIncidentReplayReview } = require('./operatorIncidentReplayReview');
+const { createOperatorIncidentWorkflowStore } = require('./operatorIncidentWorkflowStore');
+const {
+  buildPropertyIntelligenceProviderContract,
+  executeStructuredIntelligenceProvider,
+} = require('./structuredIntelligenceAdapter');
+const {
+  buildNeighborhoodEvidenceProviderContract,
+  executeNeighborhoodEvidenceProvider,
+} = require('./neighborhoodEvidenceAdapter');
+const {
+  DEFAULT_MARKET_FORMAT,
+  marketTemplateAuditProjection,
+  publicMarketTemplateRegistry,
+  validateMarketFormatForRoom,
+} = require('./marketTemplateRegistry');
+const {
+  BINARY_MARKET_FORMAT,
+  createMarketConfigForRoom,
+  createInitialMarketState,
+  hydrateRoomMarketState,
+  getPublicRoomMarketState,
+  normalizeOutcomeForRoom,
+  placeRoomBetWithBudget,
+  selectedProbabilityAfter,
+  winningOutcomeForRoom,
+  settlementMetricsForRoom,
+  settlePlayersForRoom,
+  eventMarketPayload,
+  isBinaryMarket,
+  marketConfigPayload,
+} = require('./roomMarketRuntime');
 const observability = require('./observability');
 const {
   DEFAULT_B,
   priceOver,
-  getPublicMarketState,
   createMarketState,
   applyTrade,
-  placeBetWithBudget,
-  getWinningOutcome,
-  settlePlayers,
 } = require('../src/lib/marketEngine');
 
 const app = express();
@@ -59,13 +102,26 @@ const ROOM_CODE_PATTERN = /^[A-Z0-9]{4}$/;
 const USER_ID_PATTERN = /^usr_[A-Za-z0-9_-]{16,80}$/;
 const MAX_ASKING_PRICE = 100_000_000;
 const MAX_TEXT_LENGTH = 120;
+const MAX_BET_REASON_LENGTH = 280;
+const MAX_DRAFT_LIST_ITEMS = 8;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const REQUEST_ID_HEADER = 'x-request-id';
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+const MARKET_DRAFT_SOURCE_TYPES = new Set(['pasted_listing', 'manual', 'csv_row', 'address', 'existing_property']);
+const MARKET_DRAFT_CONFIDENCES = new Set(['low', 'medium', 'high']);
+const HOST_SETTABLE_ROOM_PHASES = new Set(['open', 'discussion', 'locked']);
+const MAX_ROOM_PHASE_TIMER_SECONDS = 3 * 60 * 60;
+const PROPERTY_SNAPSHOT_POSTGRES_MODES = new Set(['postgres', 'postgis', 'database', 'db', 'neon']);
 const rateLimitBuckets = new Map();
-const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistence = createRoomPersistence(resolveRoomPersistenceOptions());
+let roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: sql }));
+let userReputationStore = createUserReputationStore(resolveUserReputationOptions());
+let userProfileStore = createUserProfileStore(resolveUserProfileOptions());
+let alertDeliveryAdapter = createAlertDeliveryAdapter(resolveAlertDeliveryOptions());
+let propertySnapshot = createPropertySnapshot(resolveStaticPropertySnapshotOptions());
+let operatorIncidentWorkflowStore = createOperatorIncidentWorkflowStore(resolveOperatorIncidentWorkflowOptions());
+const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
 
 function isPromiseLike(value) {
@@ -74,6 +130,13 @@ function isPromiseLike(value) {
 
 function tagRoomPersistenceError(error) {
   error.roomPersistenceFailed = true;
+  if (!error.roomPersistenceKind) error.roomPersistenceKind = roomPersistence.kind;
+  return error;
+}
+
+function tagRoomEventLogPersistenceError(error) {
+  error.roomPersistenceFailed = true;
+  error.roomPersistenceKind = roomEventLog.kind || 'room-event-log';
   return error;
 }
 
@@ -100,6 +163,110 @@ function resolveRoomPersistenceOptions() {
     encryptionSecret: process.env.FAIRVALUE_ROOM_SNAPSHOT_SECRET || '',
     retentionDays: process.env.FAIRVALUE_ROOM_RETENTION_DAYS || '30',
   };
+}
+
+function resolveRoomEventLogOptions(persistence = roomPersistence, { configuredSql = sql } = {}) {
+  const mode = String(process.env.FAIRVALUE_ROOM_EVENT_LOG || 'auto').trim().toLowerCase();
+  if (['0', 'false', 'off', 'disabled', 'none'].includes(mode)) return {};
+  if (['postgres', 'neon', 'db', 'database'].includes(mode)) return { mode: 'postgres', sql: configuredSql };
+  if (process.env.FAIRVALUE_ROOM_EVENT_LOG_PATH) {
+    return { mode: 'json', filePath: process.env.FAIRVALUE_ROOM_EVENT_LOG_PATH };
+  }
+  if (persistence?.kind === 'postgres') {
+    return { mode: 'postgres', sql: configuredSql };
+  }
+  if (persistence?.kind === 'json' && persistence.filePath) {
+    return { mode: 'json', filePath: `${persistence.filePath}.events.ndjson` };
+  }
+  return {};
+}
+
+function resolveUserReputationOptions() {
+  const filePath = process.env.FAIRVALUE_USER_REPUTATION_PATH ||
+    (require.main === module ? path.join(process.cwd(), '.fairvalue', 'user-reputation.json') : null);
+  return { filePath };
+}
+
+function resolveUserProfileOptions() {
+  const filePath = process.env.FAIRVALUE_USER_PROFILE_PATH ||
+    (require.main === module ? path.join(process.cwd(), '.fairvalue', 'user-profile.json') : null);
+  return { filePath };
+}
+
+function resolvePropertySnapshotFilePath() {
+  return process.env.FAIRVALUE_PROPERTY_SNAPSHOT_PATH ||
+    path.join(process.cwd(), 'public', 'data', 'properties.json');
+}
+
+function resolveStaticPropertySnapshotOptions(overrides = {}) {
+  return {
+    filePath: resolvePropertySnapshotFilePath(),
+    sourceAdapter: 'static-json-property-snapshot',
+    ...overrides,
+  };
+}
+
+function propertyQuerySourceMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  if (PROPERTY_SNAPSHOT_POSTGRES_MODES.has(mode)) return 'postgres';
+  return 'static';
+}
+
+function allowsPropertyPostgresFallback() {
+  const value = String(process.env.FAIRVALUE_PROPERTY_POSTGRES_FALLBACK || '').trim().toLowerCase();
+  return ['1', 'true', 'yes', 'on', 'static', 'json'].includes(value);
+}
+
+function resolvePropertySnapshotOptions() {
+  const storeMode = propertyQuerySourceMode(process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE);
+  const querySourceMode = propertyQuerySourceMode(process.env.FAIRVALUE_PROPERTY_QUERY_SOURCE);
+  const mode = querySourceMode === 'postgres' ? querySourceMode : storeMode;
+  if (mode === 'postgres') {
+    return {
+      mode,
+      sql,
+      fallbackToStatic: allowsPropertyPostgresFallback(),
+      fallbackSnapshotOptions: resolveStaticPropertySnapshotOptions(),
+    };
+  }
+  return resolveStaticPropertySnapshotOptions();
+}
+
+function resolveAlertDeliveryOptions() {
+  return {
+    webhookUrl: process.env.FAIRVALUE_ALERT_WEBHOOK_URL || '',
+    webhookSecret: process.env.FAIRVALUE_ALERT_WEBHOOK_SECRET || '',
+  };
+}
+
+function resolveOperatorIncidentWorkflowOptions() {
+  const filePath = process.env.FAIRVALUE_OPERATOR_INCIDENT_WORKFLOW_PATH ||
+    (require.main === module ? path.join(process.cwd(), '.fairvalue', 'operator-incidents.json') : null);
+  return { filePath };
+}
+
+function resolveStructuredIntelligenceProviderOptions() {
+  return {
+    providerUrl: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_URL || '',
+    apiKey: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_API_KEY || '',
+    providerName: process.env.FAIRVALUE_INTELLIGENCE_PROVIDER_NAME || 'external_property_intelligence_provider',
+  };
+}
+
+function resolveNeighborhoodEvidenceProviderOptions() {
+  return {
+    providerUrl: process.env.FAIRVALUE_NEIGHBORHOOD_EVIDENCE_PROVIDER_URL || '',
+    apiKey: process.env.FAIRVALUE_NEIGHBORHOOD_EVIDENCE_PROVIDER_API_KEY || '',
+    providerName: process.env.FAIRVALUE_NEIGHBORHOOD_EVIDENCE_PROVIDER_NAME || 'external_neighborhood_evidence_provider',
+  };
+}
+
+function createRoomEventLog(options = {}) {
+  const mode = String(options.mode || 'json').trim().toLowerCase();
+  if (['postgres', 'neon', 'db', 'database'].includes(mode)) {
+    return createPostgresRoomEventLog({ sql: options.sql });
+  }
+  return createJsonRoomEventLog(options);
 }
 
 function generateRoomCode() {
@@ -130,15 +297,20 @@ function serializeRoomSnapshot(room) {
     hostToken: room.hostToken,
     hostUserId: room.hostUserId || null,
     house: cloneJson(room.house),
+    marketFormat: room.marketFormat || BINARY_MARKET_FORMAT,
+    marketConfig: marketConfigPayload(room),
     market: cloneJson(room.market),
     players: cloneJson(room.players),
+    userIdsBySession: cloneJson(room.userIdsBySession || {}),
     betReceipts: Array.from(room.betReceipts.entries()).map(([key, receipt]) => [key, cloneJson(receipt)]),
+    phase: normalizeRoomPhase(room.phase),
     aiEnabled: Boolean(room.aiEnabled),
     settled: Boolean(room.settled),
     settlement: room.settlement ? cloneJson(room.settlement) : null,
     durabilityError: room.durabilityError ? cloneJson(room.durabilityError) : null,
     activity: cloneJson(room.activity || []),
     marketId: room.marketId || null,
+    draftAudit: room.draftAudit ? cloneJson(room.draftAudit) : null,
     events: roomEventStore.list(room.code),
   };
 }
@@ -152,9 +324,17 @@ function hydrateRoomSnapshot(snapshot) {
     hostToken: snapshot.hostToken || generateHostToken(),
     hostUserId: normalizeUserId(snapshot.hostUserId) || null,
     house: cloneJson(snapshot.house),
-    market: createMarketState(snapshot.market || { b: DEFAULT_B }),
+    marketFormat: snapshot.marketFormat || snapshot.market_format || snapshot.marketConfig?.market_format || BINARY_MARKET_FORMAT,
+    marketConfig: snapshot.marketConfig || snapshot.market_config || null,
+    market: hydrateRoomMarketState(
+      snapshot.marketFormat || snapshot.market_format || snapshot.marketConfig?.market_format || BINARY_MARKET_FORMAT,
+      snapshot.market || { b: DEFAULT_B },
+      snapshot.marketConfig || snapshot.market_config || null
+    ),
     players: cloneJson(snapshot.players || {}),
+    userIdsBySession: cloneJson(snapshot.userIdsBySession || snapshot.user_ids_by_session || {}),
     betReceipts: new Map((snapshot.betReceipts || []).map(([key, receipt]) => [key, cloneJson(receipt)])),
+    phase: normalizeRoomPhase(snapshot.phase),
     connections: [],
     aiEnabled: false,
     aiInterval: null,
@@ -164,6 +344,7 @@ function hydrateRoomSnapshot(snapshot) {
     durabilityError: snapshot.durabilityError ? cloneJson(snapshot.durabilityError) : null,
     activity: cloneJson(snapshot.activity || []),
     marketId: snapshot.marketId || null,
+    draftAudit: snapshot.draftAudit ? cloneJson(snapshot.draftAudit) : null,
   };
 }
 
@@ -193,6 +374,21 @@ function persistRooms() {
   }
 }
 
+function persistRoomEvent(event) {
+  if (!roomEventLog.enabled) return;
+  try {
+    return roomEventLog.append(event);
+  } catch (error) {
+    throw tagRoomEventLogPersistenceError(error);
+  }
+}
+
+function combinePersistenceResults(...results) {
+  const pending = results.filter(Boolean);
+  if (!pending.length) return;
+  if (pending.some(isPromiseLike)) return Promise.all(pending);
+}
+
 async function waitForRoomPersistence(persistenceResult) {
   if (isPromiseLike(persistenceResult)) await persistenceResult;
 }
@@ -201,7 +397,7 @@ function roomPersistenceError(res, error) {
   if (!error?.roomPersistenceFailed) throw error;
   observability.increment('persistence.failures');
   observability.increment('room_lifecycle.durability_failures');
-  observability.recordError('persistence', error, { kind: roomPersistence.kind });
+  observability.recordError('persistence', error, { kind: error.roomPersistenceKind || roomPersistence.kind });
   return res.status(503).json({
     error: 'Room persistence failed',
     message: 'Configured room persistence could not save this room mutation.',
@@ -235,15 +431,20 @@ function stopAiBotInterval(room) {
 }
 
 async function runAiBotTick(room) {
-  if (!room || !room.aiEnabled || room.settled) {
+  if (!room || !room.aiEnabled || room.settled || room.phase?.betting_locked) {
     stopAiBotInterval(room);
     return { ok: false, skipped: true };
+  }
+  if ((room.marketFormat || BINARY_MARKET_FORMAT) !== BINARY_MARKET_FORMAT) {
+    room.aiEnabled = false;
+    stopAiBotInterval(room);
+    return { ok: false, skipped: true, reason: 'unsupported_market_format' };
   }
   if (room.aiTradeInFlight) return { ok: false, skipped: true, reason: 'ai_trade_in_flight' };
 
   room.aiTradeInFlight = true;
   try {
-    if (!room.aiEnabled || room.settled) {
+    if (!room.aiEnabled || room.settled || room.phase?.betting_locked) {
       stopAiBotInterval(room);
       return { ok: false, skipped: true };
     }
@@ -321,14 +522,25 @@ function persistRoom(room) {
   return persistRooms();
 }
 
-function hydratePersistedRooms(snapshot) {
+function hydratePersistedRoomsFromEvents(snapshot, durableEvents = []) {
   let loaded = 0;
+  const durableEventsByRoom = new Map();
+
+  for (const event of durableEvents) {
+    const events = durableEventsByRoom.get(event.room_code) || [];
+    events.push(event);
+    durableEventsByRoom.set(event.room_code, events);
+  }
 
   for (const [code, roomSnapshot] of Object.entries(snapshot.rooms || {})) {
     const room = hydrateRoomSnapshot({ ...roomSnapshot, code: roomSnapshot.code || code });
     if (!room) continue;
+    const snapshotEvents = roomSnapshot.events || [];
+    const durableEvents = durableEventsByRoom.get(room.code) || [];
+    const events = durableEvents.length >= snapshotEvents.length ? durableEvents : snapshotEvents;
+    if (events.length > snapshotEvents.length) hydrateRoomFromReplay(room, events);
     rooms[room.code] = room;
-    roomEventStore.replace(room.code, roomSnapshot.events || []);
+    roomEventStore.replace(room.code, events);
     loaded += 1;
   }
 
@@ -337,6 +549,36 @@ function hydratePersistedRooms(snapshot) {
     filePath: roomPersistence.filePath,
     kind: roomPersistence.kind,
   };
+}
+
+function hydratePersistedRooms(snapshot) {
+  if (!roomEventLog.enabled) return hydratePersistedRoomsFromEvents(snapshot, []);
+
+  const durableEvents = roomEventLog.load();
+  if (isPromiseLike(durableEvents)) {
+    return durableEvents.then((events) => hydratePersistedRoomsFromEvents(snapshot, events));
+  }
+  return hydratePersistedRoomsFromEvents(snapshot, durableEvents);
+}
+
+function hydrateRoomFromReplay(room, events) {
+  const replay = replayRoomEvents(events);
+  if (replay.house) room.house = cloneJson(replay.house);
+  if (replay.market_format) room.marketFormat = replay.market_format;
+  if (replay.market_config) room.marketConfig = cloneJson(replay.market_config);
+  if (replay.market) room.market = hydrateRoomMarketState(
+    room.marketFormat || BINARY_MARKET_FORMAT,
+    replay.market,
+    room.marketConfig
+  );
+  if (replay.players) room.players = cloneJson(replay.players);
+  if (replay.user_ids_by_session) room.userIdsBySession = cloneJson(replay.user_ids_by_session);
+  if (replay.activity) room.activity = cloneJson(replay.activity);
+  room.settled = Boolean(replay.settled);
+  room.settlement = replay.settlement ? cloneJson(replay.settlement) : null;
+  room.phase = normalizeRoomPhase(replay.room_phase || room.phase);
+  room.draftAudit = replay.draft_audit ? cloneJson(replay.draft_audit) : room.draftAudit;
+  room.aiEnabled = false;
 }
 
 function loadPersistedRooms() {
@@ -350,16 +592,124 @@ function loadPersistedRooms() {
 }
 
 function configureRoomPersistence(filePathOrOptions) {
+  let eventLogSql = sql;
   if (typeof filePathOrOptions === 'object' && filePathOrOptions !== null) {
     roomPersistence = createRoomPersistence({ sql, ...filePathOrOptions });
+    eventLogSql = filePathOrOptions.sql || sql;
   } else {
     roomPersistence = createRoomPersistence({
       mode: filePathOrOptions ? 'json' : 'off',
       filePath: filePathOrOptions,
     });
   }
+  roomEventLog = createRoomEventLog(resolveRoomEventLogOptions(roomPersistence, { configuredSql: eventLogSql }));
   roomPersistenceWriteQueue = Promise.resolve();
   return loadPersistedRooms();
+}
+
+function configureUserReputationPersistence(filePathOrOptions) {
+  const options = typeof filePathOrOptions === 'object' && filePathOrOptions !== null
+    ? filePathOrOptions
+    : { filePath: filePathOrOptions || null };
+  userReputationStore = createUserReputationStore(options);
+  return userReputationStore.load();
+}
+
+function configureUserProfilePersistence(filePathOrOptions) {
+  const options = typeof filePathOrOptions === 'object' && filePathOrOptions !== null
+    ? filePathOrOptions
+    : { filePath: filePathOrOptions || null };
+  userProfileStore = createUserProfileStore(options);
+  return userProfileStore.load();
+}
+
+function isPostgresPropertySnapshotOptions(options = {}) {
+  return propertyQuerySourceMode(options.mode || options.store || options.source || options.adapter) === 'postgres';
+}
+
+function configureStaticPropertySnapshot(options = {}) {
+  propertySnapshot = createPropertySnapshot(options);
+  return propertySnapshot.load();
+}
+
+function configureStaticPropertySnapshotFallback(reason, options = {}) {
+  const fallbackOptions = {
+    ...resolveStaticPropertySnapshotOptions(),
+    ...(options.fallbackSnapshotOptions || {}),
+    sourceAdapter: 'static-json-property-snapshot-fallback',
+  };
+  const loaded = configureStaticPropertySnapshot(fallbackOptions);
+  return {
+    ...loaded,
+    source: 'static-json-fallback',
+    fallback_reason: reason,
+  };
+}
+
+async function configurePostgresPropertySnapshot(options = {}) {
+  const projection = createPropertyPostgresProjection({ sql: options.sql || sql });
+  if (!projection.enabled) {
+    if (options.fallbackToStatic) {
+      return configureStaticPropertySnapshotFallback(projection.reason, options);
+    }
+    throw new Error(`Postgres property snapshot requested but ${projection.reason}`);
+  }
+
+  try {
+    const loaded = await projection.loadSnapshot();
+    if (!loaded.enabled) {
+      throw new Error(loaded.reason || 'Postgres property projection is disabled');
+    }
+    if (!Array.isArray(loaded.properties) || loaded.properties.length === 0) {
+      throw new Error(`Postgres property projection ${loaded.table_name || projection.tableName} has no rows`);
+    }
+    propertySnapshot = createPropertySnapshot({
+      properties: loaded.properties,
+      manifest: {
+        ...(loaded.provenance || {}),
+        property_count: loaded.provenance?.property_count ?? loaded.count,
+      },
+      kind: 'postgres-property-snapshot',
+      sourceAdapter: 'postgres-postgis-property-snapshot',
+    });
+    const info = propertySnapshot.load();
+    return {
+      ...info,
+      source: 'postgres',
+      kind: propertySnapshot.kind,
+      source_adapter: propertySnapshot.sourceAdapter,
+      table_name: loaded.table_name,
+      manifest_table_name: loaded.manifest_table_name,
+      projection_schema_version: loaded.schema_version,
+      count: info.count,
+    };
+  } catch (error) {
+    if (options.fallbackToStatic) {
+      return configureStaticPropertySnapshotFallback(error.message, options);
+    }
+    throw error;
+  }
+}
+
+function configurePropertySnapshot(options = null) {
+  const resolvedOptions = options || resolvePropertySnapshotOptions();
+  if (isPostgresPropertySnapshotOptions(resolvedOptions)) {
+    return configurePostgresPropertySnapshot(resolvedOptions);
+  }
+  return configureStaticPropertySnapshot(resolvedOptions);
+}
+
+function configureAlertDelivery(options = null) {
+  alertDeliveryAdapter = createAlertDeliveryAdapter(options || resolveAlertDeliveryOptions());
+  return alertDeliveryAdapter.status();
+}
+
+function configureOperatorIncidentWorkflowPersistence(filePathOrOptions) {
+  const options = typeof filePathOrOptions === 'object' && filePathOrOptions !== null
+    ? filePathOrOptions
+    : { filePath: filePathOrOptions || null };
+  operatorIncidentWorkflowStore = createOperatorIncidentWorkflowStore(options);
+  return operatorIncidentWorkflowStore.load();
 }
 
 function sanitizeText(value, maxLength = MAX_TEXT_LENGTH) {
@@ -412,6 +762,120 @@ function parsePositiveNumber(value, max = Number.MAX_SAFE_INTEGER) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed > max) return null;
   return parsed;
+}
+
+function parsePositiveInteger(value, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = parsePositiveNumber(value, max);
+  return parsed === null ? null : Math.round(parsed);
+}
+
+function daysBetweenDates(startValue, endValue) {
+  if (!startValue || !endValue) return null;
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  const startTime = start.getTime();
+  const endTime = end.getTime();
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) return null;
+  return Math.max(1, Math.ceil((endTime - startTime) / 86_400_000));
+}
+
+function normalizeDraftPropertyId(value) {
+  const propertyId = sanitizeText(value, 80);
+  return propertyId && /^[A-Za-z0-9._:-]+$/.test(propertyId) ? propertyId : null;
+}
+
+function sanitizeTextList(value, itemMaxLength = 160, maxItems = MAX_DRAFT_LIST_ITEMS) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => sanitizeText(item, itemMaxLength))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function hashDraftSourceText(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  return crypto.createHash('sha256').update(value.trim()).digest('hex');
+}
+
+function validateMarketDraftAuditPayload(rawDraft, house) {
+  if (rawDraft == null) return { value: null };
+  if (typeof rawDraft !== 'object' || Array.isArray(rawDraft)) {
+    return { error: 'Market draft must be an object' };
+  }
+
+  const sourceType = sanitizeText(rawDraft.source_type, 40) || 'manual';
+  if (!MARKET_DRAFT_SOURCE_TYPES.has(sourceType)) {
+    return { error: 'Market draft source type is invalid' };
+  }
+
+  const address = sanitizeText(rawDraft.address, 100);
+  const askingPrice = parsePositiveNumber(rawDraft.asking_price, MAX_ASKING_PRICE);
+  if (!address) return { error: 'Market draft address is required' };
+  if (askingPrice === null) return { error: 'Market draft asking price must be between $1 and $100M' };
+  if (address !== house.address) return { error: 'Market draft address must match room address' };
+  if (Math.abs(askingPrice - house.asking_price) > 0.01) {
+    return { error: 'Market draft asking price must match room asking price' };
+  }
+
+  const marketFormat = sanitizeText(rawDraft.market_format, 60) || DEFAULT_MARKET_FORMAT;
+  const marketFormatValidation = validateMarketFormatForRoom(marketFormat);
+  if (marketFormatValidation.error) return { error: marketFormatValidation.error };
+  const liquidityB = parsePositiveNumber(rawDraft.liquidity_b, 10_000) || DEFAULT_B;
+  const marketConfig = createMarketConfigForRoom(marketFormatValidation.value, house, rawDraft, liquidityB);
+  if (marketConfig.error) return { error: marketConfig.error };
+
+  const provenance = rawDraft.provenance && typeof rawDraft.provenance === 'object'
+    ? rawDraft.provenance
+    : {};
+  const confidence = sanitizeText(provenance.confidence, 20) || 'low';
+  if (!MARKET_DRAFT_CONFIDENCES.has(confidence)) {
+    return { error: 'Market draft provenance confidence is invalid' };
+  }
+
+  const sourceText = typeof rawDraft.source_text === 'string' ? rawDraft.source_text : '';
+  const evidenceRequired = sanitizeTextList(rawDraft.evidence_required, 180, 6);
+  const warnings = sanitizeTextList(rawDraft.warnings, 180, 8);
+  const matchedSignals = sanitizeTextList(provenance.matchedSignals, 80, 8);
+
+  return {
+    value: {
+      schema_version: 'market-draft-audit/v1',
+      source_type: sourceType,
+      property_id: normalizeDraftPropertyId(rawDraft.property_id),
+      normalized_fields: {
+        address,
+        city: sanitizeText(rawDraft.city, 80),
+        state: sanitizeText(rawDraft.state, 20),
+        zip: sanitizeText(rawDraft.zip, 20),
+        asking_price: askingPrice,
+        beds: parsePositiveNumber(rawDraft.beds, 100),
+        baths: parsePositiveNumber(rawDraft.baths, 100),
+        sqft: parsePositiveNumber(rawDraft.sqft, 1_000_000),
+        home_type: sanitizeText(rawDraft.home_type, 80),
+      },
+      provenance: {
+        source: sanitizeText(provenance.source, 100) || 'Unspecified draft source',
+        confidence,
+        matchedSignals,
+      },
+      market_question: sanitizeText(rawDraft.market_question || rawDraft.question, 180) || `Will ${address} appraise above $${askingPrice.toLocaleString()}?`,
+      market_format: marketFormatValidation.value,
+      market_template: marketTemplateAuditProjection(marketFormatValidation.template),
+      market_config: marketConfig.value,
+      liquidity_b: liquidityB,
+      settlement_rule: sanitizeText(rawDraft.settlement_rule, 240) || 'Settle using final sale price, appraisal, or host-provided valuation evidence.',
+      evidence_required: evidenceRequired,
+      generated_summary: sanitizeText(rawDraft.generated_summary, 520),
+      warnings,
+      source_text_hash: hashDraftSourceText(sourceText),
+      source_text_length: sourceText.trim().length,
+      validation: {
+        status: 'accepted',
+        checked_at: Date.now() / 1000,
+        issues: [],
+      },
+    },
+  };
 }
 
 function getIdempotencyKey(req) {
@@ -474,7 +938,24 @@ function validateCreateRoomPayload(body) {
   if (!address) return { error: 'Address is required' };
   if (askingPrice === null) return { error: 'Asking price must be between $1 and $100M' };
   if (hasHostUserId && !hostUserId) return { error: 'Host user ID is invalid' };
-  return { value: { address, asking_price: askingPrice, host_user_id: hostUserId } };
+  const house = { address, asking_price: askingPrice };
+  const draftAudit = validateMarketDraftAuditPayload(body?.market_draft, house);
+  if (draftAudit.error) return { error: draftAudit.error };
+  const marketFormat = draftAudit.value?.market_format || DEFAULT_MARKET_FORMAT;
+  const defaultMarketConfig = draftAudit.value?.market_config
+    ? { value: draftAudit.value.market_config }
+    : createMarketConfigForRoom(marketFormat, house, body?.market_draft || {}, DEFAULT_B);
+  if (defaultMarketConfig.error) return { error: defaultMarketConfig.error };
+  const marketConfig = defaultMarketConfig.value;
+  return {
+    value: {
+      ...house,
+      host_user_id: hostUserId,
+      draft_audit: draftAudit.value,
+      market_format: marketFormat,
+      market_config: marketConfig,
+    },
+  };
 }
 
 function validateJoinPayload(body) {
@@ -488,23 +969,107 @@ function validateJoinPayload(body) {
   return { value: { session_id: sessionId, nickname, user_id: userId } };
 }
 
-function validateBetPayload(body) {
+function validateBetPayload(body, room) {
   const sessionId = sanitizeText(body?.session_id, 100);
   const hasUserId = Object.prototype.hasOwnProperty.call(body || {}, 'user_id');
   const userId = hasUserId ? normalizeUserId(body?.user_id) : null;
-  const outcome = typeof body?.outcome === 'string' ? body.outcome.trim().toLowerCase() : body?.outcome;
+  const outcomeValidation = room
+    ? normalizeOutcomeForRoom(room, body?.outcome)
+    : normalizeOutcomeForRoom({ marketFormat: BINARY_MARKET_FORMAT }, body?.outcome);
   const wager = parsePositiveNumber(body?.wager, 1000);
+  const rawReason = body?.reason ?? body?.bet_reason ?? body?.rationale;
+  const hasReason = rawReason !== undefined && rawReason !== null && rawReason !== '';
   if (!sessionId) return { error: 'Session ID is required' };
   if (hasUserId && !userId) return { error: 'User ID is invalid' };
-  if (!['over', 'under'].includes(outcome)) return { error: "Outcome must be 'over' or 'under'" };
+  if (outcomeValidation.error) return { error: outcomeValidation.error };
   if (wager === null) return { error: 'Wager must be between $1 and $1,000' };
-  return { value: { session_id: sessionId, user_id: userId, outcome, wager } };
+  if (hasReason && typeof rawReason !== 'string') return { error: 'Bet reason must be text' };
+  const reason = sanitizeText(rawReason, MAX_BET_REASON_LENGTH);
+  return { value: { session_id: sessionId, user_id: userId, outcome: outcomeValidation.value, wager, reason } };
 }
 
-function validateSettlePayload(body) {
-  const actualPrice = parsePositiveNumber(body?.actual_price, MAX_ASKING_PRICE);
-  if (actualPrice === null) return { error: 'Actual price must be between $1 and $100M' };
-  return { value: { actual_price: actualPrice } };
+function validateSettlePayload(body, room = null) {
+  const renovationBudgetRoom = room?.marketFormat === 'renovation_budget_over_under';
+  const timeOnMarketRoom = room?.marketFormat === 'time_on_market_over_under';
+  const neighborhoodPriceMomentumRoom = room?.marketFormat === 'neighborhood_price_momentum_over_under';
+  const dateDerivedDays = timeOnMarketRoom
+    ? daysBetweenDates(body?.listed_at, body?.contract_at ?? body?.pending_at ?? body?.settled_at)
+    : null;
+  const rawActualPrice = renovationBudgetRoom
+    ? body?.verified_cost ?? body?.actual_price
+    : timeOnMarketRoom
+      ? body?.days_on_market ?? body?.actual_days_on_market ?? dateDerivedDays ?? body?.actual_price
+      : neighborhoodPriceMomentumRoom
+        ? body?.future_median_price ?? body?.actual_price ?? body?.settlement_price
+        : body?.actual_price ?? body?.settlement_price;
+  const actualPrice = timeOnMarketRoom
+    ? parsePositiveInteger(rawActualPrice, 3_650)
+    : parsePositiveNumber(rawActualPrice, MAX_ASKING_PRICE);
+  if (actualPrice === null) {
+    return {
+      error: renovationBudgetRoom
+        ? 'Verified renovation cost must be between $1 and $100M'
+        : timeOnMarketRoom
+          ? 'Days on market must be between 1 and 3,650'
+          : neighborhoodPriceMomentumRoom
+            ? 'Future median price must be between $1 and $100M'
+            : 'Actual price must be between $1 and $100M',
+    };
+  }
+  const settlementInput = { actual_price: actualPrice };
+  if (room?.marketFormat === 'rent_yield_over_under') {
+    const annualRent = parsePositiveNumber(body?.annual_rent, 10_000_000);
+    if (annualRent === null) return { error: 'Annual rent must be between $1 and $10M for rent-yield settlement' };
+    settlementInput.settlement_price = actualPrice;
+    settlementInput.annual_rent = annualRent;
+  } else if (renovationBudgetRoom) {
+    settlementInput.verified_cost = actualPrice;
+  } else if (timeOnMarketRoom) {
+    settlementInput.days_on_market = actualPrice;
+  } else if (neighborhoodPriceMomentumRoom) {
+    settlementInput.future_median_price = actualPrice;
+  }
+  const rawEvidence = Object.prototype.hasOwnProperty.call(body || {}, 'settlement_evidence')
+    ? body.settlement_evidence
+    : body?.evidence_packet;
+  const evidence = validateSettlementEvidencePayload(rawEvidence, actualPrice);
+  if (evidence.error) return { error: evidence.error };
+  return { value: { ...settlementInput, evidence_packet: evidence.value } };
+}
+
+function validateRoomPhasePayload(body) {
+  const rawPhase = sanitizeText(body?.phase || body?.status, 40);
+  const phase = rawPhase ? rawPhase.toLowerCase() : '';
+  if (!HOST_SETTABLE_ROOM_PHASES.has(phase)) {
+    return { error: 'Room phase must be open, discussion, or locked' };
+  }
+
+  const rawTimer = body?.timer_seconds ?? body?.duration_seconds;
+  const timerSeconds = rawTimer === undefined || rawTimer === null || rawTimer === ''
+    ? null
+    : Number(rawTimer);
+  if (
+    timerSeconds !== null &&
+    (!Number.isFinite(timerSeconds) || timerSeconds < 0 || timerSeconds > MAX_ROOM_PHASE_TIMER_SECONDS)
+  ) {
+    return { error: 'Room phase timer must be between 0 seconds and 3 hours' };
+  }
+
+  const now = Date.now() / 1000;
+  const durationSeconds = phase === 'discussion' && timerSeconds && timerSeconds > 0
+    ? Math.round(timerSeconds)
+    : null;
+
+  return {
+    value: normalizeRoomPhase({
+      status: phase,
+      betting_locked: phase === 'locked',
+      duration_seconds: durationSeconds,
+      timer_started_at: durationSeconds ? now : null,
+      timer_ends_at: durationSeconds ? now + durationSeconds : null,
+      updated_at: now,
+    }),
+  };
 }
 
 function validationError(res, message) {
@@ -516,6 +1081,7 @@ function betFingerprint(bet) {
     session_id: bet.session_id,
     outcome: bet.outcome,
     wager: bet.wager,
+    reason: bet.reason || null,
   });
 }
 
@@ -524,14 +1090,20 @@ function betFingerprint(bet) {
 async function createRoom(house, roomCode, options = {}) {
   const code = roomCode ? normalizeRoomCode(roomCode) : generateRoomCode();
   if (!code) throw new Error('Room code must be 4 letters or numbers');
+  const marketFormat = options.marketFormat || BINARY_MARKET_FORMAT;
+  const marketConfig = options.marketConfig || createMarketConfigForRoom(marketFormat, house, {}, DEFAULT_B).value;
   const room = {
     code,
     hostToken: generateHostToken(),
     hostUserId: normalizeUserId(options.hostUserId) || null,
     house,
-    market: createMarketState({ b: DEFAULT_B }),
+    marketFormat,
+    marketConfig,
+    market: createInitialMarketState(marketFormat, marketConfig, DEFAULT_B),
     players: {},
+    userIdsBySession: {},
     betReceipts: new Map(),
+    phase: createDefaultRoomPhase({ updated_at: Date.now() / 1000 }),
     connections: [],
     aiEnabled: false,
     aiInterval: null,
@@ -541,33 +1113,40 @@ async function createRoom(house, roomCode, options = {}) {
     durabilityError: null,
     activity: [],
     marketId: null,
+    draftAudit: options.draftAudit ? cloneJson(options.draftAudit) : null,
   };
 
-  // Persist a new market row + market_state in Neon so trades are saved
-  try {
-    const propertyId = 'room-' + code;
-    const [inserted] = await sql`
-      INSERT INTO markets (address, asking_price, property_id, status)
-      VALUES (${house.address || ''}, ${house.asking_price || 0}, ${propertyId}, 'open')
-      RETURNING id
-    `;
-    room.marketId = inserted.id;
+  if (isBinaryMarket(room)) {
+    // Persist a new market row + market_state in Neon so binary trades are saved.
+    try {
+      const propertyId = 'room-' + code;
+      const [inserted] = await sql`
+        INSERT INTO markets (address, asking_price, property_id, status)
+        VALUES (${house.address || ''}, ${house.asking_price || 0}, ${propertyId}, 'open')
+        RETURNING id
+      `;
+      room.marketId = inserted.id;
 
-    await sql`
-      INSERT INTO market_state (market_id, q_over, q_under, b, total_trades, total_wagered)
-      VALUES (${room.marketId}, 0, 0, 100, 0, 0)
-    `;
-    console.log(`Room ${code}: created DB market ${room.marketId}`);
-  } catch (e) {
-    observability.recordError('database', e, { operation: 'create_room_market' });
-    console.error(`Room ${code}: failed to create DB market:`, e.message);
+      await sql`
+        INSERT INTO market_state (market_id, q_over, q_under, b, total_trades, total_wagered)
+        VALUES (${room.marketId}, 0, 0, 100, 0, 0)
+      `;
+      console.log(`Room ${code}: created DB market ${room.marketId}`);
+    } catch (e) {
+      observability.recordError('database', e, { operation: 'create_room_market' });
+      console.error(`Room ${code}: failed to create DB market:`, e.message);
+    }
   }
 
   rooms[code] = room;
   const { persistence } = appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
     house: room.house,
-    market: getPublicMarketState(room.market),
+    market_format: room.marketFormat,
+    market_config: marketConfigPayload(room),
+    market: eventMarketPayload(room),
     host_user_id: room.hostUserId,
+    draft_audit: room.draftAudit,
+    room_phase: room.phase,
   });
   await waitForRoomPersistence(persistence);
   return room;
@@ -597,12 +1176,19 @@ function appendRoomEvent(room, type, payload = {}, req) {
   });
   const activityEntry = roomEventToActivity(event);
   if (activityEntry) room.activity.push(activityEntry);
-  let persistence;
+  let eventPersistence;
+  let roomSnapshotPersistence;
   try {
-    persistence = persistRoom(room);
+    eventPersistence = persistRoomEvent(event);
   } catch (error) {
-    persistence = Promise.reject(error);
+    eventPersistence = Promise.reject(error);
   }
+  try {
+    roomSnapshotPersistence = persistRoom(room);
+  } catch (error) {
+    roomSnapshotPersistence = Promise.reject(error);
+  }
+  const persistence = combinePersistenceResults(eventPersistence, roomSnapshotPersistence);
   return { event, activityEntry, persistence };
 }
 
@@ -705,22 +1291,38 @@ function getRoomReplay(room) {
   return replayRoomEvents(roomEventStore.list(room.code));
 }
 
+function recordReplayIntegrity(report) {
+  observability.increment('replay_integrity.checks');
+  if (report.ok) return;
+  observability.increment('replay_integrity.failures');
+  observability.recordError('replay_integrity', new Error('Room replay integrity mismatch'), {
+    room_code: report.room_code,
+    mismatch_paths: report.mismatches.map((mismatch) => mismatch.path),
+    last_sequence: report.last_sequence,
+  });
+}
+
 function getRoomStatePayload(room) {
   const replay = getRoomReplay(room);
   const replayPlayers = Object.values(replay.players);
+  const phase = normalizeRoomPhase(replay.room_phase || room.phase);
 
   return {
-    market: replay.market || getPublicMarketState(room.market),
+    market: replay.market || getPublicRoomMarketState(room),
+    market_format: replay.market_format || room.marketFormat || BINARY_MARKET_FORMAT,
+    market_config: replay.market_config || marketConfigPayload(room),
     players: replayPlayers.length ? replayPlayers : Object.values(room.players),
     house: replay.house || room.house,
     history: [],
     activity: replay.activity.slice(-50),
+    phase,
     ai_enabled: room.aiEnabled,
     host_user_id: room.hostUserId || null,
     durability_error: room.durabilityError || null,
     settled: replay.settled || room.settled,
     settlement: replay.settlement || room.settlement,
     event_sequence: replay.last_sequence,
+    draft_audit: replay.draft_audit || room.draftAudit || null,
   };
 }
 
@@ -809,20 +1411,255 @@ app.get('/healthz', (req, res) => {
 });
 
 app.get('/readyz', (req, res) => {
-  const payload = observability.readiness({ roomPersistence, sql });
+  const payload = observability.readiness({ roomPersistence, roomEventLog, propertySnapshot, sql });
   res.status(payload.ready ? 200 : 503).json(payload);
+});
+
+app.get('/api/market-templates', (req, res) => {
+  res.json(publicMarketTemplateRegistry());
+});
+
+app.get('/api/neighborhoods', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  res.json(propertySnapshot.neighborhoodResponse({
+    city: req.query.city,
+    state: req.query.state,
+    zip: req.query.zip || req.query.zip_code,
+    minProperties: req.query.min_properties,
+    limit: req.query.limit,
+  }));
+});
+
+function resolveNeighborhoodDraftContext(zipCode, draftId) {
+  const result = propertySnapshot.neighborhoodResponse({
+    zip: zipCode,
+    limit: 1,
+  });
+  if (!result.entities.length) {
+    return { error: 'Neighborhood entity not found', statusCode: 404 };
+  }
+  const drafts = buildNeighborhoodMarketDrafts({
+    entity: result.entities[0],
+    provenance: result.provenance,
+  });
+  const wanted = String(draftId || '').trim();
+  const draft = drafts.drafts.find((item) => item.draft_id === wanted || item.market_format === wanted);
+  if (!draft) {
+    return { error: 'Neighborhood market draft not found', statusCode: 404 };
+  }
+  return {
+    entity: result.entities[0],
+    provenance: result.provenance,
+    draft,
+    drafts,
+  };
+}
+
+app.get('/api/neighborhoods/:zipCode/market-drafts/:draftId/evidence-contract', limitRequests('ai:intelligence', { max: 120 }), (req, res) => {
+  const context = resolveNeighborhoodDraftContext(req.params.zipCode, req.params.draftId);
+  if (context.error) {
+    res.status(context.statusCode || 400).json({ error: context.error });
+    return;
+  }
+  res.json(buildNeighborhoodEvidenceProviderContract({
+    entity: context.entity,
+    drafts: [context.draft],
+    provenance: context.provenance,
+  }));
+});
+
+app.post('/api/neighborhoods/:zipCode/market-drafts/:draftId/evidence/generate', limitRequests('ai:intelligence', { max: 60 }), async (req, res) => {
+  const context = resolveNeighborhoodDraftContext(req.params.zipCode, req.params.draftId);
+  if (context.error) {
+    res.status(context.statusCode || 400).json({ error: context.error });
+    return;
+  }
+  const envelope = await executeNeighborhoodEvidenceProvider({
+    entity: context.entity,
+    drafts: [context.draft],
+    provenance: context.provenance,
+    providerOptions: resolveNeighborhoodEvidenceProviderOptions(),
+  });
+  res.json(envelope);
+});
+
+app.get('/api/neighborhoods/:zipCode/market-drafts', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const result = propertySnapshot.neighborhoodResponse({
+    zip: req.params.zipCode,
+    limit: 1,
+  });
+  if (!result.entities.length) {
+    res.status(404).json({ error: 'Neighborhood entity not found' });
+    return;
+  }
+  res.json(buildNeighborhoodMarketDrafts({
+    entity: result.entities[0],
+    provenance: result.provenance,
+  }));
+});
+
+app.get('/api/neighborhoods/:zipCode', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const result = propertySnapshot.neighborhoodResponse({
+    zip: req.params.zipCode,
+    limit: 1,
+  });
+  if (!result.entities.length) {
+    res.status(404).json({ error: 'Neighborhood entity not found' });
+    return;
+  }
+  res.json(result);
+});
+
+app.get('/api/geospatial/properties', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  res.json(propertySnapshot.geospatialResponse({
+    lat: req.query.lat || req.query.latitude,
+    lng: req.query.lng || req.query.lon || req.query.longitude,
+    radius_km: req.query.radius_km,
+    bbox: req.query.bbox,
+    west: req.query.west,
+    south: req.query.south,
+    east: req.query.east,
+    north: req.query.north,
+    city: req.query.city,
+    state: req.query.state,
+    zip: req.query.zip || req.query.zip_code,
+    limit: req.query.limit,
+  }));
+});
+
+app.get('/api/properties', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  res.json(propertySnapshot.queryResponse({
+    ids: req.query.ids,
+    q: req.query.q,
+    city: req.query.city,
+    state: req.query.state,
+    minPrice: req.query.min_price,
+    maxPrice: req.query.max_price,
+    limit: req.query.limit,
+  }));
+});
+
+app.get('/api/properties/:propertyId/nearby', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const result = propertySnapshot.nearbyResponse(req.params.propertyId, {
+    radius_km: req.query.radius_km,
+    bbox: req.query.bbox,
+    west: req.query.west,
+    south: req.query.south,
+    east: req.query.east,
+    north: req.query.north,
+    city: req.query.city,
+    state: req.query.state,
+    zip: req.query.zip || req.query.zip_code,
+    limit: req.query.limit,
+  });
+  if (result.error) {
+    res.status(result.statusCode || 400).json({ error: result.error });
+    return;
+  }
+  res.json(result);
+});
+
+app.get('/api/properties/:propertyId', limitRequests('properties:query', { max: 240 }), (req, res) => {
+  const property = propertySnapshot.getById(req.params.propertyId);
+  if (!property) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  res.json(propertySnapshot.queryResponse({ ids: [property.property_id], limit: 1 }));
+});
+
+app.get('/api/ai/intelligence/properties/:propertyId/contract', limitRequests('ai:intelligence', { max: 120 }), (req, res) => {
+  const property = propertySnapshot.getById(req.params.propertyId);
+  if (!property) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  const result = propertySnapshot.query({ ids: [property.property_id], limit: 1 });
+  res.json(buildPropertyIntelligenceProviderContract({
+    property,
+    provenance: result.provenance,
+  }));
+});
+
+app.post('/api/ai/intelligence/properties/:propertyId/generate', limitRequests('ai:intelligence', { max: 60 }), async (req, res) => {
+  const property = propertySnapshot.getById(req.params.propertyId);
+  if (!property) {
+    res.status(404).json({ error: 'Property not found' });
+    return;
+  }
+  const result = propertySnapshot.query({ ids: [property.property_id], limit: 1 });
+  const envelope = await executeStructuredIntelligenceProvider({
+    property,
+    provenance: result.provenance,
+    providerOptions: resolveStructuredIntelligenceProviderOptions(),
+  });
+  res.json(envelope);
 });
 
 app.get('/api/ops/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
-  res.json(observability.snapshot({ rooms, roomPersistence, sql }));
+  res.json(observability.snapshot({ rooms, roomPersistence, roomEventLog, propertySnapshot, sql }));
+});
+
+function buildCurrentOperatorIncidentQueue(filters = {}) {
+  return buildOperatorIncidentQueue({
+    rooms,
+    roomEventsByCode: (code) => roomEventStore.list(code),
+    filters,
+  });
+}
+
+app.get('/api/ops/incidents', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  const queue = buildCurrentOperatorIncidentQueue({
+    roomCode: req.query.room_code,
+    severity: req.query.severity,
+    limit: req.query.limit,
+  });
+  res.json(operatorIncidentWorkflowStore.projectQueue(queue));
+});
+
+app.get('/api/ops/incidents/:incidentId/replay', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  const queue = buildCurrentOperatorIncidentQueue({ limit: 250 });
+  const incident = queue.incidents.find((item) => item.incident_id === req.params.incidentId);
+  if (!incident) {
+    res.status(404).json({ error: 'Operator incident not found in current queue' });
+    return;
+  }
+  const room = rooms[incident.room_code];
+  if (!room) {
+    res.status(404).json({ error: 'Room not found for operator incident' });
+    return;
+  }
+  const events = roomEventStore.list(room.code);
+  const integrityReport = createReplayIntegrityReport(room, events);
+  recordReplayIntegrity(integrityReport);
+  const replay = replayRoomEvents(events);
+  const review = buildOperatorIncidentReplayReview({ incident, replay, integrityReport, events });
+  res.status(integrityReport.ok ? 200 : 409).json(review);
+});
+
+app.patch('/api/ops/incidents/:incidentId', (req, res) => {
+  if (!requireOpsAccess(req, res)) return;
+  const queue = buildCurrentOperatorIncidentQueue({ limit: 250 });
+  const incident = queue.incidents.find((item) => item.incident_id === req.params.incidentId);
+  if (!incident) {
+    res.status(404).json({ error: 'Operator incident not found in current queue' });
+    return;
+  }
+  const result = operatorIncidentWorkflowStore.updateIncidentWorkflow(incident, req.body || {});
+  if (result.error) {
+    res.status(result.statusCode || 400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
 });
 
 app.get('/metrics', (req, res) => {
   if (!requireOpsAccess(req, res)) return;
   res
     .type('text/plain; version=0.0.4; charset=utf-8')
-    .send(observability.prometheusMetrics({ rooms, roomPersistence, sql }));
+    .send(observability.prometheusMetrics({ rooms, roomPersistence, roomEventLog, propertySnapshot, sql }));
 });
 
 app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, res) => {
@@ -831,6 +1668,95 @@ app.post('/api/identity', limitRequests('identity:create', { max: 60 }), (req, r
     user_id: userId,
     user_token: createUserToken(userId),
   });
+});
+
+app.get('/api/me/reputation', limitRequests('identity:reputation', { max: 120 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  res.json(userReputationStore.getUser(identity.user_id));
+});
+
+app.get('/api/me/watchlist', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  res.json(userProfileStore.getWatchlist(identity.user_id));
+});
+
+app.get('/api/me/alerts', limitRequests('identity:alerts', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  res.json(userProfileStore.getAlerts(identity.user_id));
+});
+
+app.post('/api/me/alerts/evaluate', limitRequests('identity:alerts', { max: 120 }), async (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.evaluateWatchlistAlerts(identity.user_id, {
+    getProperty: (propertyId) => propertySnapshot.getById(propertyId),
+  });
+  if (result.error) {
+    res.status(503).json({ error: result.error });
+    return;
+  }
+  const outboundCandidates = result.value.alerts.filter((alert) =>
+    alert.status === 'ready' && alert.outbound_delivery?.status !== 'delivered'
+  );
+  const outboundDelivery = await alertDeliveryAdapter.deliverAlerts({
+    userId: identity.user_id,
+    alerts: outboundCandidates,
+  });
+  for (const attempt of outboundDelivery.attempts || []) {
+    userProfileStore.recordWatchlistAlertDelivery(identity.user_id, attempt);
+  }
+  const refreshed = userProfileStore.getAlerts(identity.user_id);
+  res.json({
+    ...refreshed,
+    outbound_delivery: outboundDelivery,
+  });
+});
+
+app.patch('/api/me/alerts/:alertId', limitRequests('identity:alerts', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.acknowledgeWatchlistAlert(identity.user_id, req.params.alertId);
+  if (result.error) {
+    res.status(result.statusCode || 400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
+});
+
+app.put('/api/me/watchlist/:propertyId', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.upsertWatchlistItem(identity.user_id, req.params.propertyId, req.body || {});
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
+});
+
+app.patch('/api/me/watchlist/:propertyId', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.upsertWatchlistItem(identity.user_id, req.params.propertyId, req.body || {});
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
+});
+
+app.delete('/api/me/watchlist/:propertyId', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = userProfileStore.removeWatchlistItem(identity.user_id, req.params.propertyId);
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.value);
 });
 
 // ─── Server-side Cognee AI boundary ─────────────────────────────────
@@ -1143,13 +2069,25 @@ app.post('/api/rooms', limitRequests('rooms:create', { max: 20 }), async (req, r
   const validated = validateCreateRoomPayload(req.body);
   if (validated.error) return validationError(res, validated.error);
 
-  const { host_user_id, ...house } = validated.value;
+  const { host_user_id, draft_audit, market_format, market_config, ...house } = validated.value;
   if (host_user_id && !requireExpectedUserIdentity(req, res, host_user_id)) return;
 
   try {
-    const room = await createRoom(house, undefined, { hostUserId: host_user_id });
+    const room = await createRoom(house, undefined, {
+      hostUserId: host_user_id,
+      draftAudit: draft_audit,
+      marketFormat: market_format,
+      marketConfig: market_config,
+    });
     observability.increment('room_lifecycle.created');
-    res.json({ room_code: room.code, host_token: room.hostToken, house });
+    res.json({
+      room_code: room.code,
+      host_token: room.hostToken,
+      house,
+      market_format: room.marketFormat,
+      market_config: marketConfigPayload(room),
+      draft_audit: room.draftAudit,
+    });
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -1165,8 +2103,10 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     return validationError(res, validated.error);
   }
 
-  const { session_id, nickname } = validated.value;
+  const { session_id, nickname, user_id } = validated.value;
   if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'join'))) return;
+  const joinedUserId = user_id || req.userIdentity?.user_id || null;
+  if (joinedUserId) room.userIdsBySession[session_id] = joinedUserId;
 
   let player = room.players[session_id];
   let joinBroadcast = null;
@@ -1178,6 +2118,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     ({ persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
       session_id,
       nickname,
+      user_id: joinedUserId,
       player: cloneJson(player),
       source: 'join',
     }, req));
@@ -1188,6 +2129,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     const { activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
       session_id,
       nickname,
+      user_id: joinedUserId,
       player: cloneJson(player),
       player_count: Object.keys(room.players).length,
     }, req);
@@ -1214,10 +2156,14 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   res.json({
     player,
     market: state.market,
+    market_format: state.market_format,
+    market_config: state.market_config,
     players: state.players,
     house: state.house,
     activity: state.activity,
+    phase: state.phase,
     host_user_id: state.host_user_id,
+    draft_audit: state.draft_audit,
     settled: state.settled,
     settlement: state.settlement,
     event_sequence: state.event_sequence,
@@ -1261,11 +2207,88 @@ app.get('/api/rooms/:code/replay', async (req, res) => {
   });
 });
 
+app.get('/api/rooms/:code/replay/verify', async (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+  if (!(await requireHostCapability(req, res, room))) return;
+
+  const report = createReplayIntegrityReport(room, roomEventStore.list(room.code));
+  recordReplayIntegrity(report);
+  res.status(report.ok ? 200 : 409).json(report);
+});
+
+app.get('/api/rooms/:code/public-verification', (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+
+  const events = roomEventStore.list(room.code);
+  const report = createReplayIntegrityReport(room, events);
+  recordReplayIntegrity(report);
+  const artifact = createPublicVerificationArtifact(room, events, { integrityReport: report });
+
+  if (!artifact.settled) {
+    return res.status(409).json({
+      error: 'Public verification is available after settlement',
+      ...artifact,
+    });
+  }
+
+  res.status(artifact.replay.live_match ? 200 : 409).json(artifact);
+});
+
+app.post('/api/rooms/:code/phase', limitRequests('rooms:phase', { max: 30 }), async (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+  if (!(await requireHostCapability(req, res, room))) return;
+
+  if (room.settled) {
+    recordRoomError(room, 'phase', 'Market is settled', 400, req);
+    return res.status(400).json({ error: 'Market is settled' });
+  }
+
+  const validated = validateRoomPhasePayload(req.body);
+  if (validated.error) {
+    recordRoomError(room, 'phase', validated.error, 400, req);
+    return validationError(res, validated.error);
+  }
+
+  room.phase = validated.value;
+  if (room.phase.betting_locked && room.aiEnabled) {
+    room.aiEnabled = false;
+    stopAiBotInterval(room);
+  }
+
+  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
+    phase: room.phase.status,
+    room_phase: room.phase,
+    betting_locked: room.phase.betting_locked,
+    ai_enabled: room.aiEnabled,
+  }, req);
+
+  try {
+    await waitForRoomPersistence(persistence);
+    clearRoomDurabilityError(room, 'phase');
+  } catch (error) {
+    return roomPersistenceError(res, error);
+  }
+
+  broadcast(room, {
+    type: 'phase',
+    phase: room.phase,
+    ai_enabled: room.aiEnabled,
+    activity: activityEntry,
+    event_sequence: event.sequence,
+  });
+  observability.increment('room_lifecycle.phase_changes');
+
+  res.json({ phase: room.phase, ai_enabled: room.aiEnabled, event_sequence: event.sequence });
+});
+
 app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
 
-  const validated = validateBetPayload(req.body);
+  const validated = validateBetPayload(req.body, room);
   if (validated.error) {
     recordRoomError(room, 'bet', validated.error, 400, req);
     return validationError(res, validated.error);
@@ -1277,7 +2300,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     return validationError(res, 'Idempotency-Key header is required for bets');
   }
 
-  const { session_id, outcome, wager } = validated.value;
+  const { session_id, outcome, wager, reason } = validated.value;
   if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'bet'))) return;
 
   const fingerprint = betFingerprint(validated.value);
@@ -1296,6 +2319,10 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     recordRoomError(room, 'bet', 'Market is settled', 400, req);
     return res.status(400).json({ error: 'Market is settled' });
   }
+  if (room.phase?.betting_locked) {
+    recordRoomError(room, 'bet', 'Betting is locked by the host', 423, req);
+    return res.status(423).json({ error: 'Betting is locked by the host' });
+  }
 
   const player = room.players[session_id];
   if (!player) {
@@ -1307,7 +2334,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     return res.status(400).json({ error: 'Insufficient balance' });
   }
 
-  const execution = placeBetWithBudget(room.market, outcome, wager, player.nickname);
+  const execution = placeRoomBetWithBudget(room, outcome, wager, player.nickname);
   room.market = execution.market;
   const shares = execution.shares;
   const trade = execution.trade;
@@ -1317,16 +2344,18 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     outcome,
     wager: trade.wager,
     shares: Math.round(shares * 100) / 100,
-    prob_at_entry: outcome === 'over' ? trade.prob_over_after : trade.prob_under_after,
+    prob_at_entry: selectedProbabilityAfter(room, trade, outcome),
     timestamp: trade.timestamp,
+    reason: reason || null,
   });
 
   const marketState = execution.publicMarket;
-  const { event, activityEntry } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
+  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
     session_id,
     nickname: player.nickname,
     outcome,
     wager: trade.wager,
+    reason: reason || null,
     shares: Math.round(shares * 100) / 100,
     trade,
     market: marketState,
@@ -1335,8 +2364,10 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
   }, req);
 
   // Persist to DB in background (don't block response)
-  persistTrade(room.marketId, trade, shares);
-  updateMarketState(room.marketId, room.market);
+  if (isBinaryMarket(room)) {
+    persistTrade(room.marketId, trade, shares);
+    updateMarketState(room.marketId, room.market);
+  }
 
   const response = { trade, market: marketState, player, event_sequence: event.sequence };
   room.betReceipts.set(idempotencyKey, {
@@ -1345,7 +2376,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     createdAt: Date.now(),
   });
   try {
-    await waitForRoomPersistence(persistRoom(room));
+    await waitForRoomPersistence(combinePersistenceResults(persistence, persistRoom(room)));
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -1355,6 +2386,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     nickname: player.nickname,
     outcome,
     wager: trade.wager,
+    reason: reason || null,
     trade,
     market: marketState,
     player,
@@ -1371,7 +2403,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   if (!room) return;
   if (!(await requireHostCapability(req, res, room))) return;
 
-  const validated = validateSettlePayload(req.body);
+  const validated = validateSettlePayload(req.body, room);
   if (validated.error) {
     recordRoomError(room, 'settle', validated.error, 400, req);
     return validationError(res, validated.error);
@@ -1380,21 +2412,42 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   room.aiEnabled = false;
   room.settled = true;
+  room.phase = normalizeRoomPhase({
+    status: 'settled',
+    betting_locked: true,
+    updated_at: Date.now() / 1000,
+  });
 
-  const { actual_price } = validated.value;
-  const winningOutcome = getWinningOutcome(actual_price, room.house.asking_price);
-  const settlement = settlePlayers(Object.values(room.players), winningOutcome);
+  const { actual_price, evidence_packet } = validated.value;
+  const settlementMetrics = settlementMetricsForRoom(room, validated.value);
+  const winningOutcome = winningOutcomeForRoom(room, validated.value);
+  const settlement = settlePlayersForRoom(room, Object.values(room.players), winningOutcome);
   for (const player of settlement.players) {
     room.players[player.session_id] = player;
   }
   const { results } = settlement;
+  const reputation_summary = createRoomReputationSummary(Object.values(room.players), {
+    winning_outcome: winningOutcome,
+    actual_price,
+    results,
+  });
 
-  room.settlement = { winning_outcome: winningOutcome, actual_price, results };
+  room.settlement = {
+    winning_outcome: winningOutcome,
+    actual_price,
+    ...settlementMetrics,
+    results,
+    evidence_packet,
+    reputation_summary,
+  };
   const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
     actual_price,
     winning_outcome: winningOutcome,
+    evidence_packet,
     results,
+    reputation_summary,
     settlement: room.settlement,
+    room_phase: room.phase,
     players: Object.values(room.players).map((player) => cloneJson(player)),
   }, req);
 
@@ -1403,8 +2456,19 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   } catch (error) {
     return roomPersistenceError(res, error);
   }
+  try {
+    userReputationStore.recordRoomSettlement(room, { settledAt: Date.now() / 1000 });
+  } catch (error) {
+    observability.recordError('user_reputation', error, { operation: 'record_room_settlement' });
+  }
 
-  broadcast(room, { type: 'settle', ...room.settlement, activity: activityEntry, event_sequence: event.sequence });
+  broadcast(room, {
+    type: 'settle',
+    ...room.settlement,
+    phase: room.phase,
+    activity: activityEntry,
+    event_sequence: event.sequence,
+  });
   observability.increment('room_lifecycle.settlements');
 
   res.json({ ...room.settlement, event_sequence: event.sequence });
@@ -1419,7 +2483,17 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
     return res.status(400).json({ error: 'Market is settled' });
   }
 
-  room.aiEnabled = !room.aiEnabled;
+  const nextAiEnabled = !room.aiEnabled;
+  if (nextAiEnabled && room.phase?.betting_locked) {
+    recordRoomError(room, 'toggle-ai', 'Betting is locked by the host', 400, req);
+    return res.status(400).json({ error: 'Betting is locked by the host' });
+  }
+  if (nextAiEnabled && (room.marketFormat || BINARY_MARKET_FORMAT) !== BINARY_MARKET_FORMAT) {
+    recordRoomError(room, 'toggle-ai', 'AI bot currently supports binary over/under rooms only', 400, req);
+    return res.status(400).json({ error: 'AI bot currently supports binary over/under rooms only' });
+  }
+
+  room.aiEnabled = nextAiEnabled;
   const { event, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
     phase: 'ai_toggled',
     ai_enabled: room.aiEnabled,
@@ -1674,10 +2748,18 @@ wss.on('connection', (ws, req) => {
 
 const PORT = process.env.PORT || 8000;
 if (require.main === module) {
-  Promise.resolve(loadPersistedRooms())
-    .then((restored) => {
+  Promise.all([
+    Promise.resolve(configurePropertySnapshot()),
+    Promise.resolve(loadPersistedRooms()),
+  ])
+    .then(([propertyLoaded, restored]) => {
       server.listen(PORT, () => {
         console.log(`FairValue server running on http://localhost:${PORT}`);
+        if (propertyLoaded?.source === 'postgres') {
+          console.log(`Loaded ${propertyLoaded.count} property row(s) from ${propertyLoaded.table_name}`);
+        } else if (propertyLoaded?.fallback_reason) {
+          console.log(`Loaded static property snapshot after Postgres fallback: ${propertyLoaded.fallback_reason}`);
+        }
         if (restored.loaded) {
           const source = restored.filePath || restored.kind;
           console.log(`Restored ${restored.loaded} room(s) from ${source}`);
@@ -1686,7 +2768,7 @@ if (require.main === module) {
       });
     })
     .catch((error) => {
-      console.error('Failed to load persisted rooms:', error.message);
+      console.error('Failed to load server runtime dependencies:', error.message);
       process.exitCode = 1;
     });
 }
@@ -1705,12 +2787,24 @@ module.exports = {
   runAiBotTick,
   requireHostCapability,
   roomEventStore,
+  roomEventLog: () => roomEventLog,
   roomPersistence: () => roomPersistence,
+  userReputationStore: () => userReputationStore,
+  userProfileStore: () => userProfileStore,
+  propertySnapshot: () => propertySnapshot,
+  operatorIncidentWorkflowStore: () => operatorIncidentWorkflowStore,
   observability,
   configureRoomPersistence,
+  configureUserReputationPersistence,
+  configureUserProfilePersistence,
+  configureAlertDelivery,
+  configurePropertySnapshot,
+  configureOperatorIncidentWorkflowPersistence,
   loadPersistedRooms,
   persistRooms,
   replayRoomEvents,
+  createReplayIntegrityReport,
+  createPublicVerificationArtifact,
   EVENT_TYPES,
   startSimulations,
 };

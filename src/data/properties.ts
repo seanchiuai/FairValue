@@ -161,6 +161,10 @@ function fetchProperties(): Promise<Property[]> {
   return fetchPromise;
 }
 
+export function loadProperties(): Promise<Property[]> {
+  return fetchProperties();
+}
+
 export function useProperties(): { properties: Property[]; loading: boolean } {
   const [properties, setProperties] = useState<Property[]>(cached || []);
   const [loading, setLoading] = useState(!cached);

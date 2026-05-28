@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const postgres = require('postgres');
 const { neon } = require('@neondatabase/serverless');
 const { createPostgresRoomPersistence } = require('../server/roomPersistence');
+const { createPostgresRoomEventLog, EVENT_TYPES } = require('../server/roomEventLog');
 
 const LIVE_WRITE_FLAG = 'FAIRVALUE_LIVE_POSTGRES_SMOKE';
 const REQUIRE_DATABASE_FLAG = 'FAIRVALUE_REQUIRE_DATABASE_URL';
@@ -89,8 +90,8 @@ async function pickUnusedSmokeRoomCode(persistence) {
   throw new Error('Could not find an unused FV-prefixed room code for the live smoke');
 }
 
-async function tablePresence(sql) {
-  const rows = await sql`SELECT to_regclass('public.fairvalue_room_snapshots')::text AS table_name`;
+async function tablePresence(sql, tableName) {
+  const rows = await sql`SELECT to_regclass(${`public.${tableName}`})::text AS table_name`;
   return Boolean(rows?.[0]?.table_name);
 }
 
@@ -117,6 +118,7 @@ async function main() {
 
   const { driver, sql, close } = createSqlClient(databaseUrl);
   const persistence = createPostgresRoomPersistence({ sql });
+  const eventLog = createPostgresRoomEventLog({ sql });
   let smokeRoomCode = null;
   let cleanupAttempted = false;
 
@@ -133,9 +135,13 @@ async function main() {
       driver,
       database: redactDatabaseUrl(databaseUrl),
       table: persistence.tableName,
+      eventTable: eventLog.tableName,
       roomStore: roomStore || 'default-json',
       connected: true,
-      tablePresentBeforeWrite: await tablePresence(sql),
+      tablesPresentBeforeWrite: {
+        snapshots: await tablePresence(sql, persistence.tableName),
+        events: await tablePresence(sql, eventLog.tableName),
+      },
       writeSmoke: writeEnabled ? 'pending' : `skipped; set ${LIVE_WRITE_FLAG}=1 to write, read, and delete one FV-prefixed room row`,
     };
 
@@ -146,9 +152,10 @@ async function main() {
 
     smokeRoomCode = await pickUnusedSmokeRoomCode(persistence);
     const marker = `fairvalue-live-smoke-${process.pid}-${Date.now()}`;
+    const hostTokenMarker = `${marker}-host-token`;
     const smokeSnapshot = {
       code: smokeRoomCode,
-      hostToken: marker,
+      hostToken: hostTokenMarker,
       hostUserId: null,
       house: {
         address: 'FairValue Live Persistence Smoke',
@@ -167,20 +174,42 @@ async function main() {
     };
 
     await persistence.saveRoom(smokeRoomCode, smokeSnapshot);
+    await eventLog.append({
+      id: `${smokeRoomCode}-00000001`,
+      room_code: smokeRoomCode,
+      sequence: 1,
+      type: EVENT_TYPES.ROOM_CREATED,
+      payload: {
+        house: smokeSnapshot.house,
+        market: smokeSnapshot.market,
+        smoke: true,
+        marker,
+      },
+      timestamp: Date.now() / 1000,
+    });
 
     const loadedRoom = await persistence.loadRoom(smokeRoomCode);
-    assert.equal(loadedRoom.hostToken, marker);
+    assert.equal(loadedRoom.hostToken, hostTokenMarker);
     assert.equal(loadedRoom.house.address, 'FairValue Live Persistence Smoke');
     assert.equal(loadedRoom.events[0].marker, marker);
 
     const loadedSnapshot = await persistence.load();
-    assert.equal(loadedSnapshot.rooms[smokeRoomCode].hostToken, marker);
+    assert.equal(loadedSnapshot.rooms[smokeRoomCode].hostToken, hostTokenMarker);
+    const loadedEvents = await eventLog.loadRoom(smokeRoomCode);
+    assert.equal(loadedEvents.length, 1);
+    assert.equal(loadedEvents[0].payload.marker, marker);
+    assert.equal(JSON.stringify(loadedEvents).includes(loadedRoom.hostToken), false);
 
     await persistence.deleteRoom(smokeRoomCode);
+    await eventLog.deleteRoom(smokeRoomCode);
     cleanupAttempted = true;
     assert.equal(await persistence.loadRoom(smokeRoomCode), null);
+    assert.deepEqual(await eventLog.loadRoom(smokeRoomCode), []);
 
-    report.tablePresentAfterWrite = await tablePresence(sql);
+    report.tablesPresentAfterWrite = {
+      snapshots: await tablePresence(sql, persistence.tableName),
+      events: await tablePresence(sql, eventLog.tableName),
+    };
     report.writeSmoke = 'passed';
     report.smokeRoomCode = smokeRoomCode;
     report.cleanup = 'passed';
@@ -188,6 +217,7 @@ async function main() {
   } finally {
     if (smokeRoomCode && !cleanupAttempted) {
       await persistence.deleteRoom(smokeRoomCode).catch(() => {});
+      await eventLog.deleteRoom(smokeRoomCode).catch(() => {});
     }
     await close().catch(() => {});
   }

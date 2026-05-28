@@ -81,7 +81,27 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(host.getByTestId('leaderboard')).toContainText('Player One');
     await expect(host.getByTestId('leaderboard')).toContainText('Player Two');
 
+    await host.getByRole('button', { name: 'Enter projector mode' }).click();
+    await expect(host.getByRole('button', { name: 'Exit projector mode' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(host.getByTestId('host-projector-stage')).toContainText(property.address);
+    await expect(host.getByTestId('host-projector-cue')).toContainText('live consensus');
+    await expect(host.getByTestId('host-projector-phase')).toContainText('Betting open');
+
+    await host.getByRole('button', { name: 'Start 5 min discussion' }).click();
+    await expect(host.getByTestId('host-phase-status')).toContainText('Discussion timer');
+    await expect(host.getByTestId('host-projector-phase')).toContainText('Discussion timer');
+    await expect(host.getByTestId('host-phase-timer')).toContainText('Ends in');
+    await host.getByRole('button', { name: 'Lock betting' }).click();
+    await expect(host.getByTestId('host-phase-status')).toContainText('Betting locked');
+    await expect(host.getByTestId('host-projector-cue')).toContainText('Betting is locked');
+    await playerOne.getByRole('button', { name: /Bet \$25 on OVER/ }).click();
+    await expect(playerOne.getByTestId('bet-error')).toContainText('Betting is locked by the host');
+    await host.getByRole('button', { name: 'Open betting' }).click();
+    await expect(host.getByTestId('host-phase-status')).toContainText('Betting open');
+
+    await playerOne.getByLabel('Public bet reason').fill('Touring comps point above asking.');
     await clickBetAndWait(playerOne, roomCode, /Bet \$25 on OVER/);
+    await expect(playerOne.getByLabel('Public bet reason')).toHaveValue('');
     await playerTwo.getByRole('button', { name: 'Set wager to $50' }).click();
     await clickBetAndWait(playerTwo, roomCode, /Bet \$50 on UNDER/);
 
@@ -92,6 +112,7 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(host.getByTestId('activity-feed')).toContainText('Player Two');
     await expect(host.getByTestId('activity-feed')).toContainText('OVER');
     await expect(host.getByTestId('activity-feed')).toContainText('UNDER');
+    await expect(host.getByTestId('activity-feed')).toContainText('Touring comps point above asking.');
 
     await host.getByRole('button', { name: 'AI bot disabled', exact: true }).click();
     await expect(host.getByRole('button', { name: 'AI bot enabled', exact: true })).toHaveAttribute(
@@ -109,6 +130,7 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(playerOne.getByText(property.address)).toBeVisible();
     await expect(playerOne.getByTestId('player-positions')).toContainText('OVER');
     await expect(playerOne.getByTestId('player-positions')).toContainText('$25');
+    await expect(playerOne.getByTestId('player-positions')).toContainText('Touring comps point above asking.');
 
     await host.getByRole('button', { name: /Settle/ }).click();
     await expect(host.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
@@ -124,6 +146,10 @@ test('host and two players can bet, reconnect, toggle AI, and settle a room', as
     await expect(host.getByTestId('activity-feed')).toContainText('Market settled');
     await expect(playerOne.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
     await expect(playerOne.getByTestId('player-settlement-result')).toContainText('Player One');
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('My prediction record', { timeout: 15_000 });
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('100%');
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('1/1 correct');
+    await expect(playerOne.getByTestId('player-reputation-panel')).toContainText('Simulation-credit rooms only');
     await expect(playerTwo.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
     await expect(playerTwo.getByTestId('player-settlement-result')).toContainText('Player Two');
   } finally {

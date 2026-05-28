@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { executeBuy, buyWithBudget } from '../lib/lmsr';
 import { buildUserAuthHeaders } from '../lib/fairValueAuth';
+import { BINARY_MARKET_FORMAT } from '../lib/roomMarketDisplay';
 import {
   getRoomJoinError,
   getRoomStateError,
@@ -11,15 +12,19 @@ import {
 } from '../lib/roomResponses';
 import type {
   Market,
+  MarketDraftAudit,
   PlayerData,
   House,
   ActivityEntry,
+  RoomMarketConfig,
+  RoomPhase,
   SettleResult,
   SettleResultEntry,
   WsBetMessage,
   WsJoinMessage,
   WsAiTradeMessage,
   WsSettleMessage,
+  WsPhaseMessage,
 } from '../types';
 
 const CONNECTED_RECONCILE_INTERVAL_MS = 5000;
@@ -32,9 +37,13 @@ function generateBetIdempotencyKey() {
 
 export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   const [market, setMarket] = useState<Market | null>(null);
+  const [marketFormat, setMarketFormat] = useState(BINARY_MARKET_FORMAT);
+  const [marketConfig, setMarketConfig] = useState<RoomMarketConfig | null>(null);
   const [players, setPlayers] = useState<PlayerData[]>([]);
   const [house, setHouse] = useState<House | null>(null);
+  const [draftAudit, setDraftAudit] = useState<MarketDraftAudit | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [phase, setPhase] = useState<RoomPhase | null>(null);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [hostUserId, setHostUserId] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
@@ -56,9 +65,13 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         const { data, ts } = JSON.parse(cached);
         if (Date.now() - ts < 5 * 60 * 1000) {
           setMarket(data.market);
+          setMarketFormat(data.market_format || BINARY_MARKET_FORMAT);
+          setMarketConfig(data.market_config || null);
           setPlayers(data.players);
           setHouse(data.house);
+          setDraftAudit(data.draft_audit || null);
           setActivity(data.activity || []);
+          setPhase(data.phase || null);
           setAiEnabled(data.ai_enabled);
           setHostUserId(data.host_user_id || null);
           setSettled(data.settled);
@@ -77,9 +90,13 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         }
         setLoadError('');
         setMarket(data.market || null);
+        setMarketFormat(data.market_format || BINARY_MARKET_FORMAT);
+        setMarketConfig(data.market_config || null);
         setPlayers(data.players || []);
         setHouse(data.house || null);
+        setDraftAudit(data.draft_audit || null);
         setActivity(data.activity || []);
+        setPhase(data.phase || null);
         setAiEnabled(Boolean(data.ai_enabled));
         setHostUserId(data.host_user_id || null);
         setSettled(Boolean(data.settled));
@@ -110,9 +127,13 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   const applyFreshRoomState = useCallback((data: RoomMutationResponse) => {
     if (!isValidRoomStateResponse(data)) return false;
     setMarket(data.market || null);
+    setMarketFormat(data.market_format || BINARY_MARKET_FORMAT);
+    setMarketConfig(data.market_config || null);
     setPlayers(data.players || []);
     setHouse(data.house || null);
+    setDraftAudit(data.draft_audit || null);
     setActivity(data.activity || []);
+    setPhase(data.phase || null);
     setAiEnabled(Boolean(data.ai_enabled));
     setHostUserId(data.host_user_id || null);
     if (data.settled) setSettled(true);
@@ -169,10 +190,13 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
     }, []),
     onSettle: useCallback((data: WsSettleMessage) => {
       setSettled(true);
+      if (data.phase) setPhase(data.phase);
       setSettleResult({
         winning_outcome: data.winning_outcome,
         actual_price: data.actual_price,
         results: data.results,
+        evidence_packet: data.evidence_packet || null,
+        reputation_summary: data.reputation_summary || null,
       });
       if (data.activity) {
         const entry = data.activity;
@@ -186,6 +210,14 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
             return p;
           })
         );
+      }
+    }, []),
+    onPhase: useCallback((data: WsPhaseMessage) => {
+      setPhase(data.phase);
+      if (typeof data.ai_enabled === 'boolean') setAiEnabled(data.ai_enabled);
+      if (data.activity) {
+        const entry = data.activity;
+        setActivity((prev) => [...prev, entry]);
       }
     }, []),
     onReconnected: fetchRoomState,
@@ -239,8 +271,12 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
       const error = getRoomJoinError(res, data);
       if (error) throw new Error(error);
       setMarket(data.market || null);
+      setMarketFormat(data.market_format || BINARY_MARKET_FORMAT);
+      setMarketConfig(data.market_config || null);
       setPlayers(data.players || []);
       setHouse(data.house || null);
+      setDraftAudit(data.draft_audit || null);
+      setPhase(data.phase || null);
       if (data.activity) setActivity(data.activity);
       setHostUserId(data.host_user_id || null);
       if (data.settled) setSettled(true);
@@ -251,14 +287,24 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
   );
 
   const placeBet = useCallback(
-    async (outcome: 'over' | 'under', wager: number) => {
+    async (outcome: string, wager: number, reason?: string) => {
       // Optimistic update: predict new state using LMSR math
       const prevMarket = market;
       const prevPlayers = players;
+      const canOptimisticallyPriceBinary =
+        marketFormat === BINARY_MARKET_FORMAT &&
+        market &&
+        Number.isFinite(market.prob_over) &&
+        Number.isFinite(market.prob_under);
 
-      if (market) {
-        const shares = buyWithBudget(outcome, wager, market.q_over, market.q_under, market.b);
-        const result = executeBuy(outcome, shares, market.q_over, market.q_under, market.b);
+      if (phase?.betting_locked) {
+        throw new Error('Betting is locked by the host');
+      }
+
+      if (canOptimisticallyPriceBinary) {
+        const binaryOutcome = outcome === 'under' ? 'under' : 'over';
+        const shares = buyWithBudget(binaryOutcome, wager, market.q_over, market.q_under, market.b);
+        const result = executeBuy(binaryOutcome, shares, market.q_over, market.q_under, market.b);
         setMarket({
           ...market,
           q_over: result.newQOver,
@@ -278,6 +324,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
       try {
         const idempotencyKey = generateBetIdempotencyKey();
         if (!sessionId) throw new Error('User identity is still loading');
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
         const res = await fetch(`/api/rooms/${roomCode}/bet`, {
           method: 'POST',
           headers: {
@@ -290,6 +337,7 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
             ...(userToken ? { user_id: sessionId } : {}),
             outcome,
             wager,
+            ...(trimmedReason ? { reason: trimmedReason } : {}),
           }),
         });
         const data = await readRoomMutationResponse(res);
@@ -310,17 +358,22 @@ export function useRoom(roomCode: string, sessionId: string, userToken = '') {
         throw err;
       }
     },
-    [roomCode, sessionId, userToken, market, players, updatePlayerInList]
+    [roomCode, sessionId, userToken, market, marketFormat, players, phase, updatePlayerInList]
   );
 
   return {
     market,
+    marketFormat,
+    marketConfig,
     players,
     myPlayer,
     house,
+    draftAudit,
     activity,
+    phase,
     aiEnabled,
     hostUserId,
+    setPhase,
     setAiEnabled,
     settled,
     settleResult,

@@ -3,28 +3,32 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   MapPin,
-  ExternalLink,
-  Building2,
   Bed,
   Bath,
   Maximize,
-  Calendar,
   Home,
   DollarSign,
-  GraduationCap,
+  Bookmark,
   Info,
   Database,
   ShieldCheck,
   TrendingUp,
   TrendingDown,
-  Gavel
+  Gavel,
+  AlertTriangle,
+  ListChecks,
+  Sparkles,
+  Target
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
+import { usePropertyDataManifest } from '../data/propertyManifest';
 import { useSession } from '../hooks/useSession';
+import { usePropertyWatchlist } from '../hooks/usePropertyWatchlist';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
+import { generateMarketIntelligence, type MarketIntelligence } from '../lib/marketIntelligence';
 import { useToast } from '../contexts/ToastContext';
 import './MarketPage.css';
 
@@ -36,12 +40,122 @@ type RoomCreateResponse = {
   error?: string;
 };
 
+type NeighborhoodMix = {
+  value: string;
+  count: number;
+};
+
+type NeighborhoodEntity = {
+  entity_id: string;
+  entity_type: string;
+  label: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  property_count: number;
+  latest_observed_at: string | null;
+  status_mix: NeighborhoodMix[];
+  home_type_mix: NeighborhoodMix[];
+  metrics: {
+    median_price: number | null;
+    average_price: number | null;
+    min_price: number | null;
+    max_price: number | null;
+    median_price_per_sqft: number | null;
+    median_rent_estimate: number | null;
+    median_gross_rent_yield: number | null;
+    median_bedrooms: number | null;
+    median_bathrooms: number | null;
+    median_living_area: number | null;
+    average_school_rating: number | null;
+  };
+  data_quality: Array<{ field: string; coverage_percent: number }>;
+  sample_confidence: string;
+  sample_properties: Array<{
+    property_id: string;
+    address: string;
+    price: number | null;
+    home_status: string;
+  }>;
+  limitations: string[];
+};
+
+type NeighborhoodIndexResponse = {
+  schema_version?: string;
+  entities?: NeighborhoodEntity[];
+  limitations?: string[];
+  error?: string;
+};
+
+type StructuredIntelligenceEnvelope = {
+  schema_version?: string;
+  provider_status?: 'provider_backed' | 'local_fallback';
+  provider_name?: string;
+  request_hash?: string;
+  provider_attempt?: {
+    status?: string;
+    reason?: string;
+    http_status?: number;
+  } | null;
+  validation?: {
+    accepted?: boolean;
+    issues?: string[];
+  };
+  intelligence?: MarketIntelligence | null;
+  error?: string;
+};
+
+type NeighborhoodMarketDraft = {
+  draft_id: string;
+  market_format: string;
+  template_status: 'draft_only' | 'playable';
+  template_label: string;
+  pricing_engine: string;
+  label: string;
+  question: string;
+  baseline: {
+    metric?: string;
+    value?: number | null;
+    subject_baseline_median_price?: number | null;
+    observed_at?: string | null;
+    property_count?: number;
+    sample_confidence?: string;
+  };
+  default_config: Record<string, string | number | null>;
+  evidence_required: string[];
+  settlement_rule: string;
+  trust_notice: string;
+  limitations: string[];
+};
+
+type NeighborhoodMarketDraftsResponse = {
+  schema_version?: string;
+  label?: string;
+  count?: number;
+  drafts?: NeighborhoodMarketDraft[];
+  limitations?: string[];
+  error?: string;
+};
+
+type NeighborhoodEvidenceEnvelope = {
+  provider_status?: 'provider_backed' | 'local_fallback';
+  error?: string;
+};
+
 async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
 }
 
 function formatDataTimestamp(value?: string | null) {
   if (!value) return null;
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateOnly) {
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
   const parsed = new Date(value.replace(' ', 'T'));
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString(undefined, {
@@ -55,10 +169,22 @@ const MarketPage: React.FC = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
   const navigate = useNavigate();
   const { properties, loading } = useProperties();
-  const { ensureIdentity } = useSession();
+  const { manifest, loading: manifestLoading } = usePropertyDataManifest();
+  const { ensureIdentity, userToken } = useSession();
+  const { isWatched, toggleProperty } = usePropertyWatchlist({ userToken });
   const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [neighborhood, setNeighborhood] = useState<NeighborhoodIndexResponse | null>(null);
+  const [neighborhoodLoading, setNeighborhoodLoading] = useState(false);
+  const [neighborhoodError, setNeighborhoodError] = useState('');
+  const [neighborhoodDrafts, setNeighborhoodDrafts] = useState<NeighborhoodMarketDraftsResponse | null>(null);
+  const [neighborhoodDraftsLoading, setNeighborhoodDraftsLoading] = useState(false);
+  const [neighborhoodDraftsError, setNeighborhoodDraftsError] = useState('');
+  const [neighborhoodEvidence, setNeighborhoodEvidence] = useState<Record<string, boolean>>({});
+  const [structuredIntelligence, setStructuredIntelligence] = useState<StructuredIntelligenceEnvelope | null>(null);
+  const [structuredIntelligenceLoading, setStructuredIntelligenceLoading] = useState(false);
+  const [structuredIntelligenceError, setStructuredIntelligenceError] = useState('');
   const property = properties.find(p => p.id === propertyId) || properties[0];
 
   // Chart with historical data from DB
@@ -82,6 +208,118 @@ const MarketPage: React.FC = () => {
       })
       .catch(() => console.warn('Chart history unavailable'));
   }, [propertyId, property, loadHistory]);
+
+  useEffect(() => {
+    if (!property?.zipCode) {
+      setNeighborhood(null);
+      setNeighborhoodError('');
+      setNeighborhoodLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setNeighborhoodLoading(true);
+    setNeighborhoodError('');
+    fetch(`/api/neighborhoods/${encodeURIComponent(property.zipCode)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await readJson<NeighborhoodIndexResponse>(response);
+        if (!response.ok || data.error) throw new Error(data.error || 'Neighborhood entity unavailable');
+        setNeighborhood(data);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setNeighborhood(null);
+        setNeighborhoodError('Static neighborhood entity unavailable from the local API.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNeighborhoodLoading(false);
+      });
+    return () => controller.abort();
+  }, [property?.zipCode]);
+
+  useEffect(() => {
+    if (!property?.zipCode) {
+      setNeighborhoodDrafts(null);
+      setNeighborhoodDraftsError('');
+      setNeighborhoodDraftsLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setNeighborhoodDraftsLoading(true);
+    setNeighborhoodDraftsError('');
+    fetch(`/api/neighborhoods/${encodeURIComponent(property.zipCode)}/market-drafts`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await readJson<NeighborhoodMarketDraftsResponse>(response);
+        if (!response.ok || data.error) throw new Error(data.error || 'Neighborhood scenario drafts unavailable');
+        setNeighborhoodDrafts(data);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setNeighborhoodDrafts(null);
+        setNeighborhoodDraftsError('Draft-only neighborhood scenarios unavailable from the local API.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNeighborhoodDraftsLoading(false);
+      });
+    return () => controller.abort();
+  }, [property?.zipCode]);
+
+  useEffect(() => {
+    if (!property?.zipCode || !neighborhoodDrafts?.drafts?.length) {
+      setNeighborhoodEvidence({});
+      return;
+    }
+    const drafts = neighborhoodDrafts.drafts;
+    const controller = new AbortController();
+    Promise.all(drafts.map(async (draft) => {
+      const response = await fetch(
+        `/api/neighborhoods/${property.zipCode}/market-drafts/${draft.draft_id}/evidence/generate`,
+        {
+          method: 'POST',
+          signal: controller.signal,
+        }
+      );
+      const data = await readJson<NeighborhoodEvidenceEnvelope>(response);
+      if (!response.ok || data.error) throw new Error();
+      return [draft.draft_id, data.provider_status === 'provider_backed'] as const;
+    }))
+      .then((entries) => {
+        if (!controller.signal.aborted) setNeighborhoodEvidence(Object.fromEntries(entries));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setNeighborhoodEvidence({});
+      });
+    return () => controller.abort();
+  }, [property?.zipCode, neighborhoodDrafts]);
+
+  useEffect(() => {
+    if (!property?.id) {
+      setStructuredIntelligence(null);
+      setStructuredIntelligenceError('');
+      setStructuredIntelligenceLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setStructuredIntelligenceLoading(true);
+    setStructuredIntelligenceError('');
+    fetch(`/api/ai/intelligence/properties/${encodeURIComponent(property.id)}/generate`, {
+      method: 'POST',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await readJson<StructuredIntelligenceEnvelope>(response);
+        if (!response.ok || data.error) throw new Error(data.error || 'Structured intelligence unavailable');
+        setStructuredIntelligence(data);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setStructuredIntelligence(null);
+        setStructuredIntelligenceError('Structured provider adapter unavailable from the local API.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setStructuredIntelligenceLoading(false);
+      });
+    return () => controller.abort();
+  }, [property?.id]);
 
   const handleStartBid = async () => {
     if (!property || creating) return;
@@ -136,6 +374,12 @@ const MarketPage: React.FC = () => {
     }
   };
 
+  const handleToggleWatchlist = () => {
+    if (!property) return;
+    const added = toggleProperty(property.id);
+    showToast(added ? 'Property added to watchlist' : 'Property removed from watchlist', 'success');
+  };
+
   if (loading || !property) {
     return <div className="market-page"><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#7F93A8' }}>Loading property...</div></div>;
   }
@@ -166,6 +410,77 @@ const MarketPage: React.FC = () => {
       || null
   );
   const freshnessLabel = freshnessDate ? ` Checked ${freshnessDate}.` : '';
+  const manifestRecord = manifest?.records.find((record) => record.property_id === property.id) || null;
+  const sourceHash = manifest?.source_files[0]?.sha256.slice(0, 12) || null;
+  const latestObserved = formatDataTimestamp(manifest?.freshness.latest_observed_at || null);
+  const providerSummary = manifest?.provider_summary.slice(0, 2).map((entry) => `${entry.provider} (${entry.count})`).join(', ');
+  const dataQualityText = manifestRecord
+    ? `${manifestRecord.field_coverage_percent}% tracked-field coverage; ${
+        manifestRecord.missing_critical_fields.length
+          ? `missing critical fields: ${manifestRecord.missing_critical_fields.join(', ')}`
+          : 'critical fields present'
+      }.`
+    : manifestLoading
+      ? 'Dataset manifest loading.'
+      : 'Dataset manifest unavailable for this property.';
+  const datasetText = manifest
+    ? `${manifest.property_count} records, latest source observation ${latestObserved || 'undated'}, providers ${providerSummary || 'unspecified'}, source hash ${sourceHash}.`
+    : 'The manifest check runs in repo verification so stale static data changes fail fast.';
+  const localIntelligence = generateMarketIntelligence(property);
+  const providerIntelligenceAccepted = structuredIntelligence?.provider_status === 'provider_backed' && structuredIntelligence.intelligence;
+  const intelligence = providerIntelligenceAccepted ? structuredIntelligence.intelligence as MarketIntelligence : localIntelligence;
+  const providerAttemptReason = structuredIntelligence?.provider_attempt?.reason?.replace(/_/g, ' ');
+  const providerRequest = structuredIntelligence?.request_hash ? structuredIntelligence.request_hash.slice(0, 8) : null;
+  const structuredStatusKind = structuredIntelligenceError
+    ? 'error'
+    : structuredIntelligenceLoading
+      ? 'loading'
+      : structuredIntelligence?.provider_status === 'provider_backed'
+        ? 'provider'
+        : 'fallback';
+  const structuredStatusLabel = structuredStatusKind === 'provider'
+    ? 'Structured provider accepted'
+    : structuredStatusKind === 'loading'
+      ? 'Structured provider checking'
+      : structuredStatusKind === 'error'
+        ? 'Structured provider unavailable'
+        : 'Structured provider fallback';
+  const structuredStatusDetail = structuredStatusKind === 'provider'
+    ? `${structuredIntelligence?.provider_name || 'External provider'} passed adapter validation${providerRequest ? `, request ${providerRequest}` : ''}.`
+    : structuredStatusKind === 'loading'
+      ? 'Posting the redacted contract to the server-side adapter.'
+      : structuredStatusKind === 'error'
+        ? structuredIntelligenceError
+        : `${providerAttemptReason || 'provider not configured'}; local deterministic brief remains visible.`;
+  const watched = isWatched(property.id);
+  const neighborhoodEntity = neighborhood?.entities?.[0] || null;
+  const neighborhoodQuality = neighborhoodEntity?.data_quality
+    .slice(0, 3)
+    .map((item) => `${item.field.replace(/_/g, ' ')} ${item.coverage_percent}%`)
+    .join(', ');
+  const formatMetric = (value: number | null | undefined, suffix = '') => (
+    value == null || !Number.isFinite(value) ? '—' : `${Math.round(value).toLocaleString()}${suffix}`
+  );
+  const formatYield = (value: number | null | undefined) => (
+    value == null || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(1)}%`
+  );
+  const formatDraftValue = (metric: string | undefined, value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value)) return 'Pending evidence';
+    const normalized = metric || '';
+    if (normalized.includes('yield') || normalized.includes('return')) return `${(value * 100).toFixed(2)}%`;
+    if (normalized.includes('price')) return formatPrice(value);
+    return value.toLocaleString();
+  };
+  const draftThresholdLabel = (draft: NeighborhoodMarketDraft) => {
+    const config = draft.default_config;
+    if (config.yield_threshold != null) return formatDraftValue('yield', Number(config.yield_threshold));
+    if (config.outperformance_threshold != null) return formatDraftValue('return', Number(config.outperformance_threshold));
+    return formatDraftValue('median_price', Number(config.price_momentum_threshold));
+  };
+  const draftStatusLabel = (draft: NeighborhoodMarketDraft) => (
+    draft.template_status === 'playable' ? 'Playable' : 'Draft only'
+  );
+  const draftCards = neighborhoodDrafts?.drafts || [];
 
   return (
     <div className="market-page">
@@ -190,6 +505,16 @@ const MarketPage: React.FC = () => {
         <div className="detail-header-card">
           <div className="detail-price-row">
             <div className="detail-price">{formatPrice(property.price)}</div>
+            <button
+              type="button"
+              className={`watchlist-toggle ${watched ? 'active' : ''}`}
+              onClick={handleToggleWatchlist}
+              aria-pressed={watched}
+              aria-label={`${watched ? 'Remove from' : 'Add to'} watchlist`}
+            >
+              <Bookmark size={16} />
+              {watched ? 'Watching' : 'Watch'}
+            </button>
             {property.zestimate && priceDiff !== null && (
               <div className={`detail-zestimate ${priceDiff >= 0 ? 'up' : 'down'}`}>
                 <span className="zest-label">Zestimate</span>
@@ -213,7 +538,7 @@ const MarketPage: React.FC = () => {
               <div className="spec"><Maximize size={16} /><span><strong>{property.livingArea.toLocaleString()}</strong> sqft</span></div>
             )}
             {property.yearBuilt && (
-              <div className="spec"><Calendar size={16} /><span>Built <strong>{property.yearBuilt}</strong></span></div>
+              <div className="spec"><Home size={16} /><span>Built <strong>{property.yearBuilt}</strong></span></div>
             )}
             <div className="spec"><Home size={16} /><span>{typeLabel(property.homeType)}</span></div>
           </div>
@@ -225,7 +550,7 @@ const MarketPage: React.FC = () => {
 
           {property.brokerageName && (
             <div className="detail-broker">
-              <Building2 size={13} />
+              <Home size={13} />
               <span>Listed by {property.brokerageName}</span>
             </div>
           )}
@@ -279,12 +604,244 @@ const MarketPage: React.FC = () => {
               </div>
             </div>
             <div className="market-trust-row">
+              <ListChecks size={17} aria-hidden="true" />
+              <div>
+                <span className="trust-row-title">Data quality contract</span>
+                <p>{dataQualityText} {datasetText}</p>
+              </div>
+            </div>
+            <div className="market-trust-row">
               <Gavel size={17} aria-hidden="true" />
               <div>
                 <span className="trust-row-title">Settlement evidence</span>
                 <p>In multiplayer rooms, the host settles with an actual appraisal or sale price; room events preserve joins, bets, and settlement for replay.</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Neighborhood Brief */}
+        <section className="detail-section neighborhood-section" aria-labelledby="neighborhood-brief-title" data-testid="neighborhood-brief-section">
+          <div className="neighborhood-head">
+            <div>
+              <h2 id="neighborhood-brief-title" className="section-title"><MapPin size={18} /> Neighborhood Brief</h2>
+              <p className="neighborhood-summary">
+                {neighborhoodEntity
+                  ? `${neighborhoodEntity.label} groups ${neighborhoodEntity.property_count} static snapshot properties for directional context around this listing.`
+                  : neighborhoodLoading
+                    ? 'Loading static ZIP-code entity from the local property snapshot.'
+                    : neighborhoodError || 'Neighborhood entity is not available for this ZIP code.'}
+              </p>
+            </div>
+            <span className="neighborhood-pill">Static ZIP entity</span>
+          </div>
+
+          {neighborhoodEntity && (
+            <>
+              <div className="neighborhood-metrics" aria-label="Neighborhood aggregate metrics">
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">Median price</span>
+                  <span className="neighborhood-metric-value">{formatPrice(neighborhoodEntity.metrics.median_price || 0)}</span>
+                  <span className="neighborhood-metric-detail">{formatMetric(neighborhoodEntity.metrics.median_living_area)} sqft median area</span>
+                </div>
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">Price per sqft</span>
+                  <span className="neighborhood-metric-value">{formatMetric(neighborhoodEntity.metrics.median_price_per_sqft, '/sqft')}</span>
+                  <span className="neighborhood-metric-detail">Directional snapshot median</span>
+                </div>
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">Gross rent yield</span>
+                  <span className="neighborhood-metric-value">{formatYield(neighborhoodEntity.metrics.median_gross_rent_yield)}</span>
+                  <span className="neighborhood-metric-detail">{formatPrice(neighborhoodEntity.metrics.median_rent_estimate || 0)}/mo rent median</span>
+                </div>
+                <div className="neighborhood-metric">
+                  <span className="neighborhood-metric-label">School refs</span>
+                  <span className="neighborhood-metric-value">{formatMetric(neighborhoodEntity.metrics.average_school_rating, '/10')}</span>
+                  <span className="neighborhood-metric-detail">{neighborhoodEntity.sample_confidence.replace(/_/g, ' ')} confidence</span>
+                </div>
+              </div>
+
+              <div className="neighborhood-detail-grid">
+                <div className="neighborhood-detail">
+                  <span className="neighborhood-detail-label">Status mix</span>
+                  <p>{neighborhoodEntity.status_mix.slice(0, 3).map((item) => `${item.value.replace(/_/g, ' ')} (${item.count})`).join(', ') || 'Unavailable'}</p>
+                </div>
+                <div className="neighborhood-detail">
+                  <span className="neighborhood-detail-label">Home type mix</span>
+                  <p>{neighborhoodEntity.home_type_mix.slice(0, 3).map((item) => `${typeLabel(item.value)} (${item.count})`).join(', ') || 'Unavailable'}</p>
+                </div>
+                <div className="neighborhood-detail">
+                  <span className="neighborhood-detail-label">Coverage</span>
+                  <p>{neighborhoodQuality || 'Coverage unavailable'}</p>
+                </div>
+              </div>
+
+              <p className="neighborhood-limitation">{neighborhoodEntity.limitations[0]}</p>
+            </>
+          )}
+        </section>
+
+        {/* Neighborhood Market Drafts */}
+        <section className="detail-section neighborhood-drafts-section" aria-labelledby="neighborhood-drafts-title" data-testid="neighborhood-market-drafts-section">
+          <div className="neighborhood-drafts-head">
+            <div>
+              <h2 id="neighborhood-drafts-title" className="section-title"><Target size={18} /> Neighborhood Scenario Markets</h2>
+              <p className="neighborhood-drafts-summary">
+                {draftCards.length
+                  ? `${neighborhoodDrafts?.label || property.zipCode} has ${draftCards.length} static ZIP scenario contracts generated for future market design.`
+                  : neighborhoodDraftsLoading
+                    ? 'Loading neighborhood scenario contracts from the local property snapshot.'
+                    : neighborhoodDraftsError || 'No neighborhood scenario contracts are available for this ZIP code.'}
+              </p>
+            </div>
+            <span className="neighborhood-drafts-pill">Playable + draft</span>
+          </div>
+
+          {draftCards.length > 0 && (
+            <>
+              <div className="neighborhood-draft-grid">
+                {draftCards.map((draft) => {
+                  const hasProviderEvidence = neighborhoodEvidence[draft.draft_id];
+                  return (
+                    <article key={draft.draft_id} className="neighborhood-draft-card">
+                      <div className="neighborhood-draft-top">
+                        <span className="neighborhood-draft-label">{draft.template_label}</span>
+                        <span className="neighborhood-draft-status">{draftStatusLabel(draft)}</span>
+                      </div>
+                      <p className="neighborhood-draft-question">{draft.question}</p>
+                      <div className="neighborhood-draft-facts">
+                        <div>
+                          <span>Baseline</span>
+                          <strong>{formatDraftValue(draft.baseline.metric, draft.baseline.value ?? draft.baseline.subject_baseline_median_price)}</strong>
+                        </div>
+                        <div>
+                          <span>Trigger</span>
+                          <strong>{draftThresholdLabel(draft)}</strong>
+                        </div>
+                        <div>
+                          <span>Window</span>
+                          <strong>{String(draft.default_config.comparison_window || 'pending').replace(/_/g, ' ')}</strong>
+                        </div>
+                      </div>
+                      <p className="neighborhood-draft-evidence">
+                        <span>Evidence required</span>
+                        {draft.evidence_required[0] || 'Provider-backed future neighborhood snapshot.'}
+                      </p>
+                      <div className={`neighborhood-evidence-status ${hasProviderEvidence ? 'provider' : ''}`}>
+                        <span className="neighborhood-evidence-label">{hasProviderEvidence ? 'Provider' : 'Evidence gap'}</span>
+                        <span className="neighborhood-evidence-detail">
+                          {hasProviderEvidence
+                            ? draft.template_status === 'playable'
+                              ? 'provider snapshot ready for settlement review'
+                              : 'provider evidence ready; pricing workflow still blocked'
+                            : draft.template_status === 'playable'
+                              ? 'provider evidence required before settlement'
+                              : 'blocked from playable-room promotion'}
+                        </span>
+                      </div>
+                      <p className="neighborhood-draft-rule">{draft.settlement_rule}</p>
+                    </article>
+                  );
+                })}
+              </div>
+              <p className="neighborhood-drafts-limitation">
+                {neighborhoodDrafts?.limitations?.[0] || 'Price-momentum is playable; the other neighborhood contracts remain draft-only.'}
+              </p>
+            </>
+          )}
+        </section>
+
+        {/* Market Intelligence */}
+        <section className="detail-section intelligence-section" aria-labelledby="market-intelligence-title" data-testid="market-intelligence-section">
+          <div className="intelligence-head">
+            <div>
+              <h2 id="market-intelligence-title" className="section-title"><Sparkles size={18} /> Market Intelligence</h2>
+              <p className="intelligence-summary">{intelligence.summary}</p>
+            </div>
+            <span className={`intelligence-confidence ${intelligence.confidence}`}>
+              {intelligence.confidence} confidence
+            </span>
+          </div>
+
+          <div className={`intelligence-provider-status ${structuredStatusKind}`} data-testid="structured-intelligence-status">
+            <span className="intelligence-provider-label">{structuredStatusLabel}</span>
+            <span className="intelligence-provider-detail">{structuredStatusDetail}</span>
+          </div>
+
+          <div className="intelligence-metrics" aria-label="Market intelligence metrics">
+            {intelligence.metrics.map((metric) => (
+              <div key={metric.label} className={`intelligence-metric ${metric.tone}`}>
+                <span className="intelligence-metric-label">{metric.label}</span>
+                <span className="intelligence-metric-value">{metric.value}</span>
+                <span className="intelligence-metric-detail">{metric.detail}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="intelligence-cases">
+            <div className="intelligence-case positive">
+              <h3><TrendingUp size={16} /> Bull case</h3>
+              <ul>
+                {intelligence.bullish_cases.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="intelligence-case negative">
+              <h3><TrendingDown size={16} /> Bear case</h3>
+              <ul>
+                {intelligence.bearish_cases.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="intelligence-case caution">
+              <h3><AlertTriangle size={16} /> Uncertainty map</h3>
+              <ul>
+                {intelligence.uncertainty_cases.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="intelligence-agent-network" aria-label="Analyst case network">
+            <h3><Sparkles size={16} /> Analyst case network</h3>
+            <div className="agent-case-list">
+              {intelligence.analyst_cases.map((agentCase) => (
+                <article key={agentCase.role} className={`agent-case ${agentCase.tone}`}>
+                  <span className="agent-case-label">{agentCase.label}</span>
+                  <ul>
+                    {agentCase.evidence.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                  <p className="agent-case-limitation">{agentCase.limitation}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="intelligence-prompts" aria-label="Scenario prompts">
+            <h3><Target size={16} /> Scenario prompts</h3>
+            <div className="prompt-list">
+              {intelligence.scenario_prompts.map((prompt) => (
+                <div key={prompt.label} className="prompt-item">
+                  <span className="prompt-label">{prompt.label}</span>
+                  <p className="prompt-question">{prompt.question}</p>
+                  <p className="prompt-rationale">{prompt.rationale}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="intelligence-settlement">
+            <h3><ListChecks size={16} /> Settlement checklist</h3>
+            <ul>
+              {intelligence.settlement_checklist.map((item) => (
+                <li key={item}><Gavel size={14} aria-hidden="true" /> {item}</li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -361,7 +918,7 @@ const MarketPage: React.FC = () => {
         {/* Schools */}
         {property.schools.length > 0 && (
           <div className="detail-section">
-            <h2 className="section-title"><GraduationCap size={18} /> Nearby Schools</h2>
+            <h2 className="section-title"><ListChecks size={18} /> Nearby Schools</h2>
             <div className="schools-list">
               {property.schools.map((school, i) => (
                 <div key={i} className="school-item">
@@ -407,7 +964,6 @@ const MarketPage: React.FC = () => {
         {/* Zillow Link */}
         <div className="detail-cta">
           <a href={property.hdpUrl} target="_blank" rel="noopener noreferrer" className="zillow-link">
-            <ExternalLink size={16} />
             View Full Listing on Zillow
           </a>
         </div>

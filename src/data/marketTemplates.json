@@ -1,0 +1,159 @@
+{
+  "schema_version": "market-template-registry/v1",
+  "default_market_format": "binary_over_under",
+  "templates": [
+    {
+      "market_format": "binary_over_under",
+      "label": "Binary over/under",
+      "status": "playable",
+      "summary": "Players forecast whether the settlement value lands at or above the asking price.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "lmsr_binary_v1",
+      "settlement_inputs": ["actual_price", "asking_price", "settlement_evidence"],
+      "settlement_rule": "OVER wins when actual_price >= asking_price; UNDER wins otherwise.",
+      "supported_surfaces": ["room_creation", "betting", "settlement", "event_replay", "public_verification"],
+      "limitations": [
+        "Simulation credits only.",
+        "The asking price is the only threshold in this market format."
+      ]
+    },
+    {
+      "market_format": "range_price_band",
+      "label": "Range price band",
+      "status": "playable",
+      "summary": "Players forecast which settlement price band the property lands in.",
+      "outcome_schema": {
+        "type": "range",
+        "outcomes": ["below_band", "inside_band", "above_band"]
+      },
+      "pricing_engine": "lmsr_multi_outcome_v1",
+      "settlement_inputs": ["actual_price", "band_low", "band_high", "settlement_evidence"],
+      "settlement_rule": "Resolve to below_band, inside_band, or above_band using the configured price band.",
+      "supported_surfaces": ["room_creation_api", "betting_api", "settlement", "event_replay", "public_verification", "developer_api"],
+      "limitations": [
+        "Playable through the room API, rendered host/player room UI, and server event/replay path.",
+        "The current chart and AI bot workflows remain binary-first.",
+        "AI bot trading remains disabled for range rooms."
+      ]
+    },
+    {
+      "market_format": "rent_yield_over_under",
+      "label": "Rent yield over/under",
+      "status": "playable",
+      "summary": "Players forecast whether annualized rent yield clears a configured threshold.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "lmsr_binary_v1",
+      "settlement_inputs": ["annual_rent", "settlement_price", "yield_threshold", "settlement_evidence"],
+      "settlement_rule": "OVER wins when annual_rent / settlement_price >= yield_threshold.",
+      "supported_surfaces": ["room_creation_api", "betting", "settlement", "event_replay", "public_verification", "developer_api"],
+      "limitations": [
+        "Simulation credits only.",
+        "The host must provide public-safe settlement price and annual-rent evidence.",
+        "AI bot trading remains disabled for rent-yield rooms."
+      ]
+    },
+    {
+      "market_format": "time_on_market_over_under",
+      "label": "Time on market over/under",
+      "status": "playable",
+      "summary": "Players forecast whether days on market exceeds a configured threshold.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "lmsr_binary_v1",
+      "settlement_inputs": ["days_on_market", "listed_at", "contract_at", "days_threshold", "settlement_evidence"],
+      "settlement_rule": "OVER wins when measured days_on_market >= days_threshold.",
+      "supported_surfaces": ["room_creation_api", "betting", "settlement", "event_replay", "public_verification", "developer_api"],
+      "limitations": [
+        "Simulation credits only.",
+        "The host must provide public-safe listing lifecycle evidence.",
+        "Listing lifecycle evidence ingestion is not automated yet.",
+        "AI bot trading remains disabled for time-on-market rooms."
+      ]
+    },
+    {
+      "market_format": "renovation_budget_over_under",
+      "label": "Renovation budget over/under",
+      "status": "playable",
+      "summary": "Players forecast whether verified renovation cost exceeds a configured budget.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "lmsr_binary_v1",
+      "settlement_inputs": ["verified_cost", "budget_threshold", "settlement_evidence"],
+      "settlement_rule": "OVER wins when verified_cost >= budget_threshold.",
+      "supported_surfaces": ["room_creation_api", "betting", "settlement", "event_replay", "public_verification", "developer_api"],
+      "limitations": [
+        "Simulation credits only.",
+        "The host must provide public-safe cost evidence.",
+        "AI bot trading remains disabled for renovation-budget rooms."
+      ]
+    },
+    {
+      "market_format": "neighborhood_price_momentum_over_under",
+      "label": "Neighborhood price momentum over/under",
+      "status": "playable",
+      "summary": "Players forecast whether a ZIP-code neighborhood median price clears a configured future threshold.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "lmsr_binary_v1",
+      "settlement_inputs": ["baseline_median_price", "future_median_price", "price_momentum_threshold", "comparison_window", "provider_snapshot", "settlement_evidence"],
+      "settlement_rule": "OVER wins when verified future_median_price is at or above the configured price_momentum_threshold for the selected ZIP-code comparison window; UNDER wins otherwise.",
+      "supported_surfaces": ["room_creation_api", "betting", "settlement", "event_replay", "public_verification", "developer_api", "neighborhood_market_drafts"],
+      "limitations": [
+        "Simulation credits only.",
+        "The current baseline can be generated only from FairValue static ZIP-code aggregates.",
+        "Settlement requires public-safe future provider-backed neighborhood snapshot metadata, not manual claims or property-level anecdotes.",
+        "AI bot trading remains disabled for neighborhood price-momentum rooms."
+      ]
+    },
+    {
+      "market_format": "neighborhood_rent_yield_over_under",
+      "label": "Neighborhood rent yield over/under",
+      "status": "draft_only",
+      "summary": "Draft contract for forecasting whether a ZIP-code neighborhood gross rent yield clears a configured future threshold.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "pending_neighborhood_market_engine",
+      "settlement_inputs": ["baseline_median_gross_rent_yield", "future_median_rent_estimate", "future_median_price", "yield_threshold", "comparison_window", "provider_snapshot", "settlement_evidence"],
+      "settlement_rule": "OVER wins when verified annualized median rent divided by verified future median price is at or above yield_threshold for the selected ZIP-code comparison window; UNDER wins otherwise.",
+      "supported_surfaces": ["template_registry", "neighborhood_market_drafts", "developer_api", "settlement_design"],
+      "limitations": [
+        "Draft-only: blocked from room creation until rent-provider evidence ingestion and neighborhood settlement tooling are implemented.",
+        "The current baseline uses static rent estimates and asking or observed prices where available.",
+        "It is not an underwriting, lending, or investment recommendation."
+      ]
+    },
+    {
+      "market_format": "neighborhood_outperformance_over_under",
+      "label": "Neighborhood outperformance over/under",
+      "status": "draft_only",
+      "summary": "Draft contract for forecasting whether a ZIP-code neighborhood return outperforms a benchmark region over a configured window.",
+      "outcome_schema": {
+        "type": "binary",
+        "outcomes": ["over", "under"]
+      },
+      "pricing_engine": "pending_neighborhood_market_engine",
+      "settlement_inputs": ["subject_region_return", "benchmark_region_return", "outperformance_threshold", "comparison_window", "benchmark_definition", "provider_snapshot", "settlement_evidence"],
+      "settlement_rule": "OVER wins when verified subject_region_return minus benchmark_region_return is at or above outperformance_threshold for the configured comparison window; UNDER wins otherwise.",
+      "supported_surfaces": ["template_registry", "neighborhood_market_drafts", "developer_api", "settlement_design"],
+      "limitations": [
+        "Draft-only: blocked from room creation until benchmark definitions, provider snapshots, and settlement dispute handling exist.",
+        "The current ZIP entity is not a formal neighborhood boundary or investable index.",
+        "Benchmark choice must be disclosed before market launch and cannot be changed after bets are accepted."
+      ]
+    }
+  ]
+}

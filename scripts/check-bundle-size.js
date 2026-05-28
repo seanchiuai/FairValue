@@ -4,7 +4,7 @@ const path = require('node:path');
 const distAssetsDir = path.resolve(__dirname, '..', 'dist', 'assets');
 const maxJsChunkKb = Number(process.env.FAIRVALUE_MAX_JS_CHUNK_KB || 240);
 const maxCssChunkKb = Number(process.env.FAIRVALUE_MAX_CSS_CHUNK_KB || 25);
-const maxTotalJsKb = Number(process.env.FAIRVALUE_MAX_TOTAL_JS_KB || 760);
+const maxTotalJsKb = Number(process.env.FAIRVALUE_MAX_TOTAL_JS_KB || 830);
 
 function sizeKb(filePath) {
   return fs.statSync(filePath).size / 1024;

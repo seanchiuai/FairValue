@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import WebSocket from 'ws';
 
 const hostViewport = { width: 1440, height: 900 };
@@ -76,6 +77,20 @@ async function betByApi(
   const response = await request.post(`${apiBaseUrl}/api/rooms/${roomCode}/bet`, {
     headers: { 'Idempotency-Key': idempotencyKey },
     data: { session_id: sessionId, outcome, wager },
+  });
+  expect(response.status()).toBe(200);
+  return response.json();
+}
+
+async function settleByApi(
+  request: APIRequestContext,
+  roomCode: string,
+  hostToken: string,
+  actualPrice: number
+) {
+  const response = await request.post(`${apiBaseUrl}/api/rooms/${roomCode}/settle`, {
+    headers: { 'X-FairValue-Host-Token': hostToken },
+    data: { actual_price: actualPrice },
   });
   expect(response.status()).toBe(200);
   return response.json();
@@ -190,6 +205,42 @@ test('room API and WebSocket loop handles a burst of joins and bets', async ({ r
   }
 });
 
+test('public recap route summarizes settled rooms without host-only audit data', async ({ request, page }) => {
+  const { room_code: roomCode, host_token: hostToken } = await createRoom(request);
+  const recapPlayer = `recap-player-${Date.now()}`;
+  await joinByApi(request, roomCode, recapPlayer, 'Recap Player');
+  await betByApi(request, roomCode, recapPlayer, `recap-bet-${roomCode}`, 'over', 50);
+  await settleByApi(request, roomCode, hostToken, property.actualPrice);
+
+  await page.goto(`/recap/${roomCode}`);
+  await expect(page.getByTestId('room-public-recap-summary')).toContainText('Share-safe recap', {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId('room-public-recap-evidence')).toContainText('Settlement result');
+  await expect(page.getByTestId('room-public-recap-evidence')).toContainText('$735,000');
+  await expect(page.getByTestId('room-public-verification')).toContainText('Replay digest');
+  await expect(page.getByTestId('room-public-verification')).toContainText('Replay matches live state');
+  await expect(page.getByTestId('room-public-verification')).toContainText('Settlement evidence hash');
+  await expect(page.getByTestId('public-verification-copy')).toBeVisible();
+  await page.getByTestId('public-verification-copy').click();
+  await expect(page.getByTestId('public-verification-export-status')).toContainText('Verification JSON copied');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByTestId('public-verification-download').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(`fairvalue-${roomCode}-public-verification.json`);
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const downloadedArtifact = JSON.parse(await readFile(downloadPath!, 'utf8'));
+  expect(downloadedArtifact.schema_version).toBe('public-room-verification/v1');
+  expect(downloadedArtifact.room_code).toBe(roomCode);
+  expect(JSON.stringify(downloadedArtifact)).not.toContain(hostToken);
+  expect(JSON.stringify(downloadedArtifact)).not.toContain(recapPlayer);
+  await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('Host-only event log is not included');
+  await expect(page.getByTestId('room-public-recap-guardrails')).toContainText('host tokens/user tokens are never shown');
+  await expect(page.getByTestId('room-public-recap-page')).not.toContainText(hostToken);
+  await expectNoSeriousAxeViolations(page, 'public room recap');
+});
+
 test('core room surfaces pass serious accessibility checks without console errors', async ({
   browser,
 }: {
@@ -230,6 +281,70 @@ test('core room surfaces pass serious accessibility checks without console error
     await hostContext.close();
     await playerContext.close();
   }
+});
+
+test('market studio generates a draft and creates a host room from pasted listing text', async ({ page }) => {
+  const listing = `
+    3004 26th St
+    San Francisco, CA 94110
+    Listed at $800,000
+    3 beds, 2 baths, 1,200 sqft single-family home with garden and updated kitchen.
+  `;
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Market Studio/ }).click();
+  await page.getByLabel('Host nickname').fill('Studio Host');
+  await page.getByLabel('Listing text').fill(listing);
+  await page.getByRole('button', { name: /Generate Market Draft/ }).click();
+
+  await expect(page.getByTestId('market-studio-draft')).toContainText('Will 3004 26th St appraise above $800,000?');
+  await expect(page.getByTestId('market-studio-matches')).toContainText('Existing property match', { timeout: 15_000 });
+  await expect(page.getByTestId('market-studio-matches')).toContainText('3004 26th St');
+  await page.getByRole('button', { name: /Use local property 3004 26th St/ }).first().click();
+  await expect(page.getByTestId('market-studio-draft')).toContainText('Linked to local property 440298192');
+  await expect(page.getByLabel('Generated property address')).toHaveValue('3004 26th St');
+  await expect(page.getByLabel('Generated asking price')).toHaveValue('800000');
+  await expect(page.getByTestId('market-studio-draft')).toContainText('Final sale price, appraisal report');
+  await page.getByRole('button', { name: /Save Draft/ }).click();
+  await expect(page.getByTestId('market-studio-saved-drafts')).toContainText('3004 26th St');
+  await expectNoSeriousAxeViolations(page, 'market studio generated draft');
+
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes('/api/rooms') && response.status() === 200),
+    page.getByRole('button', { name: /Create Room From Draft/ }).click(),
+  ]);
+
+  await expect(page).toHaveURL(/\/host\/[A-Z0-9]{4}$/);
+  await expect(page.getByTestId('host-player-count')).toContainText('1 player');
+  await expect(page.getByText(/^3004 26th St$/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Market Studio draft audit');
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Local property dataset match');
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Linked property: 440298192');
+  await expect(page.getByTestId('host-draft-audit-note')).toContainText('Server-validated draft metadata');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Live Room Intelligence');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('linked local property 440298192');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Draft audit');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Accepted');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('Movement read');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('No player bets have landed yet');
+  await expect(page.getByTestId('host-room-intelligence-panel')).toContainText('No provider-backed comps were queried');
+  await expectNoSeriousAxeViolations(page, 'market studio host draft audit');
+  await expectConnected(page);
+
+  const roomCode = new URL(page.url()).pathname.split('/').pop();
+  if (!roomCode) throw new Error('Room code was not present in host URL');
+  await page.getByTestId('host-review-link').click();
+  await expect(page).toHaveURL(new RegExp(`/review/${roomCode}$`));
+  await expect(page.getByTestId('room-review-summary')).toContainText('compare the accepted market draft');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Required settlement evidence');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Final sale price, appraisal report');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Event history');
+  await expect(page.getByTestId('room-review-dispute-brief')).toContainText('Evidence and dispute brief');
+  await expect(page.getByTestId('room-review-dispute-brief')).toContainText('Settlement evidence packet is still missing');
+  await expect(page.getByTestId('room-review-integrity')).toContainText('raw pasted listing text is not stored');
+  await expect(page.getByTestId('room-review-timeline')).toContainText('Room created');
+  await expect(page.getByTestId('room-review-recap')).toContainText('Settlement recap is pending');
+  await expectNoSeriousAxeViolations(page, 'market studio operator review');
 });
 
 test('expanded routes, forms, and modal states pass serious accessibility checks', async ({
@@ -335,17 +450,92 @@ test('market detail explains simulated market mechanics and data provenance', as
     await expect(desktop.getByTestId('market-trust-section')).toContainText('MLSListings Inc');
     await expect(desktop.getByTestId('market-trust-section')).toContainText('Checked Feb');
     await expect(desktop.getByTestId('market-trust-section')).toContainText('room events preserve joins, bets, and settlement');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Neighborhood Brief', { timeout: 15_000 });
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Static ZIP entity');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Median price');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('Gross rent yield');
+    await expect(desktop.getByTestId('neighborhood-brief-section')).toContainText('static snapshot properties');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood Scenario Markets', { timeout: 15_000 });
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Playable');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Draft only');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood price momentum');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Evidence required');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('Evidence gap', { timeout: 15_000 });
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('provider evidence required before settlement');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('blocked from playable-room promotion');
+    await expect(desktop.getByTestId('neighborhood-market-drafts-section')).toContainText('other neighborhood scenario contracts remain draft-only');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Market Intelligence');
+    await expect(desktop.getByTestId('structured-intelligence-status')).toContainText('Structured provider', { timeout: 15_000 });
+    await expect(desktop.getByTestId('structured-intelligence-status')).toContainText('local deterministic brief');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Local market brief');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Gross rent yield');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Bull case');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Bear case');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Analyst case network');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Fraud/data-quality agent');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Affordability agent');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Scenario prompts');
+    await expect(desktop.getByTestId('market-intelligence-section')).toContainText('Settlement checklist');
     await expectNoSeriousAxeViolations(desktop, 'desktop market trust explainer');
 
     await mobile.goto('/market/440298192');
     await expect(mobile.getByTestId('market-trust-section')).toContainText('Simulation market', { timeout: 15_000 });
     await expect(mobile.getByTestId('market-trust-section')).toContainText('play-money credits');
     await expect(mobile.getByTestId('market-trust-section')).toContainText('LMSR market probability');
+    await expect(mobile.getByTestId('neighborhood-brief-section')).toContainText('Neighborhood Brief', { timeout: 15_000 });
+    await expect(mobile.getByTestId('neighborhood-brief-section')).toContainText('Static ZIP entity');
+    await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Neighborhood Scenario Markets', { timeout: 15_000 });
+    await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Playable');
+    await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Draft only');
+    await expect(mobile.getByTestId('neighborhood-market-drafts-section')).toContainText('Evidence gap', { timeout: 15_000 });
+    await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Market Intelligence', { timeout: 15_000 });
+    await expect(mobile.getByTestId('structured-intelligence-status')).toContainText('Structured provider', { timeout: 15_000 });
+    await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Analyst case network');
+    await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Uncertainty map');
+    await expect(mobile.getByTestId('market-intelligence-section')).toContainText('Settlement checklist');
     await expectNoSeriousAxeViolations(mobile, 'mobile market trust explainer');
   } finally {
     await desktopContext.close();
     await mobileContext.close();
   }
+});
+
+test('operator incident console renders redacted workflow queue', async ({ page, request }) => {
+  const { room_code: roomCode, host_token: hostToken } = await createRoom(request);
+  await settleByApi(request, roomCode, hostToken, property.actualPrice);
+
+  await page.goto('/ops/incidents');
+  const list = page.getByTestId('operator-incidents-list');
+  await expect(page.getByTestId('operator-incidents-page')).toContainText('Operator incidents');
+  await expect(list).toContainText(roomCode, { timeout: 15_000 });
+
+  const incidentCard = list.getByRole('button').filter({ hasText: roomCode }).first();
+  await incidentCard.click();
+
+  const detail = page.getByTestId('operator-incident-detail');
+  await expect(detail).toContainText('settled without external evidence metadata');
+  await expect(detail).toContainText('Host-attested default packets still need operator review.');
+
+  await page.getByTestId('operator-incident-replay-check').click();
+  await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('Replay match', { timeout: 15_000 });
+  await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('host attested');
+  await expect(page.getByTestId('operator-incident-replay-panel')).toContainText('Events');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('Canonical event rows');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('room created');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('settlement completed');
+  await expect(page.getByTestId('operator-incident-replay-events')).toContainText('payload');
+
+  await page.getByTestId('operator-incident-status-select').selectOption('investigating');
+  await page.getByTestId('operator-incident-assignee').fill('Ops Desk');
+  await page.getByTestId('operator-incident-note').fill('Check host_token=abcdefghijklmnopqrstuvwxyz1234567890 before recap.');
+  await page.getByTestId('operator-incident-update').click();
+
+  await expect(page.getByTestId('operator-incident-save-message')).toContainText('Workflow saved.');
+  await expect(detail).toContainText('investigating');
+  await expect(detail).toContainText('Ops Desk');
+  await expect(page.getByTestId('operator-incident-timeline')).toContainText('host_token=[redacted-token]');
+  await expect(page.getByTestId('operator-incident-note')).toHaveValue('');
+  await expect(detail).not.toContainText('abcdefghijklmnopqrstuvwxyz1234567890');
 });
 
 test('multiplayer room entry and settlement recaps carry trust language', async ({
@@ -388,6 +578,12 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
     await expect(player.getByTestId('player-room-trust-notice')).toContainText('simulation credits only');
     await expect(player.getByTestId('player-room-trust-notice')).toContainText('LMSR probability');
     await expect(player.getByTestId('player-room-trust-notice')).toContainText('host settles');
+    await expect(player.getByTestId('player-prebet-intelligence')).toContainText('Pre-bet read');
+    await expect(player.getByTestId('player-prebet-believe')).toContainText('Reason to believe');
+    await expect(player.getByTestId('player-prebet-doubt')).toContainText('Reason to doubt');
+    await expect(player.getByTestId('player-prebet-over')).toContainText('OVER');
+    await expect(player.getByTestId('player-prebet-under')).toContainText('UNDER');
+    await expect(player.getByTestId('player-prebet-intelligence')).toContainText('No external comps were queried');
 
     await host.getByRole('button', { name: /Settle/ }).click();
     await expect(host.getByRole('dialog', { name: 'Settle Market' })).toBeVisible();
@@ -408,6 +604,18 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
     await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('not a FairValue appraisal');
     await expect(host.getByTestId('host-settlement-trust-notice')).toContainText('Room events preserve joins');
 
+    await host.getByTestId('host-review-link').click();
+    await expect(host).toHaveURL(new RegExp(`/review/${roomCode}$`));
+    await expect(host.getByTestId('room-review-evidence')).toContainText('Settlement evidence');
+    await expect(host.getByTestId('room-review-evidence')).toContainText('$735,000');
+    await expect(host.getByTestId('room-review-dispute-brief')).toContainText('Evidence and dispute brief');
+    await expect(host.getByTestId('room-review-dispute-brief')).toContainText('Review public verification replay digest before exporting');
+    await expect(host.getByTestId('room-review-integrity')).toContainText('Settlement outcome OVER matches');
+    await expect(host.getByTestId('room-review-public-verification')).toContainText('Replay matches live state');
+    await expect(host.getByTestId('room-review-public-verification-download')).toBeVisible();
+    await expect(host.getByTestId('room-review-timeline')).toContainText('Settlement completed');
+    await expectNoSeriousAxeViolations(host, 'settled operator review');
+
     await expect(player.getByTestId('player-settlement-result')).toContainText('OVER wins!', { timeout: 15_000 });
     await expect(player.getByTestId('player-settlement-trust-notice')).toContainText('simulation credits only');
     await expect(player.getByTestId('player-settlement-trust-notice')).toContainText('not a FairValue appraisal');
@@ -416,6 +624,69 @@ test('multiplayer room entry and settlement recaps carry trust language', async 
   } finally {
     await hostContext.close();
     await playerContext.close();
+  }
+});
+
+test('player pre-bet preview caps wagers and rejects over-balance bets', async ({
+  request,
+  browser,
+}: {
+  request: APIRequestContext;
+  browser: Browser;
+}) => {
+  const { room_code: roomCode } = await createRoom(request);
+  const context = await browser.newContext({
+    viewport: playerViewport,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`/play/${roomCode}`);
+    await expect(page.getByTestId('player-entry-trust-notice')).toContainText('Before you join', {
+      timeout: 15_000,
+    });
+    await page.getByLabel('Player nickname').fill('Cap Player');
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/join`) && response.status() === 200
+      ),
+      page.getByRole('button', { name: /^Join Room$/ }).click(),
+    ]);
+    await expectConnected(page);
+    await expect(page.getByTestId('player-prebet-intelligence')).toContainText('Pre-bet read');
+    await expect(page.getByTestId('player-prebet-intelligence')).not.toContainText('Preview capped');
+
+    await page.getByLabel('Custom wager').fill('950');
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/bet`) && response.status() === 200
+      ),
+      page.getByRole('button', { name: 'Bet $950 on OVER' }).click(),
+    ]);
+
+    await expect(page.getByTestId('player-balance')).toHaveText('50');
+    await expect(page.getByTestId('player-prebet-balance-warning')).toContainText(
+      'Preview capped at your current $50 balance.'
+    );
+    await expect(page.getByTestId('player-prebet-over')).toContainText('OVER');
+    await expect(page.getByTestId('player-prebet-under')).toContainText('UNDER');
+
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/bet`) && response.status() === 400
+      ),
+      page.getByRole('button', { name: 'Bet $950 on OVER' }).click(),
+    ]);
+    await expect(page.getByTestId('bet-error')).toContainText('Insufficient balance');
+    await expect(page.getByRole('button', { name: 'Dismiss error notification: Insufficient balance' })).toBeVisible();
+    await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Custom wager')).toHaveAttribute('aria-describedby', 'player-bet-error');
+    await expect(page.getByTestId('player-balance')).toHaveText('50');
+    await expectNoSeriousAxeViolations(page, 'player balance-capped pre-bet preview');
+  } finally {
+    await context.close();
   }
 });
 

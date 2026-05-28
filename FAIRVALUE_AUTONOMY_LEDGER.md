@@ -75,9 +75,55 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Production environment readiness now has `npm run check:production`, which fails until deploy-critical env values are set for Postgres persistence, retention, identity signing, ops metrics protection, and database availability.
 - Express now disables `X-Powered-By` and emits baseline browser security headers on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
 - Local boot readiness now has `npm run smoke:boot`, which launches `node server/index.js` on a free local port with an isolated temporary room snapshot, checks health/readiness/security headers, proves ops-token gating, drives create/join/bet/settle plus a WebSocket join broadcast, confirms host-token non-leakage, and verifies snapshot persistence wrote.
+- Market Studio now exists as a real `/join` creation mode: hosts can paste listing text, generate a deterministic local market draft, review normalized address/asking price/facts/provenance/warnings/settlement evidence, edit generated fields, and create a real host room through the existing authenticated room creation and host auto-join path.
+- Market Studio now matches generated drafts against the local property dataset on demand and lets hosts save, reload, update, and delete local draft artifacts in browser storage before creating a real room.
+- Market Studio room creation now sends draft metadata to the server, which validates that the draft address/asking price match the room, stores an audit envelope with a source-text hash instead of raw pasted text, persists it through snapshots/events/replay/state, and shows the host a draft-audit note.
+- Market detail pages now include deterministic Market Intelligence: a local property brief, confidence reason, valuation metrics, bull/bear/uncertainty cases, scenario prompts, and settlement checklist generated from existing property snapshot fields without external AI credentials.
+- Host rooms now include deterministic Live Room Intelligence: LMSR consensus, implied room value, room liquidity, participant depth, movement summaries from recent bets, pressure points, host script prompts, and draft-audit provenance notes, all explicitly marked as local fallback with no provider-backed comps queried.
+- Host rooms now link to `/review/:roomCode`, an operator-facing deterministic review surface that combines public room state with host-authorized event logs to compare draft audits, settlement evidence, live movement, integrity checks, timeline entries, and generated recap bullets.
+- Player rooms now include deterministic Pre-Bet Intelligence: a compact local LMSR read with one reason to believe, one reason to doubt, OVER/UNDER wager-impact previews, balance-capped warnings, and no-provider-comps provenance before the player taps a bet.
+- Host and settled player rooms now link to `/recap/:roomCode`, a share-safe public recap route that reads only public room state, summarizes live or settled LMSR movement, public activity, settlement result, and guardrails, and avoids host-only event logs plus host/user tokens.
+- Operator review and public recap now share `RoomArtifact` UI primitives plus co-located CSS for artifact page chrome, headers, status pills, metrics, panels, evidence rows, timelines, notices, lists, and mobile responsive behavior.
+- Player pre-bet intelligence now uses a dedicated `PreBetIntelligenceCard` component with co-located CSS, preserving LMSR preview copy, balance warnings, provenance, accessibility labels, and existing browser test IDs while shrinking the route-local inline style surface.
+- Player settled recaps now use a dedicated `PlayerSettlementResultCard` component with co-located CSS, preserving settlement evidence, public recap navigation, payout rows, outcome coloring, and the existing `player-settlement-result` / `player-recap-link` browser contracts.
+- Player pre-bet balance-capped warnings now expose a stable rendered test hook and polite live semantics, with browser coverage proving an over-balance selected wager previews against the player's remaining simulation-credit balance and rejects cleanly without mutating the balance.
+- Host Live Room Intelligence now uses a dedicated `HostRoomIntelligencePanel` component with co-located CSS, preserving deterministic room-intelligence copy, provenance notes, accessible heading structure, icons, confidence state, and the existing `host-room-intelligence-panel` test hook.
+- Host Market Studio draft audits now use a dedicated `HostDraftAuditCard` component with co-located CSS, preserving source, validation, linked-property, format, question, audit-retention copy, the existing `host-draft-audit-note` test hook, and the route's host command-column placement.
+- Market Studio generated drafts now render through a dedicated `MarketStudioDraftCard` component with co-located CSS, preserving editable generated address/price fields, settlement-evidence lists, local-generation warnings, provenance, and the existing `market-studio-draft` browser test hook.
+- Market Studio saved drafts and existing-property matches now render through dedicated `MarketStudioSavedDrafts` and `MarketStudioMatches` components with co-located CSS, preserving load/delete/use-match controls and the existing `market-studio-saved-drafts` / `market-studio-matches` browser test hooks.
+- `/join` pick, create-room, and join-room chrome now render through `JoinModePicker`, `CreateRoomForm`, and `JoinRoomForm` components with co-located CSS, preserving labels, validation IDs, autofocus, room-code normalization, disabled/loading states, and the existing create/join navigation flows.
+- Market Studio's host/source/generate/match/save/create form shell now renders through `MarketStudioForm` with co-located CSS, preserving local draft generation, saved draft handling, existing-property matching, draft editing, validation/error wiring, and host room creation while shrinking `JoinPage` to route orchestration.
+- `/join` page chrome now renders through `JoinPageShell` with co-located CSS, preserving the FairValue logo/header, Studio-width container expansion, Browse Markets footer action, and mobile responsive frame while removing the last route-local style object from `JoinPage`.
+- Host room chrome now renders through `HostTopBar` and `HostAuthorityNotice` with co-located CSS, preserving room code, player count, connection status, Review/Recap links, AI toggle, Settle control, disabled-authority descriptions, loading-bar behavior, and existing host test hooks while removing route-local command-bar styles from `HostView`.
+- Host property/probability summary now renders through `HostPropertySummary` with co-located CSS, and `HostView` now uses responsive page/layout CSS so the host command column collapses above the right rail on mobile instead of forcing horizontal overflow.
+- Host market probability chart and live room stats now render through `HostMarketChartPanel` with co-located CSS, preserving the chart callback ref, legend, responsive stat layout, and existing `total-trades`, `total-volume`, and `avg-bet` test hooks.
+- Host settlement results now render through `HostSettlementResultCard` with co-located CSS, preserving settlement evidence copy, outcome coloring, the `host-settlement-result` test hook, and removing the final route-local style object from `HostView`.
 
 ## Current Test Status
 
+- 2026-05-16 Player Settlement Result Card pass: `npm run typecheck` passed; focused host/player Playwright flow passed room `04GQ`, covering settlement broadcast and the extracted player settlement surface; rendered mobile probe on backend `8107` / frontend `3107` created room `NINA`, opened `/play/NINA` at `390x844`, verified `Market Settled`, `Actual price: $735,000`, `OVER wins!`, settlement recap trust copy, public recap link, payout row `Mobile Host` / `$0`, no active alerts, no framework overlay, no horizontal overflow with `documentWidth=384`, and screenshot `/tmp/fairvalue-player-settlement-result-mobile.png`; Browser plugin was present but its required Node REPL control tool was unavailable through tool discovery, so rendered proof used Playwright MCP fallback and recorded two benign dev WebSocket close warnings during route transitions; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 734.77 kB / 760.00 kB, and `smoke:boot` room `QV0O`.
+- 2026-05-16 Host Settlement Result Card pass: `npm run typecheck` passed; focused host/player Playwright flow passed room `AKFP`, covering host settlement and the extracted `host-settlement-result` surface; rendered mobile probe on backend `8105` / frontend `3105` created room `S2LJ`, settled at actual price `735000`, verified `Market Settled`, `Actual: $735,000`, `OVER WINS`, settlement-evidence trust copy, no active alerts, no horizontal overflow, and screenshot `/tmp/fairvalue-host-settlement-result-mobile.png`; rendered probe used Playwright MCP fallback because Browser Node REPL remained unavailable and recorded one benign dev WebSocket close warning during route setup; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 735.11 kB / 760.00 kB, and `smoke:boot` room `K4HB`.
+- 2026-05-16 Host Market Chart Panel pass: `npm run typecheck` passed; focused host/player Playwright flow passed room `EXR4`, covering real bets and the moved `total-trades`, `total-volume`, and `avg-bet` values; rendered mobile probe on backend `8103` / frontend `3103` created room `Y3ET`, scrolled `host-market-chart-panel` into view at `390x844`, verified title, legend, stat labels, mounted chart canvases, no active alerts, no horizontal overflow, and screenshot `/tmp/fairvalue-host-market-chart-panel-mobile.png`; rendered probe used Playwright MCP fallback because Browser Node REPL remained unavailable and recorded one benign dev WebSocket close warning during route setup; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 735.16 kB / 760.00 kB, and `smoke:boot` room `47DW`.
+- 2026-05-16 Host Property Summary And Responsive Layout pass: `npm run typecheck` passed; focused host/player Playwright flow passed room `FG01`, covering the rendered host property address plus the full AI/settlement path; rendered mobile probe on backend `8101` / frontend `3101` initially caught host-page overflow at `documentWidth=656` on a `390x844` viewport from the fixed right rail, then after adding responsive `HostView.css` reran room `B3WX` and verified `documentWidth=384`, no horizontal overflow, no active alerts, connected state, summary text `987 Narrow View Lane`, `$925,000`, and `THINK OVER`, with screenshot `/tmp/fairvalue-host-property-summary-mobile.png`; rendered probe used Playwright MCP fallback because Browser Node REPL remained unavailable and recorded one benign dev WebSocket close warning during route reload; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 735.20 kB / 760.00 kB, and `smoke:boot` room `JN3C`.
+- 2026-05-16 Host Top Bar And Authority Notice pass: `npm run typecheck` passed; focused host/player Playwright flow passed room `SW78`, covering player count, AI toggle, settlement modal, and settlement result; focused missing-authority Playwright passed room `3HA9`, covering disabled AI/Settle controls and `aria-describedby` wiring; rendered desktop probe on backend `8099` / frontend `3099` created room `LQR7`, verified normal top-bar text, connected state, AI `aria-pressed=false`, no active alerts, no horizontal overflow, then cleared browser authority and verified the `host-authority-warning`, disabled AI/Settle controls, matching descriptions, no overflow, and screenshots `/tmp/fairvalue-host-topbar-desktop.png` plus `/tmp/fairvalue-host-topbar-authority-desktop.png`; rendered probe used Playwright MCP fallback because Browser Node REPL remained unavailable and recorded two benign dev WebSocket close warnings during route reloads; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 735.55 kB / 760.00 kB, and `smoke:boot` room `OBRQ`.
+- 2026-05-16 Host Draft Audit UI Component pass: `npm run typecheck` passed; focused `npm test -- marketIntelligence roomReview publicRoomRecap` passed 3 files / 10 tests; focused Playwright passed the Market Studio draft-to-host-room path with room `ZE7T`; rendered desktop probe on backend `8096` / frontend `3096` created room `UPZF`, opened `/host/UPZF` at `1366x900`, verified source `Local property dataset match`, linked property `440298192`, server-validated audit copy, Live Room Intelligence draft-audit linkage, connected state, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-host-draft-audit-card-desktop.png`; Browser plugin Node REPL was unavailable through tool discovery, so the rendered probe used Playwright MCP fallback and recorded one benign dev WebSocket close warning during route setup; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.07 kB / 760.00 kB, and `smoke:boot` room `KU9R`.
+- 2026-05-16 Player Pre-Bet Balance Cap/Rejection pass: `npm run typecheck` passed; focused `npm test -- playerBetPreview` passed 1 file / 2 tests; focused Playwright passed the balance-capped preview plus over-balance rejection spec with room `N0J8`; rendered mobile probe on backend `8094` / frontend `3094` created room `AMTB`, joined `/play/AMTB`, placed a `$950` OVER wager, verified remaining balance `50`, verified `Preview capped at your current $50 balance.`, clicked the still-selected `$950` OVER action again, verified the natural `400 Insufficient balance` response, inline alert, toast, `aria-invalid`, `aria-describedby`, rollback to balance `50`, no horizontal overflow, and captured the error at `/tmp/fairvalue-overbalance-error-mobile.png` with the expected rejected-bet resource console entry plus one benign dev WebSocket close warning; full `npm run test:e2e:isolated` passed 34 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.17 kB / 760.00 kB, and `smoke:boot` room `ADNL`.
+- 2026-05-16 Join Page Shell pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio, expanded accessibility, and keyboard/screen-reader-adjacent specs with rooms `S4KR`, `3UVC`, and `VN0I`; rendered mobile probe on backend `8090` / frontend `3090` opened `/join` at `390x844`, verified pick/create/join/studio shell states, Studio container expansion, Browse Markets footer text, `ab12` to `AB12` room-code normalization, no active alerts, no console errors beyond the expected React DevTools info line, and no horizontal overflow with screenshot `/tmp/fairvalue-join-page-shell-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.11 kB / 760.00 kB, and `smoke:boot` room `2USE`.
+- 2026-05-16 Market Studio Form Shell pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path with room `406B`; rendered mobile probe on backend `8088` / frontend `3088` opened `/join` at `390x844`, generated a matching draft for `3004 26th St`, used the local property, saved the draft, verified draft/match/saved panel text, no active alerts, no console errors beyond the expected React DevTools info line, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-form-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.70 kB / 760.00 kB, and `smoke:boot` room `YIXT`.
+- 2026-05-16 Join Entry UI Component pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright batch passed Market Studio and keyboard/screen-reader-adjacent specs while the expanded accessibility spec timed out during context close, then a single-spec rerun of expanded routes/forms/modal accessibility passed in 8.3s; rendered mobile probe on backend `8086` / frontend `3086` opened `/join` at `390x844`, verified the extracted picker, create form values, join form values, `ab12` to `AB12` room-code normalization, no active alerts, no failed resources, and no horizontal overflow with screenshot `/tmp/fairvalue-join-entry-components-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 737.39 kB / 760.00 kB, and `smoke:boot` room `JJ9P`.
+- 2026-05-16 Market Studio Saved/Match UI Component pass: `npm run typecheck` passed; focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path covering existing-property match use and saved draft creation; rendered mobile probe on backend `8083` / frontend `3083` opened `/join` at `390x844`, generated a matching draft for `3004 26th St`, used the local property, saved the draft, verified match/saved panel text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-panels-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 736.54 kB / 760.00 kB, and `smoke:boot` room `SS91`.
+- 2026-05-16 Market Studio Draft UI Component pass: `npm run typecheck` passed; focused `npm test -- marketDrafts marketStudioDrafts` passed 2 files / 9 tests; focused Playwright passed the Market Studio draft-to-host-room path including generated draft editing and host room creation; rendered mobile probe on backend `8081` / frontend `3081` opened `/join` at `390x844`, generated a draft from pasted listing text, verified the extracted draft-card text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-market-studio-draft-component-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 737.85 kB / 760.00 kB, and `smoke:boot` room `DFRN`.
+- 2026-05-16 Host Room Intelligence UI Component pass: `npm run typecheck` passed; focused `npm test -- marketIntelligence` passed 1 file / 6 tests; focused Playwright passed the Market Studio draft-to-host-room path including Live Room Intelligence assertions and serious/critical axe coverage; rendered desktop probe on backend `8079` / frontend `3079` created room `ZS9X`, opened `/host/ZS9X` at `1440x900`, verified the extracted host-intelligence panel text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-host-intelligence-component-desktop.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 738.67 kB / 760.00 kB, and `smoke:boot` room `Y0YV`.
+- 2026-05-16 Player Pre-Bet UI Component pass: `npm run typecheck` passed; focused `npm test -- playerBetPreview` passed 1 file / 2 tests; focused Playwright passed the multiplayer room entry/settlement trust-language path including pre-bet assertions; rendered mobile probe on backend `8077` / frontend `3077` created room `9KGP`, joined `/play/9KGP` at `390x844`, verified the extracted pre-bet card text, no active alerts, and no horizontal overflow with screenshot `/tmp/fairvalue-prebet-component-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 740.32 kB / 760.00 kB, and `smoke:boot` room `RUJZ`.
+- 2026-05-16 Room Artifact UI Foundation pass: `npm run typecheck` passed after extracting the shared component/CSS layer; focused Playwright passed 3 Chromium tests covering public recap privacy, Market Studio operator review, and settled operator review from the room flow; rendered visual probe on backend `8075` / frontend `3075` created settled room `S9IS`, verified `/review/S9IS` at `1440x900` and `/recap/S9IS` at `390x844` with no horizontal overflow and zero console/page issues, saving `/tmp/fairvalue-artifact-review-desktop.png` and `/tmp/fairvalue-artifact-recap-mobile.png`; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 741.12 kB / 760.00 kB, and `smoke:boot` room `XQX0`.
+- 2026-05-16 Share-Safe Public Recap pass: focused `npm test -- publicRoomRecap` passed 1 file / 2 tests; `npm run typecheck` passed; focused Playwright passed the public recap route privacy/accessibility test; mobile visual probe on backend `8072` / frontend `3072` rendered settled room `Z7IM`, verified `/recap/Z7IM` at `390x844` with no horizontal overflow, no console/page issues, settlement evidence, no private-token text, and screenshot `/tmp/fairvalue-public-recap.png`; final full `npm run test:e2e:isolated` passed 33 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 12 Vitest suites / 65 tests, production build, bundle budget with total JS 747.00 kB / 760.00 kB, and `smoke:boot` room `JNS6`.
+- 2026-05-16 Player Pre-Bet Intelligence pass: focused `npm test -- playerBetPreview` passed 1 file / 2 tests after a retry from a Vitest worker-start timeout; `npm run typecheck` passed; focused Playwright passed 3 Chromium tests for player trust/pre-bet render, wager validation, and keyboard/mobile control paths; mobile visual probe on backend `8068` / frontend `3068` created room `FZNS`, rendered the pre-bet read, verified the `$25` OVER button stayed visible, and saved `/tmp/fairvalue-player-prebet-mobile.png`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 11 Vitest suites / 63 tests, production build, bundle budget with total JS 735.24 kB / 760.00 kB, and `smoke:boot` room `100V`.
+- 2026-05-16 Operator Review Route pass: focused `npm test -- roomReview marketIntelligence` passed 2 files / 8 tests; focused Market Studio/settlement Playwright passed paste listing -> create host room -> open operator review plus settled-room review assertions; targeted negative-path tail rerun passed 10 Chromium tests after investigating an earlier backend `ECONNREFUSED` run interruption; final full `npm run test:e2e:isolated` passed 32 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 10 Vitest suites / 61 tests, production build, bundle budget with total JS 729.93 kB / 760.00 kB, and `smoke:boot` room `191L`.
+- 2026-05-16 Room-Aware Market Intelligence pass: focused `npm test -- marketIntelligence` passed 1 file / 6 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local match -> create host room -> render draft audit and live intelligence; targeted host/browser regressions passed 5 Chromium tests; targeted negative-path regressions passed 3 Chromium tests; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 9 Vitest suites / 59 tests, production build, bundle budget, and `smoke:boot` room `ZC39`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local Playwright render on backend `8052` / frontend `3052` created room `L5B1`, rendered host draft audit plus Live Room Intelligence with linked property `440298192`, no-bet movement read, `$0` liquidity copy, accepted draft audit, and no-provider-comps provenance, returned backend `/healthz` ok, and reported zero page errors with one benign dev WebSocket close warning during navigation.
+- 2026-05-16 Market Studio server draft-audit pass: focused `node --test server/__tests__/validationAndIdempotency.test.js server/__tests__/roomEventLog.test.js` passed 11 server tests; focused `npm test -- marketDrafts marketStudioDrafts` passed 2 files / 9 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local match -> use matched property -> create host room -> render host draft audit; final `npm run verify` passed client secret scan, typecheck, 44 server tests, 9 Vitest suites / 57 tests, production build, bundle budget, and `smoke:boot` room `MFJD`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local render on backend `8049` / frontend `3049` created room `298G`, rendered the server-validated draft audit card with linked property `440298192`, returned `/healthz` ok, and reported zero console/page errors.
+- 2026-05-16 Market Studio matching/saved-drafts pass: focused `npm test -- marketStudioDrafts marketDrafts` passed 2 files / 9 tests; `npm run typecheck` passed; focused Market Studio Playwright passed paste listing -> local property match -> use matched property -> save draft -> create host room; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 9 Vitest suites / 57 tests, production build, bundle budget, and `smoke:boot` room `LYSK`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live local render on backend `8047` / frontend `3047` returned `/join` 200 and `/healthz` ok, with desktop/mobile Studio snapshots showing match/save/create controls and only the expected React DevTools info console entry.
+- 2026-05-16 Market Detail Intelligence pass: focused `npm test -- marketIntelligence` passed 4 tests; `npm run typecheck` passed; focused Playwright market-detail route passed desktop/mobile content and serious axe checks; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 8 Vitest suites / 53 tests, production build, bundle budget, and `smoke:boot` room `FWGP`; final full `npm run test:e2e:isolated` passed 32 Chromium tests; live browser render on backend `8045` / frontend `3045` returned `/market/440298192` 200 and `/healthz` ok with desktop/mobile snapshots and only the expected React DevTools info console entry.
+- 2026-05-16 Market Studio pass: baseline `npm run typecheck`, `npm test`, and `npm run test:server` passed before edits; focused `npm test -- marketDrafts` passed 5 tests; focused Market Studio Playwright passed; live local dev smoke on backend `8042` / frontend `3042` returned `/join` 200 and `/healthz` ok, with desktop/mobile browser snapshots showing the new Market Studio option and only the expected React DevTools info console entry; final `npm run verify` passed client secret scan, typecheck, 43 server tests, 7 Vitest suites / 49 tests, production build, bundle budget, and `smoke:boot` room `1NFU`; final full `npm run test:e2e:isolated` passed 32 Chromium tests after a strict-locator assertion was tightened.
 - 2026-05-10 baseline before patch: `npm test -- --watchAll=false` passed, 3 suites / 30 tests.
 - 2026-05-10 baseline before patch: `npm run build` passed with one warning for an unused `priceOver` import in `src/hooks/useRoom.ts`.
 - 2026-05-10 post-patch: `npm run verify` passed: client secret scan, 4 test suites / 33 tests, and production build.
@@ -160,8 +206,8 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Load/performance coverage now includes a bounded synthetic burst, a 24-player API/WebSocket wave soak, a local restart/load latency profile, a 10-rendered-mobile-player browser load profile, a cold production build/room-flow profile, and a network-throttled mixed traffic profile; production-hosted load and real external network profiles are still missing.
 - Operations metrics are now visible locally, token-guarded for production, and available as JSON plus Prometheus text, but they are still process-local/in-memory and need a real external collector/dashboard config before multi-instance deployment.
 - The production readiness checker is covered locally with synthetic envs; it still needs to be run against the actual deployment environment once real secrets/URLs exist.
-- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, cited local AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, identity-minting failure, room-state load failure, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, identity-minting failure, room-state load failure, cited local AI fallback, player-wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
-- Market detail and multiplayer entry/settlement surfaces now make simulated-credit and non-appraisal authority explicit; future share, invite, public recap, or exported-result surfaces still need the same trust language when they exist.
+- Accessibility coverage now gates serious/critical axe violations, keyboard/screen-reader-adjacent behavior, and macOS AX/ARIA evidence on the browse, property detail, market-start failure, join, host, player, settle, cited local AI fallback, settled-result, validation-error, map-popup, player notification, direct-player-join notification, identity-minting failure, room-state load failure, host-action notification, malformed host-action success, missing-host-authority controls, and settlement-failure notification states; it still needs a human-listened VoiceOver rotor/audio pass and deeper coverage for remaining validation branches beyond the currently covered market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct-player-join validation/API failure, identity-minting failure, room-state load failure, cited local AI fallback, player-wager, player-bet API failure rollback, natural insufficient-balance rollback, pre-bet balance cap, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+- Market detail, multiplayer entry/settlement, and public recap surfaces now make simulated-credit and non-appraisal authority explicit; future invite or exported-result surfaces still need the same trust language when they exist.
 - The cited local AI fallback is deterministic and covered without credentials; real Cognee-backed citation quality still needs live-key verification once a usable `COGNEE_API_KEY` is available.
 - Full npm audit and production/runtime audit are clean after migrating off CRA/react-scripts.
 - Broader accessibility and deeper security test layers are still missing, though baseline HTTP security headers are now enforced and tested.
@@ -169,16 +215,188 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Current Backlog Ranked By Impact
 
-1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+1. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, natural insufficient-balance rollback, pre-bet balance cap, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
+2. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
 3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
 4. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
 5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-6. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-7. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-8. Run `npm run check:production` against the actual deployment environment once production env values are available.
+6. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+7. Run `npm run check:production` against the actual deployment environment once production env values are available.
 
 ## Iteration History
+
+### 2026-05-16 - Player Settlement Result Card
+
+- Extracted the settled player recap into `PlayerSettlementResultCard` with co-located CSS, preserving the trophy icon, actual price, winning-outcome styling, settlement trust copy, public recap link, and payout rows.
+- Removed the settled-result style keys and settlement icon/link ownership from `PlayerView`, shrinking the route-local inline style surface while keeping the existing browser test hooks intact.
+- Verified the player settled state with TypeScript, focused host/player Playwright coverage, a mobile rendered settlement probe, and the full `npm run verify` gate.
+
+### 2026-05-16 - Host Settlement Result Card
+
+- Extracted the settled host outcome recap into `HostSettlementResultCard` with co-located CSS, preserving the trophy icon, actual price, winning-outcome styling, settlement evidence trust notice, and `host-settlement-result` browser contract.
+- Removed the final route-local `s` style object from `HostView`, leaving the route focused on room state, host controls, and composition.
+- Kept outcome color semantics tied to the settled OVER/UNDER result while standardizing the card radius and spacing with the current host component layer.
+- Verified the slice with TypeScript, focused host/player Playwright coverage, a mobile rendered settlement probe, and the full `npm run verify` gate.
+
+### 2026-05-16 - Host Market Chart Panel
+
+- Extracted the host market probability chart, legend, and stat rail into `HostMarketChartPanel` with co-located CSS.
+- Preserved the `useMarketChart` callback ref and existing browser contracts for total trades, volume, and average bet.
+- Added responsive stat layout so mobile host views stack market stats cleanly below the chart.
+- Verified the slice with TypeScript, focused host/player Playwright coverage, a mobile rendered chart-panel probe, and the full `npm run verify` gate.
+
+### 2026-05-16 - Host Property Summary And Responsive Layout
+
+- Extracted the host property/probability summary into `HostPropertySummary` with co-located CSS, preserving address, asking price, OVER probability, and the host column placement.
+- Added responsive `HostView.css` for the route shell, replacing fixed inline page/layout styles and collapsing the right rail beneath the main host column below `900px`.
+- Used the rendered mobile probe to catch and fix a real host overflow bug where the fixed `360px` right rail forced a `656px` document width on a `390px` viewport.
+- Verified the slice with TypeScript, focused host/player Playwright coverage, a before/after mobile rendered probe, and the full `npm run verify` gate.
+
+### 2026-05-16 - Host Top Bar And Authority Notice
+
+- Extracted the host command bar into `HostTopBar` with co-located CSS while preserving room code, player count, connection state, Review/Recap links, AI toggle semantics, and the Settle button ref used for modal focus restoration.
+- Extracted the missing-host-authority warning into `HostAuthorityNotice`, preserving the `host-authority-warning` ID/test hook and disabled-control `aria-describedby` relationship.
+- Routed the loading skeleton through the same top-bar component with status/actions hidden so the loading state no longer depends on removed route-local style keys.
+- Verified the slice with TypeScript, focused host/player and missing-authority Playwright coverage, rendered normal/disabled host desktop probes, and the full `npm run verify` gate.
+
+### 2026-05-16 - Host Draft Audit UI Component
+
+- Extracted the host Market Studio draft-audit note into `HostDraftAuditCard` with co-located CSS, keeping `HostView` focused on orchestration and live room layout.
+- Preserved the source, validation, linked-property, market-format, market question, server-validated audit-retention copy, accessibility label, and existing `host-draft-audit-note` browser contract.
+- Removed the route-local draft-audit style block from `HostView` and aligned the extracted card with the host component styling pattern.
+- Verified the slice with TypeScript, focused room-intelligence/review/recap unit tests, focused Market Studio Playwright coverage, a desktop rendered probe of the host command column, and the full `npm run verify` gate.
+
+### 2026-05-16 - Player Pre-Bet Balance Cap And Rejection Coverage
+
+- Added a stable `player-prebet-balance-warning` hook and polite live semantics to the rendered pre-bet balance warning.
+- Added Chromium coverage for a player who spends `$950`, drops to a `$50` balance, and still has an over-balance wager selected so the pre-bet preview must cap movement math to the remaining simulation-credit balance.
+- Extended the same browser path to click the over-balance wager, assert the natural `Insufficient balance` rejection, preserve the `$50` balance after rollback, and expose inline/toast/ARIA error semantics.
+- Captured rendered mobile proof for the capped-warning and over-balance rejection state after joining and betting through the real `/play/:roomCode` UI.
+- Verified the slice with TypeScript, focused player-preview unit tests, the new focused Playwright spec, full isolated Playwright, rendered mobile proof, and the full `npm run verify` gate.
+
+### 2026-05-16 - Join Page Shell
+
+- Extracted the `/join` route chrome into `JoinPageShell` with co-located CSS, preserving the logo/header, responsive glass frame, Studio-width expansion, and Browse Markets footer action.
+- Removed the last route-local style object and lucide icon ownership from `JoinPage`, leaving it focused on room creation, Market Studio state, identity, validation, and navigation orchestration.
+- Verified all pick/create/join/studio shell states at mobile width, including the footer, Studio expanded class, room-code normalization, no active alerts, and no horizontal overflow.
+- Verified the slice with TypeScript, focused draft/storage unit tests, focused route accessibility/keyboard/Market Studio Playwright specs, a mobile rendered probe of `/join`, and the full `npm run verify` gate.
+
+### 2026-05-16 - Market Studio Form Shell
+
+- Extracted the remaining Market Studio form shell into `MarketStudioForm` with co-located CSS while preserving saved drafts, local-property matches, listing text input, generated draft rendering, save draft, create room, and back navigation.
+- Kept `JoinPage` responsible for session identity, sanitization, validation, draft generation, property matching, persistence calls, and navigation while removing the large inline Market Studio JSX branch.
+- Removed the remaining negative title letter spacing from `/join` page chrome so the route follows the current UI typography constraint.
+- Verified the slice with TypeScript, focused draft/storage unit tests, focused Market Studio Playwright coverage, a mobile rendered probe of `/join`, and the full `npm run verify` gate.
+
+### 2026-05-16 - Join Entry UI Components
+
+- Extracted the `/join` picker into `JoinModePicker` with co-located CSS while preserving Create Room, Market Studio, and Join Room entry actions.
+- Extracted simple create-room and join-room forms into `CreateRoomForm` and `JoinRoomForm`, preserving field labels, validation wiring, loading/disabled button states, autofocus, and room-code normalization.
+- Reused one `RoomEntryForm.css` surface for the simple form chrome so the route stops carrying those repeated inline structures.
+- Verified the slice with TypeScript, focused draft unit tests, focused Playwright route/form coverage, an expanded accessibility rerun, and a mobile rendered probe of `/join`.
+
+### 2026-05-16 - Market Studio Saved And Match UI Components
+
+- Extracted saved Market Studio draft rows into `MarketStudioSavedDrafts` with co-located CSS while preserving load and delete behavior.
+- Extracted existing-property match rows into `MarketStudioMatches` with co-located CSS while preserving the local-property match action and match metadata.
+- Removed the saved-draft and match-panel style objects from `JoinPage`, further narrowing the route to state, validation, and orchestration.
+- Verified the slice with TypeScript, focused draft/storage unit tests, focused Market Studio Playwright coverage, and a mobile rendered probe of `/join`.
+
+### 2026-05-16 - Market Studio Draft UI Component
+
+- Extracted the generated Market Studio draft card into `MarketStudioDraftCard` with co-located CSS while preserving the deterministic `MarketDraft` contract.
+- Moved the card's editable generated address/price fields, confidence/provenance header, settlement evidence list, metadata grid, and warning copy out of `JoinPage`.
+- Preserved the `Generated market draft` accessibility label and `market-studio-draft` test hook so existing Market Studio browser coverage still exercises the generated draft surface.
+- Verified the slice with TypeScript, focused draft unit tests, focused Market Studio Playwright coverage, and a mobile rendered probe of `/join`.
+
+### 2026-05-16 - Host Room Intelligence UI Component
+
+- Extracted the host dashboard's Live Room Intelligence section into `HostRoomIntelligencePanel` with co-located CSS while preserving the deterministic `RoomMarketIntelligence` contract.
+- Removed the room-intelligence icon imports and style objects from `HostView`, leaving the route focused on room state, host authority, and layout orchestration.
+- Preserved the `Live Room Intelligence` accessibility label and `host-room-intelligence-panel` test hook so existing browser coverage still exercises the same operator-facing surface.
+- Verified the slice with TypeScript, focused market-intelligence unit tests, focused Market Studio Playwright coverage, and a desktop rendered probe of `/host/:roomCode`.
+
+### 2026-05-16 - Player Pre-Bet UI Component
+
+- Extracted the player room's pre-bet intelligence markup into `PreBetIntelligenceCard` with co-located CSS while preserving the deterministic `PlayerBetPreview` contract.
+- Removed the pre-bet card's route-local inline style objects from `PlayerView`, keeping `PlayerView` focused on identity, room state, and betting behavior.
+- Preserved the existing accessibility label and `player-prebet-*` test IDs so the multiplayer browser tests continue to exercise the same product surface.
+- Verified the slice with TypeScript, focused player-preview unit tests, focused Playwright multiplayer coverage, and a mobile rendered probe of `/play/:roomCode`.
+
+### 2026-05-16 - Room Artifact UI Foundation
+
+- Added `RoomArtifact` primitives and co-located CSS for shared artifact page layout, header/status rails, notices, metric cards, panels, evidence rows, timeline rows, bullet lists, footer notes, and mobile responsiveness.
+- Refactored `/review/:roomCode` and `/recap/:roomCode` off large route-local style objects while preserving existing route data loading, host-authorized event loading, public-state-only recap behavior, test IDs, and accessibility labels.
+- Reduced duplicated inline page styling between operator review and public recap, and moved responsive artifact behavior into one CSS surface.
+- Verified the refactor with TypeScript, focused Playwright route coverage, desktop/mobile visual probes, and full `npm run verify`.
+
+### 2026-05-16 - Share-Safe Public Recap
+
+- Added a deterministic public recap generator that summarizes live or settled room state from public state only, including LMSR movement, public activity, settlement result, evidence, and guardrails.
+- Added `/recap/:roomCode` as a share-safe route that does not fetch host-only events, does not send host authority, and explicitly excludes capability tokens and provider-backed comps.
+- Linked the host dashboard and settled player view to the public recap route so a room outcome can be shared without exposing the operator review surface.
+- Added focused Vitest coverage for live and settled public recap generation, plus Playwright coverage for settled recap privacy, settlement evidence, token non-leakage, and serious/critical axe checks.
+- Captured a mobile visual probe at `/tmp/fairvalue-public-recap.png` proving the public recap renders at `390x844` without horizontal overflow or console/page issues.
+
+### 2026-05-16 - Player Pre-Bet Intelligence
+
+- Added a deterministic player pre-bet preview generator that uses LMSR math, current room probability, wager size, balance, and recent activity to produce a compact reason to believe, reason to doubt, and both OVER/UNDER outcome previews.
+- Added the pre-bet read to the mobile player room before wagering, with local-provenance and no-provider-comps copy so the player surface stays trust-bounded.
+- Added focused Vitest coverage for balanced opening rooms plus consensus/herd-risk/balance-capped preview states.
+- Expanded Playwright coverage so the player flow must render the pre-bet read before settlement and still pass existing wager validation and keyboard/mobile control paths.
+- Captured a mobile visual probe at `/tmp/fairvalue-player-prebet-mobile.png` proving the card renders above the compact fixed bet controller without hiding the active bet buttons.
+
+### 2026-05-16 - Operator Review Route
+
+- Added a deterministic room review generator that compares draft audit metadata, room movement, player/trade metrics, host-only event history, settlement evidence, integrity checks, timeline entries, and generated recap bullets.
+- Added `/review/:roomCode` as a host-facing route that loads public room state and, when host authority is present, fetches the host-only room event log without exposing host tokens.
+- Linked the host dashboard to the operator review route so active and settled rooms can be audited without typing a URL.
+- Added focused Vitest coverage for pending-review and settled-review generation.
+- Expanded Playwright coverage so Market Studio rooms render a pre-settlement review and settled rooms render settlement evidence, event timeline, and accessibility-clean operator review states.
+- Verified the slice with focused unit/browser checks, a targeted negative-path rerun after investigating an E2E backend interruption, full isolated Playwright, and the full `npm run verify` gate.
+
+### 2026-05-16 - Room-Aware Market Intelligence
+
+- Extended the deterministic Market Intelligence library with `generateRoomMarketIntelligence`, combining host room LMSR probability, implied room value, liquidity, participant count, recent bet activity, and optional server-preserved draft audit metadata.
+- Added explicit local-fallback provenance and no-provider-comps language so the room intelligence panel does not imply external valuation authority.
+- Added focused Vitest coverage for high-confidence draft-audited rooms and low-confidence no-audit/no-bet rooms.
+- Added a Live Room Intelligence panel to the host dashboard with summary, metrics, movement read, pressure points, host script prompts, and provenance notes.
+- Expanded the Market Studio Playwright path so a generated room must render both the server draft audit and the room-aware intelligence panel inside the serious/critical axe accessibility gate.
+
+### 2026-05-16 - Market Studio Server Draft Audit
+
+- Added server-side validation for optional `market_draft` room creation payloads, requiring valid source/type fields plus address and asking price parity with the room before any room mutation is accepted.
+- Added a persisted `draft_audit` envelope that captures normalized draft fields, provenance, market question, settlement evidence requirements, warnings, validation status, source-text hash, and source-text length while intentionally omitting raw pasted listing text.
+- Carried draft audits through room creation responses, durable snapshots, room event logs, replay, state payloads, cached room state, and the host dashboard.
+- Updated `/join` Market Studio room creation so generated or matched drafts are submitted to the server, while manual create-room flow still creates rooms without audit metadata.
+- Added host UI proof that a Market Studio room is backed by server-validated draft metadata and linked property provenance.
+- Verified with focused server/type/unit checks, focused Market Studio Playwright, full `npm run verify`, full isolated Playwright, and a live local render of a Market Studio host room.
+
+### 2026-05-16 - Market Studio Matching And Saved Drafts
+
+- Exported lazy property loading so `/join` can keep the pick/create/join path light and only fetch the property snapshot dataset when Market Studio generates a draft that needs matching.
+- Added `src/lib/marketStudioDrafts.ts` for deterministic existing-property matching, local property draft hydration, saved draft upsert/read/delete behavior, capped saved draft storage, and corrupted-storage recovery.
+- Added focused Vitest coverage for exact local property matching, weak-match rejection, property-to-draft generation, and saved draft update/delete behavior.
+- Upgraded `/join` Market Studio with an existing-property match panel, address-specific match buttons, linked-property draft state, local saved draft list, save/load/delete actions, and a create-room flow that still uses the existing authenticated room creation and host auto-join path.
+- Expanded the Market Studio Playwright test to prove paste listing -> local match -> use matched property -> save draft -> accessibility check -> create host room.
+- Updated `README.md` so Market Studio's supported behavior includes existing-property matches and saved drafts.
+
+### 2026-05-16 - Market Detail Intelligence
+
+- Added `src/lib/marketIntelligence.ts` as a deterministic local analyst layer for property snapshots, producing confidence, valuation metrics, bull/bear/uncertainty cases, scenario prompts, and settlement checklist without external AI credentials.
+- Added focused Vitest coverage for high-confidence briefs, over/under valuation pressure, scenario/checklist output, and downgraded confidence when valuation references are missing.
+- Added a Market Intelligence section to `/market/:propertyId` beneath the trust/provenance panel so solo property pages now provide actionable debate structure before a host starts a room.
+- Expanded the market-detail Playwright test so desktop and mobile route coverage assert Market Intelligence content inside the existing serious/critical axe accessibility gate.
+- Updated `README.md` and the backlog so this slice is documented as shipped and the next step is room-aware/live evidence intelligence.
+
+### 2026-05-16 - Market Studio Vertical Slice
+
+- Added `src/lib/marketDrafts.ts` as a deterministic local market-draft generator for pasted listing text, including address, city/state/zip, asking price, beds, baths, square footage, home type, market question, settlement rule, evidence checklist, provenance confidence, generated summary, and warnings.
+- Added focused Vitest coverage for listing parsing, shorthand million prices, independent address/fact parsing, incomplete-draft validation, deterministic provenance, warnings, and settlement evidence.
+- Added Market Studio as a real `/join` mode that lets hosts paste listing text, generate a draft, review/edit generated address and asking price, see settlement evidence and parser warnings, and create a real room through the existing host identity, host token, room creation, and host auto-join path.
+- Added Playwright coverage proving paste listing -> generate draft -> accessibility check -> create room -> host page with one player works against fresh local backend/frontend servers.
+- Updated `README.md` so Market Studio is documented as a supported mode instead of an aspirational future feature.
+- Verified with focused unit/type checks, focused Playwright, live local desktop/mobile browser snapshots of `/join`, full `npm run verify`, and full `npm run test:e2e:isolated`.
 
 ### 2026-05-11 - Cited Local AI Analyst
 
@@ -1137,6 +1355,9 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - Identity failure evidence verified `/join` create-room identity outage shows `Identity unavailable` inline and in the toast without sending `POST /api/rooms`, while `/play/XEPD` malformed identity success shows `Identity response was invalid` inline and in the toast without sending the room join mutation; both pass serious/critical axe checks.
 - Room-state load failure evidence verified `/host/I39X` forced state-store `503` renders a retryable `Room temporarily unavailable` alert with `Room state unavailable`, while `/play/XON8` malformed state JSON renders `Room state response was invalid`, hides the player join form, leaves the real room with zero players, and passes serious/critical axe checks.
 - Cited local AI evidence verified `/host/RL7D` without `COGNEE_API_KEY` returns 200 from initialize/state/search, renders `Local AI analyst`, `Evidence used`, `Room market snapshot`, and `Limits`, keeps the AI conversation log keyboard-focusable, and has zero unexpected console/page issues in the rendered probe.
+- Player pre-bet evidence verified `/play/FZNS` renders the local LMSR pre-bet read before wagering with one reason to believe, one reason to doubt, OVER/UNDER share/probability previews, no-provider-comps provenance, compact fixed betting controls, zero page errors, and a mobile screenshot at `/tmp/fairvalue-player-prebet-mobile.png`.
+- Public recap evidence verified `/recap/Z7IM` renders a share-safe settled recap from public room state only with settlement result, public evidence, public timeline, simulation-credit/non-appraisal guardrails, no host/user token text, zero console/page issues, and a mobile screenshot at `/tmp/fairvalue-public-recap.png`.
+- Room artifact UI evidence verified the extracted shared artifact component renders `/review/S9IS` on desktop and `/recap/S9IS` on mobile with settlement evidence, public recap token non-leakage, no horizontal overflow, zero console/page issues, and screenshots at `/tmp/fairvalue-artifact-review-desktop.png` and `/tmp/fairvalue-artifact-recap-mobile.png`.
 
 ## Screenshots Or Traces
 
@@ -1163,6 +1384,10 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 - `/tmp/fairvalue-host-room-state-outage.png`
 - `/tmp/fairvalue-player-malformed-room-state.png`
 - `/tmp/fairvalue-ai-local-analyst-evidence.png`
+- `/tmp/fairvalue-player-prebet-mobile.png`
+- `/tmp/fairvalue-public-recap.png`
+- `/tmp/fairvalue-artifact-review-desktop.png`
+- `/tmp/fairvalue-artifact-recap-mobile.png`
 - `test-results/e2e-artifacts/negative-paths-join-route--02189-en-server-rate-limit-is-hit-chromium/trace.zip`
 - `test-results/e2e-artifacts/negative-paths-AI-analyst--293b5-instead-of-failing-silently-chromium/trace.zip`
 - `test-results/e2e-artifacts/negative-paths-AI-analyst--6e256-en-Cognee-is-not-configured-chromium/trace.zip`
@@ -1173,6 +1398,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Commits Made
 
+- `7882cd2` - Add public room recap.
+- `c01e84c` - Add player pre-bet intelligence.
+- `1b8940e` - Add operator room review.
+- `9c98d92` - Add room-aware market intelligence.
+- `a60d3f4` - Add market studio draft audit.
 - `7df90d6` - Harden AI boundary and realtime recovery.
 - `b1936cb` - Protect host-only room controls.
 - `baa8e98` - Align room code contract.
@@ -1281,13 +1511,11 @@ Transform FairValue into a trusted real-time real estate prediction-market opera
 
 ## Next Action Queue
 
-1. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
-2. Add deeper branch-level coverage for remaining validation and notification states beyond market-start room creation/host-auto-join, join-page API create/host-auto-join/join outage, direct player join validation/API failure, identity-minting failure, room-state load failure, player wager, player-bet API failure rollback, settle, host-toggle, settlement-failure, malformed host-action response, and missing-host-authority paths.
-3. Extend the same trust/risk language to future share, invite, public recap, or exported-result surfaces once those surfaces exist.
-4. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
-5. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
-6. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
-7. Run opt-in Postgres retention pruning against the real Neon/Postgres URL once credentials and the production retention window are available.
-8. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
-9. Run `npm run check:production` against the actual deployment environment once production env values are available.
-10. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.
+1. Continue deeper branch-level coverage for the remaining validation and notification states that are not already rendered in the isolated E2E suite.
+2. Run a human-listened VoiceOver rotor/audio pass and close any remaining route/modal/accessibility edge states it uncovers.
+3. Run `FAIRVALUE_LIVE_POSTGRES_SMOKE=1 npm run test:persistence:live` against a real Neon/Postgres URL once credentials are available.
+4. Run a live `COGNEE_API_KEY` smoke once credentials are available to verify provider-backed citation quality against the deterministic local fallback.
+5. Add production-hosted or externally tunneled load evidence once an environment/URL is available.
+6. Configure the real external Prometheus/log collector/dashboard in the production deployment once an environment exists.
+7. Run `npm run check:production` against the actual deployment environment once production env values are available.
+8. Start the next loop with `npm run verify`, then inspect the highest-risk deployment-readiness or real-service gap that is not already covered by the current matrix, restart, soak, latency, browser-load, mixed-traffic, cold-performance, and assistive-tech harnesses.

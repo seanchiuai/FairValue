@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Search,
   ChevronDown,
   X,
   Home,
   Map as MapIcon,
+  UserRound,
 } from 'lucide-react';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
@@ -137,6 +139,10 @@ function Markets() {
         </div>
 
         <div className="header-right">
+          <Link to="/me" className="profile-link" aria-label="Open prediction profile">
+            <UserRound size={14} />
+            Profile
+          </Link>
           <button
             type="button"
             className={`map-toggle ${showMap ? 'active' : ''}`}
@@ -321,6 +327,22 @@ function Markets() {
         }
         .search-clear:hover { background: #E8E8ED; color: #1D1D1F; }
         .header-right { display: flex; align-items: center; gap: 12px; }
+        .profile-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 11px;
+          border-radius: 999px;
+          border: 1px solid #D2D2D7;
+          background: #FFF;
+          color: #1D1D1F;
+          font-size: 12px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: all 0.2s ease;
+        }
+        .profile-link svg { color: #636366; }
+        .profile-link:hover { border-color: #55565C; }
         .map-toggle {
           display: inline-flex;
           align-items: center;

@@ -1,19 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useRoom } from '../hooks/useRoom';
+import { useUserReputation } from '../hooks/useUserReputation';
 import { useMarketChart } from '../hooks/useMarketChart';
 import { calculateImpliedPrice } from '../lib/lmsr';
-import { TrendingUp, TrendingDown, DollarSign, Trophy } from 'lucide-react';
+import { generatePlayerBetPreview } from '../lib/playerBetPreview';
+import {
+  formatMoney,
+  formatOutcomeLabel,
+  isBinaryMarket,
+  isNeighborhoodPriceMomentumMarket,
+  isRenovationBudgetMarket,
+  isRangeMarket,
+  isRentYieldMarket,
+  isTimeOnMarketMarket,
+  leadingOutcome,
+  outcomeProbability,
+  rangeBandLabel,
+  rangeOutcomeDescription,
+  renovationBudgetThresholdLabel,
+  rentYieldThresholdLabel,
+  timeOnMarketThresholdLabel,
+  roomOutcomeIds,
+} from '../lib/roomMarketDisplay';
+import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import TrustNotice from '../components/TrustNotice';
 import RoomLoadError from '../components/RoomLoadError';
+import PreBetIntelligenceCard from '../components/player/PreBetIntelligenceCard';
+import PlayerBetReasonControl from '../components/player/PlayerBetReasonControl';
+import PlayerReputationPanel from '../components/player/PlayerReputationPanel';
+import PlayerSettlementResultCard from '../components/player/PlayerSettlementResultCard';
+import PlayerJoinGate from '../components/player/PlayerJoinGate';
 import { RateLimiter } from '../lib/rateLimiter';
 import { useToast } from '../contexts/ToastContext';
 
 const playerJoinErrorId = 'player-join-error';
 const playerBetErrorId = 'player-bet-error';
+const PLAYER_BET_REASON_MAX_LENGTH = 280;
 
 export default function PlayerView() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -28,8 +54,11 @@ export default function PlayerView() {
   } = useSession();
   const {
     market,
+    marketFormat,
+    marketConfig,
     myPlayer,
     house,
+    activity,
     settled,
     settleResult,
     connectionState,
@@ -38,6 +67,12 @@ export default function PlayerView() {
     placeBet,
     joinRoom,
   } = useRoom(roomCode || '', sessionId, userToken);
+  const {
+    reputation,
+    reputationLoading,
+    reputationError,
+    refreshReputation,
+  } = useUserReputation(userToken);
 
   // Chart
   const { addPoint, loadHistory, setRef: chartRef } = useMarketChart({ height: 200 });
@@ -45,7 +80,7 @@ export default function PlayerView() {
 
   // Fetch chart history on mount
   useEffect(() => {
-    if (!roomCode || !house) return;
+    if (!roomCode || !house || !isBinaryMarket(marketFormat)) return;
     fetch(`/api/markets/by-property/room-${roomCode}/chart`)
       .then((r) => r.ok ? r.json() : [])
       .then((data: Array<{ prob: number; time: string }>) => {
@@ -62,18 +97,24 @@ export default function PlayerView() {
         console.warn('Chart history unavailable');
         historyLoadedRef.current = true;
       });
-  }, [roomCode, house, loadHistory]);
+  }, [roomCode, house, marketFormat, loadHistory]);
 
   useEffect(() => {
-    if (!market || !house) return;
+    if (!market || !house || !isBinaryMarket(marketFormat)) return;
     if (!historyLoadedRef.current) return;
     addPoint({
       probOver: market.prob_over,
       fairValue: calculateImpliedPrice(market.prob_over, house.asking_price),
     });
-  }, [market, house, addPoint]);
+  }, [market, marketFormat, house, addPoint]);
+
+  useEffect(() => {
+    if (!settled || !userToken) return;
+    refreshReputation();
+  }, [settled, userToken, refreshReputation]);
 
   const [wager, setWager] = useState<number>(25);
+  const [betReason, setBetReason] = useState('');
   const [betting, setBetting] = useState(false);
   const [betError, setBetError] = useState('');
   const [joinName, setJoinName] = useState(savedNickname);
@@ -84,7 +125,18 @@ export default function PlayerView() {
   const { showToast } = useToast();
   if (connectionState === 'connected') wasConnectedRef.current = true;
 
-  const handleBet = async (outcome: 'over' | 'under') => {
+  const betPreview = useMemo(() => {
+    if (!house || !market || !myPlayer || !isBinaryMarket(marketFormat)) return null;
+    return generatePlayerBetPreview({
+      house,
+      market,
+      player: myPlayer,
+      wager,
+      activity,
+    });
+  }, [activity, house, market, marketFormat, myPlayer, wager]);
+
+  const handleBet = async (outcome: string) => {
     if (betting) return;
     if (!wager || wager <= 0) {
       const message = 'Enter a wager greater than $0';
@@ -101,8 +153,10 @@ export default function PlayerView() {
     }
     setBetting(true);
     setBetError('');
+    const reason = betReason.trim();
     try {
-      await placeBet(outcome, wager);
+      await placeBet(outcome, wager, reason);
+      setBetReason('');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Bet failed';
       setBetError(message);
@@ -156,60 +210,35 @@ export default function PlayerView() {
 
     return (
       <div style={s.page}>
-        <div style={s.joinContainer}>
-          <div style={s.joinTitle}>Join Game</div>
-          <div style={s.joinRoomCode}>{roomCode}</div>
-          {house && (
-            <div style={s.joinProperty}>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>{house.address}</div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                Asking: ${house.asking_price.toLocaleString()}
-              </div>
-            </div>
-          )}
-          <div style={s.joinTrustWrap}>
-            <TrustNotice
-              testId="player-entry-trust-notice"
-              title="Before you join"
-              compact
-              tone="dark"
-            />
-          </div>
-          <div style={s.joinField}>
-            <label style={s.joinLabel} htmlFor="player-join-nickname">Your Name</label>
-            <input
-              id="player-join-nickname"
-              style={s.joinInput}
-              value={joinName}
-              onChange={(e) => setJoinName(e.target.value)}
-              aria-label="Player nickname"
-              aria-describedby={displayedJoinError ? playerJoinErrorId : undefined}
-              aria-invalid={joinNameInvalid || undefined}
-              placeholder="Enter your name"
-              maxLength={20}
-              aria-required="true"
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-            />
-          </div>
-          {displayedJoinError && (
-            <div id={playerJoinErrorId} style={s.joinError} role="alert" aria-live="assertive">
-              {displayedJoinError}
-            </div>
-          )}
-          <button
-            style={{ ...s.joinBtn, opacity: joining || identityLoading ? 0.6 : 1 }}
-            onClick={handleJoin}
-            disabled={joining || identityLoading}
-          >
-            {joining ? 'Joining...' : 'Join Room'}
-          </button>
-        </div>
+        <PlayerJoinGate
+          roomCode={roomCode}
+          house={house}
+          joinName={joinName}
+          joining={joining}
+          identityLoading={identityLoading}
+          displayedJoinError={displayedJoinError}
+          joinNameInvalid={joinNameInvalid}
+          errorId={playerJoinErrorId}
+          onJoinNameChange={setJoinName}
+          onJoin={handleJoin}
+        />
       </div>
     );
   }
 
-  const probPercent = Math.round(market.prob_over * 100);
+  const probPercent = Number.isFinite(market.prob_over) ? Math.round(market.prob_over * 100) : 0;
+  const isRangeRoom = isRangeMarket(marketFormat);
+  const isRentYieldRoom = isRentYieldMarket(marketFormat);
+  const isTimeOnMarketRoom = isTimeOnMarketMarket(marketFormat);
+  const isRenovationBudgetRoom = isRenovationBudgetMarket(marketFormat);
+  const isNeighborhoodPriceMomentumRoom = isNeighborhoodPriceMomentumMarket(marketFormat);
+  const isBinaryRoom = isBinaryMarket(marketFormat);
+  const rangeOutcomes = isRangeRoom ? roomOutcomeIds(market, marketConfig) : [];
+  const leadingRangeOutcome = isRangeRoom ? leadingOutcome(market, marketConfig) : null;
+  const showReputationPanel = Boolean(
+    userToken &&
+    (settled || reputationLoading || reputationError || (reputation && reputation.rooms_played > 0))
+  );
 
   return (
     <div style={s.page}>
@@ -243,55 +272,59 @@ export default function PlayerView() {
           tone="dark"
           points={[
             'Your balance and wagers are simulation credits only.',
-            'Over/Under prices come from LMSR probability, not an appraisal.',
-            'The host settles with actual sale or appraisal evidence.',
+            isRangeRoom
+              ? `Range prices come from LMSR probabilities around ${rangeBandLabel(marketConfig)}, not an appraisal.`
+              : isRentYieldRoom
+              ? `Rent-yield prices come from LMSR probabilities around ${rentYieldThresholdLabel(marketConfig)} annual yield, not a rent roll.`
+              : isTimeOnMarketRoom
+                ? `Time-on-market prices come from LMSR probabilities around ${timeOnMarketThresholdLabel(marketConfig)}, not an MLS lifecycle audit.`
+                : isRenovationBudgetRoom
+                  ? `Renovation-budget prices come from LMSR probabilities around ${renovationBudgetThresholdLabel(marketConfig)}, not a construction estimate.`
+                : isNeighborhoodPriceMomentumRoom
+                  ? `Neighborhood price-momentum prices track ${formatMoney(marketConfig?.price_momentum_threshold)} future ZIP median, not an appraisal.`
+              : 'Over/Under prices come from LMSR probability, not an appraisal.',
+            isRentYieldRoom
+              ? 'The host settles with settlement price and annual-rent evidence.'
+              : isTimeOnMarketRoom
+                ? 'The host settles with listing lifecycle dates or days-on-market evidence.'
+              : isRenovationBudgetRoom
+                ? 'The host settles with public-safe renovation cost evidence.'
+              : isNeighborhoodPriceMomentumRoom
+                ? 'The host settles with public-safe ZIP median evidence.'
+              : 'The host settles with actual sale or appraisal evidence.',
           ]}
         />
       </div>
 
-      {/* Settle Result */}
-      {settled && settleResult && (
-        <div style={s.settleCard} data-testid="player-settlement-result">
-          <Trophy size={24} color="var(--accent-warning)" />
-          <div style={s.settleTitle}>Market Settled</div>
-          <div style={s.settleDetail}>
-            Actual price: ${settleResult.actual_price.toLocaleString()}
-          </div>
-          <div
-            style={{
-              ...s.settleOutcome,
-              color:
-                settleResult.winning_outcome === 'over'
-                  ? 'var(--accent-success)'
-                  : 'var(--accent-danger)',
-            }}
-          >
-            {settleResult.winning_outcome.toUpperCase()} wins!
-          </div>
-          <TrustNotice
-            testId="player-settlement-trust-notice"
-            title="Settlement recap"
-            compact
-            tone="dark"
-            points={[
-              'Payouts are simulation credits only.',
-              'The actual price is host-entered settlement evidence, not a FairValue appraisal.',
-              'The room event history preserves this outcome for replay.',
-            ]}
-          />
-          {settleResult.results.map((r) => (
-            <div key={r.nickname} style={s.resultRow}>
-              <span>{r.nickname}</span>
-              <span style={{ color: r.payout > 0 ? 'var(--accent-success)' : 'var(--text-muted)' }}>
-                {r.payout > 0 ? `+$${r.payout.toFixed(0)}` : '$0'}
-              </span>
-            </div>
-          ))}
+      {!settled && betPreview && <PreBetIntelligenceCard preview={betPreview} />}
+
+      {!settled && isRangeRoom && leadingRangeOutcome && (
+        <div style={s.rangeReadCard} data-testid="player-range-read">
+          <span style={s.rangeReadKicker}>Range market</span>
+          <strong style={s.rangeReadHeadline}>
+            {formatOutcomeLabel(leadingRangeOutcome.id)} leads at {Math.round(leadingRangeOutcome.probability * 100)}%
+          </strong>
+          <span style={s.rangeReadDetail}>
+            Settlement band: {rangeBandLabel(marketConfig)}
+          </span>
         </div>
       )}
 
+      {settled && settleResult && (
+        <PlayerSettlementResultCard roomCode={roomCode} settleResult={settleResult} />
+      )}
+
+      {showReputationPanel && (
+        <PlayerReputationPanel
+          reputation={reputation}
+          loading={reputationLoading}
+          error={reputationError}
+          onRefresh={refreshReputation}
+        />
+      )}
+
       {/* Market State */}
-      {!settled && (
+      {!settled && isBinaryRoom && (
         <>
           <div style={s.probContainer}>
             <div
@@ -300,7 +333,7 @@ export default function PlayerView() {
               aria-valuenow={probPercent}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label={`${probPercent}% probability of going over asking price`}
+              aria-label={`${probPercent}% probability of ${isRentYieldRoom ? 'going over yield threshold' : isTimeOnMarketRoom ? 'going over days threshold' : isRenovationBudgetRoom ? 'going over renovation budget' : isNeighborhoodPriceMomentumRoom ? 'going over ZIP median threshold' : 'going over asking price'}`}
             >
               <div
                 style={{
@@ -354,6 +387,48 @@ export default function PlayerView() {
                   </span>
                   <span style={s.positionWager}>${bet.wager.toFixed(0)}</span>
                   <span style={s.positionProb}>@ {Math.round(bet.prob_at_entry * 100)}%</span>
+                  {bet.reason && <span style={s.positionReason}>{bet.reason}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {!settled && isRangeRoom && (
+        <>
+          <div style={s.rangeMarketCard} data-testid="player-range-market">
+            <div style={s.rangeMarketTitle}>Outcome probabilities</div>
+            {rangeOutcomes.map((outcome) => {
+              const probability = outcomeProbability(market, outcome);
+              const percent = Math.round(probability * 100);
+              return (
+                <div key={outcome} style={s.rangeOutcomeRow}>
+                  <div style={s.rangeOutcomeHeader}>
+                    <span style={s.rangeOutcomeName}>{formatOutcomeLabel(outcome)}</span>
+                    <span style={s.rangeOutcomePercent}>{percent}%</span>
+                  </div>
+                  <div style={s.rangeOutcomeTrack} aria-hidden="true">
+                    <div style={{ ...s.rangeOutcomeFill, width: `${percent}%` }} />
+                  </div>
+                  <div style={s.rangeOutcomeDescription}>{rangeOutcomeDescription(outcome, marketConfig)}</div>
+                </div>
+              );
+            })}
+            <div style={s.rangeMarketMeta}>
+              {market.total_trades} trade{market.total_trades === 1 ? '' : 's'} · {formatMoney(market.total_wagered)} volume
+            </div>
+          </div>
+
+          {myPlayer && myPlayer.bets.length > 0 && (
+            <div style={s.positionsCard} data-testid="player-positions">
+              <div style={s.positionsTitle}>My Positions</div>
+              {myPlayer.bets.map((bet, i) => (
+                <div key={i} style={s.positionRow}>
+                  <span style={s.positionOutcome}>{formatOutcomeLabel(bet.outcome)}</span>
+                  <span style={s.positionWager}>${bet.wager.toFixed(0)}</span>
+                  <span style={s.positionProb}>@ {Math.round(bet.prob_at_entry * 100)}%</span>
+                  {bet.reason && <span style={s.positionReason}>{bet.reason}</span>}
                 </div>
               ))}
             </div>
@@ -369,6 +444,16 @@ export default function PlayerView() {
               {betError}
             </div>
           )}
+          <PlayerBetReasonControl
+            value={betReason}
+            maxLength={PLAYER_BET_REASON_MAX_LENGTH}
+            describedBy={betError ? playerBetErrorId : undefined}
+            invalid={Boolean(betError)}
+            onChange={(value) => {
+              setBetReason(value);
+              if (betError) setBetError('');
+            }}
+          />
           <div style={s.presets}>
             {[10, 25, 50, 100].map((amount) => (
               <button
@@ -406,24 +491,40 @@ export default function PlayerView() {
             />
           </div>
           <div style={s.betButtons}>
-            <button
-              style={{ ...s.betBtn, ...s.overBtn, opacity: betting ? 0.6 : 1 }}
-              onClick={() => handleBet('over')}
-              disabled={betting}
-              aria-label={`Bet $${wager} on OVER`}
-            >
-              <TrendingUp size={20} />
-              OVER
-            </button>
-            <button
-              style={{ ...s.betBtn, ...s.underBtn, opacity: betting ? 0.6 : 1 }}
-              onClick={() => handleBet('under')}
-              aria-label={`Bet $${wager} on UNDER`}
-              disabled={betting}
-            >
-              <TrendingDown size={20} />
-              UNDER
-            </button>
+            {isRangeRoom ? (
+              rangeOutcomes.map((outcome) => (
+                <button
+                  key={outcome}
+                  style={{ ...s.betBtn, ...s.rangeBetBtn, opacity: betting ? 0.6 : 1 }}
+                  onClick={() => handleBet(outcome)}
+                  aria-label={`Bet $${wager} on ${formatOutcomeLabel(outcome)}`}
+                  disabled={betting}
+                >
+                  {formatOutcomeLabel(outcome)}
+                </button>
+              ))
+            ) : (
+              <>
+                <button
+                  style={{ ...s.betBtn, ...s.overBtn, opacity: betting ? 0.6 : 1 }}
+                  onClick={() => handleBet('over')}
+                  disabled={betting}
+                  aria-label={`Bet $${wager} on OVER`}
+                >
+                  <TrendingUp size={20} />
+                  OVER
+                </button>
+                <button
+                  style={{ ...s.betBtn, ...s.underBtn, opacity: betting ? 0.6 : 1 }}
+                  onClick={() => handleBet('under')}
+                  aria-label={`Bet $${wager} on UNDER`}
+                  disabled={betting}
+                >
+                  <TrendingDown size={20} />
+                  UNDER
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -439,7 +540,7 @@ const s: Record<string, React.CSSProperties> = {
     background: 'var(--bg-primary)',
     display: 'flex',
     flexDirection: 'column',
-    paddingBottom: 180,
+    paddingBottom: 270,
   },
   loading: {
     display: 'flex',
@@ -571,6 +672,7 @@ const s: Record<string, React.CSSProperties> = {
   positionRow: {
     display: 'flex',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 12,
     padding: '8px 0',
     borderBottom: '1px solid var(--border-subtle)',
@@ -591,16 +693,103 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 12,
     marginLeft: 'auto',
   },
+  positionReason: {
+    flexBasis: '100%',
+    color: 'var(--text-muted)',
+    fontSize: 12,
+    lineHeight: 1.35,
+    overflowWrap: 'anywhere',
+  },
+  rangeReadCard: {
+    display: 'grid',
+    gap: 4,
+    margin: '0 16px 12px',
+    padding: 12,
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+  },
+  rangeReadKicker: {
+    color: 'var(--text-muted)',
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: 'uppercase',
+  },
+  rangeReadHeadline: {
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    lineHeight: 1.25,
+  },
+  rangeReadDetail: {
+    color: 'var(--text-secondary)',
+    fontSize: 12,
+  },
+  rangeMarketCard: {
+    display: 'grid',
+    gap: 10,
+    margin: '0 16px 12px',
+    padding: 14,
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 8,
+  },
+  rangeMarketTitle: {
+    color: 'var(--text-muted)',
+    fontSize: 11,
+    fontWeight: 800,
+    textTransform: 'uppercase',
+  },
+  rangeOutcomeRow: {
+    display: 'grid',
+    gap: 5,
+  },
+  rangeOutcomeHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  rangeOutcomeName: {
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  rangeOutcomePercent: {
+    color: 'var(--accent-primary)',
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  rangeOutcomeTrack: {
+    height: 7,
+    overflow: 'hidden',
+    background: 'var(--bg-input)',
+    borderRadius: 4,
+  },
+  rangeOutcomeFill: {
+    height: '100%',
+    background: 'var(--accent-primary)',
+    borderRadius: 4,
+    transition: 'width 0.3s ease',
+  },
+  rangeOutcomeDescription: {
+    color: 'var(--text-muted)',
+    fontSize: 11,
+  },
+  rangeMarketMeta: {
+    color: 'var(--text-muted)',
+    fontSize: 11,
+  },
   betPanel: {
     position: 'fixed',
     bottom: 0,
     left: 0,
     right: 0,
-    background: 'var(--bg-nav)',
+    background: '#fff',
     borderTop: '1px solid var(--border-subtle)',
+    boxShadow: '0 -14px 32px rgba(0, 0, 0, 0.08)',
     padding: '12px 16px',
     paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
     zIndex: 200,
+    isolation: 'isolate',
   },
   betError: {
     color: 'var(--accent-danger)',
@@ -663,118 +852,13 @@ const s: Record<string, React.CSSProperties> = {
   underBtn: {
     background: 'var(--accent-danger)',
   },
-  settleCard: {
-    margin: '12px 16px',
-    padding: 20,
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 12,
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-  },
-  settleTitle: {
-    fontSize: 18,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-  },
-  settleDetail: {
-    fontSize: 14,
-    color: 'var(--text-secondary)',
-  },
-  settleOutcome: {
-    fontSize: 22,
-    fontWeight: 800,
-  },
-  resultRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    width: '100%',
-    padding: '6px 0',
-    borderTop: '1px solid var(--border-subtle)',
-    fontSize: 14,
-    color: 'var(--text-primary)',
-  },
-  joinContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '100vh',
-    padding: 24,
-    gap: 16,
-  },
-  joinTitle: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-  },
-  joinRoomCode: {
-    fontSize: 28,
-    fontWeight: 800,
-    letterSpacing: 6,
-    color: 'var(--accent-primary)',
-  },
-  joinProperty: {
-    textAlign: 'center',
-    padding: '12px 16px',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 10,
-    width: '100%',
-    maxWidth: 320,
-  },
-  joinTrustWrap: {
-    width: '100%',
-    maxWidth: 320,
+  rangeBetBtn: {
+    background: 'var(--accent-primary)',
+    fontSize: 13,
+    paddingRight: 8,
+    paddingLeft: 8,
   },
   roomTrustWrap: {
     margin: '0 16px 12px',
-  },
-  joinField: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    width: '100%',
-    maxWidth: 320,
-  },
-  joinLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  joinInput: {
-    padding: '14px 16px',
-    background: 'var(--bg-input)',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: 10,
-    color: 'var(--text-primary)',
-    fontSize: 16,
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-    textAlign: 'center',
-  },
-  joinError: {
-    color: 'var(--accent-danger)',
-    fontSize: 13,
-  },
-  joinBtn: {
-    padding: '14px 24px',
-    background: 'var(--accent-primary)',
-    border: 'none',
-    borderRadius: 10,
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 700,
-    cursor: 'pointer',
-    width: '100%',
-    maxWidth: 320,
-    minHeight: 48,
-    touchAction: 'manipulation',
   },
 };

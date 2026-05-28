@@ -1,0 +1,65 @@
+.host-property-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.host-property-summary__details {
+  min-width: 0;
+}
+
+.host-property-summary__address {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.host-property-summary__price {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.host-property-summary__probability {
+  display: flex;
+  align-items: flex-end;
+  flex: 0 0 auto;
+  flex-direction: column;
+}
+
+.host-property-summary__prob {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.host-property-summary__prob--over {
+  color: var(--accent-success);
+}
+
+.host-property-summary__prob--under {
+  color: var(--accent-danger);
+}
+
+.host-property-summary__label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .host-property-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .host-property-summary__probability {
+    align-items: flex-start;
+  }
+}

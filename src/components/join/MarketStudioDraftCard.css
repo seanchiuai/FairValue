@@ -1,0 +1,127 @@
+.market-studio-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 8px 22px rgba(0, 0, 0, 0.05);
+}
+
+.market-studio-draft__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.market-studio-draft__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--accent-success-subtle);
+  color: var(--accent-success);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.market-studio-draft__source {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.market-studio-draft__linked-property {
+  color: var(--accent-success);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.market-studio-draft__question {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.market-studio-draft__summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.market-studio-draft__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.market-studio-draft__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.market-studio-draft__input {
+  padding: 12px 14px;
+  background: rgba(120, 120, 128, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 15px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.market-studio-draft__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.market-studio-draft__checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.market-studio-draft__subhead {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.market-studio-draft__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.market-studio-draft__warning {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--accent-warning-subtle);
+  color: var(--accent-warning);
+  border: 1px solid rgba(161, 92, 0, 0.16);
+}
+
+.market-studio-draft__warning-text {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.35;
+}

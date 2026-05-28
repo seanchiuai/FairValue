@@ -4,6 +4,8 @@ const {
   server,
   rooms,
   configureRoomPersistence,
+  configureOperatorIncidentWorkflowPersistence,
+  configurePropertySnapshot,
   observability,
   roomEventStore,
 } = require('../index');
@@ -11,6 +13,9 @@ const {
 let baseUrl;
 const originalOpsToken = process.env.FAIRVALUE_OPS_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
+const originalPropertySnapshotStore = process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE;
+const originalPropertyQuerySource = process.env.FAIRVALUE_PROPERTY_QUERY_SOURCE;
+const originalPropertyPostgresFallback = process.env.FAIRVALUE_PROPERTY_POSTGRES_FALLBACK;
 
 function restoreEnv(name, value) {
   if (value === undefined) delete process.env[name];
@@ -65,7 +70,12 @@ before(listen);
 afterEach(() => {
   restoreEnv('FAIRVALUE_OPS_TOKEN', originalOpsToken);
   restoreEnv('NODE_ENV', originalNodeEnv);
+  restoreEnv('FAIRVALUE_PROPERTY_SNAPSHOT_STORE', originalPropertySnapshotStore);
+  restoreEnv('FAIRVALUE_PROPERTY_QUERY_SOURCE', originalPropertyQuerySource);
+  restoreEnv('FAIRVALUE_PROPERTY_POSTGRES_FALLBACK', originalPropertyPostgresFallback);
   configureRoomPersistence(null);
+  configureOperatorIncidentWorkflowPersistence(null);
+  configurePropertySnapshot(null);
   observability.resetObservability();
   roomEventStore.clearAll();
   for (const room of Object.values(rooms)) {
@@ -91,6 +101,10 @@ test('health and readiness expose runtime status without requiring database cred
   assert.equal(ready.data.ready, true);
   assert.equal(ready.data.checks.database.configured, false);
   assert.equal(ready.data.checks.database.required, false);
+  assert.equal(ready.data.checks.property_snapshot.ok, true);
+  assert.equal(ready.data.checks.property_snapshot.required_source, 'static');
+  assert.equal(ready.data.checks.property_snapshot.source_adapter, 'static-json-property-snapshot');
+  assert.ok(ready.data.checks.property_snapshot.count > 0);
 
   const disabledSql = Object.assign(async () => [], { isConfigured: false });
   await configureRoomPersistence({ mode: 'postgres', sql: disabledSql });
@@ -99,6 +113,69 @@ test('health and readiness expose runtime status without requiring database cred
   assert.equal(degraded.data.ready, false);
   assert.equal(degraded.data.checks.database.required, true);
   assert.equal(degraded.data.checks.room_persistence.ok, false);
+});
+
+test('readiness and ops metrics report the explicit Postgres property snapshot adapter', async () => {
+  process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE = 'postgres';
+  configurePropertySnapshot({
+    properties: [
+      {
+        property_id: 'pg-ready-1',
+        price: 725000,
+        address: '1 Readiness Row',
+        city: 'Oakland',
+        state: 'CA',
+        zip_code: '94607',
+        latitude: 37.8044,
+        longitude: -122.2712,
+        provider_source: 'PostGIS readiness fixture',
+        observed_at: '2026-05-24',
+      },
+    ],
+    manifest: {
+      schema_version: 'fairvalue.propertyDataManifest.v1',
+      dataset_id: 'postgres-readiness-fixture',
+      source_kind: 'static_provider_snapshot',
+      source_sha256: 'postgres-readiness-hash',
+      property_count: 1,
+      latest_observed_at: '2026-05-24',
+    },
+    kind: 'postgres-property-snapshot',
+    sourceAdapter: 'postgres-postgis-property-snapshot',
+  });
+
+  const ready = await request('/readyz');
+  assert.equal(ready.status, 200);
+  assert.equal(ready.data.checks.property_snapshot.ok, true);
+  assert.equal(ready.data.checks.property_snapshot.required_source, 'postgres');
+  assert.equal(ready.data.checks.property_snapshot.kind, 'postgres-property-snapshot');
+  assert.equal(ready.data.checks.property_snapshot.source_adapter, 'postgres-postgis-property-snapshot');
+  assert.equal(ready.data.checks.property_snapshot.count, 1);
+  assert.equal(ready.data.checks.property_snapshot.dataset_id, 'postgres-readiness-fixture');
+
+  const metrics = await request('/api/ops/metrics');
+  assert.equal(metrics.status, 200);
+  assert.equal(metrics.data.property_snapshot.ok, true);
+  assert.equal(metrics.data.property_snapshot.source_adapter, 'postgres-postgis-property-snapshot');
+  assert.equal(metrics.data.property_snapshot.source_sha256, 'postgres-readiness-hash');
+});
+
+test('readiness fails when Postgres property reads are required but a static adapter is loaded', async () => {
+  process.env.FAIRVALUE_PROPERTY_SNAPSHOT_STORE = 'postgres';
+  process.env.FAIRVALUE_PROPERTY_QUERY_SOURCE = '';
+  process.env.FAIRVALUE_PROPERTY_POSTGRES_FALLBACK = '';
+  configurePropertySnapshot({
+    properties: [{ zpid: 101, streetAddress: 'Static Readiness St', price: 500000 }],
+    manifest: { dataset_id: 'static-readiness-fixture', source_sha256: 'static-readiness-hash' },
+    sourceAdapter: 'static-json-property-snapshot',
+  });
+
+  const ready = await request('/readyz');
+  assert.equal(ready.status, 503);
+  assert.equal(ready.data.ready, false);
+  assert.equal(ready.data.checks.property_snapshot.required_source, 'postgres');
+  assert.equal(ready.data.checks.property_snapshot.source_adapter, 'static-json-property-snapshot');
+  assert.equal(ready.data.checks.property_snapshot.ok, false);
 });
 
 test('ops metrics track requests, room lifecycle, and avoid room secret leakage', async () => {
@@ -126,6 +203,12 @@ test('ops metrics track requests, room lifecycle, and avoid room secret leakage'
   });
   assert.equal(settled.status, 200);
 
+  const replayIntegrity = await request(`/api/rooms/${code}/replay/verify`, {
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+  });
+  assert.equal(replayIntegrity.status, 200);
+  assert.equal(replayIntegrity.data.ok, true);
+
   const metrics = await request('/api/ops/metrics');
   assert.equal(metrics.status, 200);
   assert.ok(metrics.data.requests.total >= 4);
@@ -140,6 +223,12 @@ test('ops metrics track requests, room lifecycle, and avoid room secret leakage'
   assert.equal(metrics.data.rooms.settled_rooms, 1);
   assert.equal(metrics.data.rooms.total_players, 1);
   assert.equal(metrics.data.database.configured, false);
+  assert.equal(metrics.data.event_log.enabled, false);
+  assert.equal(metrics.data.property_snapshot.ok, true);
+  assert.equal(metrics.data.property_snapshot.source_adapter, 'static-json-property-snapshot');
+  assert.ok(metrics.data.property_snapshot.count > 0);
+  assert.equal(metrics.data.replay_integrity.checks, 1);
+  assert.equal(metrics.data.replay_integrity.failures, 0);
   assert.equal(JSON.stringify(metrics.data).includes(room.host_token), false);
 });
 
@@ -155,6 +244,118 @@ test('ops metrics require a configured token before exposing counters', async ()
   });
   assert.equal(allowed.status, 200);
   assert.equal(allowed.data.service, 'fairvalue');
+});
+
+test('ops incidents expose redacted operator triage behind the ops token', async () => {
+  process.env.FAIRVALUE_OPS_TOKEN = 'incident-test-token';
+  const room = await createHostedRoom();
+  const code = room.room_code;
+
+  const join = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'incident-player', nickname: 'Incident Player' },
+  });
+  assert.equal(join.status, 200);
+
+  const bet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'incident-bet-001' },
+    body: {
+      session_id: 'incident-player',
+      outcome: 'over',
+      wager: 25,
+      reason: 'The closing comp supports the host ask.',
+    },
+  });
+  assert.equal(bet.status, 200);
+
+  const settled = await request(`/api/rooms/${code}/settle`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': room.host_token },
+    body: { actual_price: 750000 },
+  });
+  assert.equal(settled.status, 200);
+
+  const denied = await request('/api/ops/incidents');
+  assert.equal(denied.status, 403);
+
+  const allowed = await request('/api/ops/incidents?severity=high', {
+    headers: { Authorization: 'Bearer incident-test-token' },
+  });
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.data.schema_version, 'fairvalue.operatorIncidentQueue.v1');
+  assert.equal(allowed.data.count, 1);
+  assert.equal(allowed.data.incidents[0].room_code, code);
+  assert.equal(allowed.data.incidents[0].incident_type, 'settlement_packet_missing');
+  assert.equal(allowed.data.incidents[0].severity, 'high');
+  assert.equal(allowed.data.incidents[0].privacy_classification, 'operator_internal_redacted');
+  assert.equal(allowed.data.incidents[0].workflow.status, 'open');
+  assert.equal(allowed.data.workflow_summary.by_status.open, 1);
+  assert.equal(JSON.stringify(allowed.data).includes(room.host_token), false);
+  assert.match(allowed.data.limitations.join(' '), /redacted/);
+
+  const deniedReplay = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}/replay`);
+  assert.equal(deniedReplay.status, 403);
+
+  const replayReview = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}/replay`, {
+    headers: { Authorization: 'Bearer incident-test-token' },
+  });
+  assert.equal(replayReview.status, 200);
+  assert.equal(replayReview.data.schema_version, 'fairvalue.operatorIncidentReplayReview.v1');
+  assert.equal(replayReview.data.incident_id, allowed.data.incidents[0].incident_id);
+  assert.equal(replayReview.data.room_code, code);
+  assert.equal(replayReview.data.replay_status.ok, true);
+  assert.equal(replayReview.data.replay_status.mismatch_count, 0);
+  assert.equal(replayReview.data.replay_summary.settled, true);
+  assert.equal(replayReview.data.replay_summary.winning_outcome, 'over');
+  assert.equal(replayReview.data.replay_summary.settlement_evidence_status, 'host_attested');
+  assert.equal(replayReview.data.checks.some((check) => check.path === 'settlement' && check.ok), true);
+  assert.equal(replayReview.data.event_rows_meta.total_count, replayReview.data.replay_status.event_count);
+  assert.equal(replayReview.data.event_rows_meta.truncated, false);
+  assert.ok(replayReview.data.event_rows.some((row) => row.type === 'room_created'));
+  assert.ok(replayReview.data.event_rows.some((row) => row.type === 'bet_placed'));
+  assert.ok(replayReview.data.event_rows.some((row) => row.type === 'settlement_completed'));
+  const betRow = replayReview.data.event_rows.find((row) => row.type === 'bet_placed');
+  assert.equal(betRow.redacted_payload.outcome, 'over');
+  assert.equal(betRow.redacted_payload.reason_present, true);
+  assert.match(betRow.redacted_payload.reason_hash, /^[a-f0-9]{64}$/);
+  assert.match(betRow.redacted_payload_hash, /^[a-f0-9]{64}$/);
+  assert.equal(betRow.payload_keys.includes('session_id'), false);
+  assert.match(replayReview.data.limitations.join(' '), /operator-only redacted projection check/);
+  assert.equal(JSON.stringify(replayReview.data).includes(room.host_token), false);
+  assert.equal(JSON.stringify(replayReview.data).includes('incident-player'), false);
+
+  const deniedWorkflow = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}`, {
+    method: 'PATCH',
+    body: { status: 'investigating' },
+  });
+  assert.equal(deniedWorkflow.status, 403);
+
+  const updated = await request(`/api/ops/incidents/${allowed.data.incidents[0].incident_id}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer incident-test-token' },
+    body: {
+      status: 'investigating',
+      assignee: 'Ops Lead',
+      note: `Review host_token=${room.host_token} before sharing the recap.`,
+    },
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.data.schema_version, 'fairvalue.operatorIncidentWorkflow.v1');
+  assert.equal(updated.data.status, 'investigating');
+  assert.equal(updated.data.timeline[0].action, 'status_changed');
+  assert.equal(JSON.stringify(updated.data).includes(room.host_token), false);
+
+  const listedAgain = await request('/api/ops/incidents?severity=high', {
+    headers: { Authorization: 'Bearer incident-test-token' },
+  });
+  assert.equal(listedAgain.status, 200);
+  assert.equal(listedAgain.data.workflow_summary.total_tracked, 1);
+  assert.equal(listedAgain.data.workflow_summary.by_status.investigating, 1);
+  assert.equal(listedAgain.data.incidents[0].status, 'investigating');
+  assert.equal(listedAgain.data.incidents[0].workflow.tracked, true);
+  assert.equal(listedAgain.data.incidents[0].workflow.timeline[0].note.includes('[redacted-token]'), true);
+  assert.equal(JSON.stringify(listedAgain.data).includes(room.host_token), false);
 });
 
 test('prometheus metrics expose aggregate counters for external scrapers', async () => {
@@ -187,6 +388,11 @@ test('prometheus metrics expose aggregate counters for external scrapers', async
   assert.match(metrics.text, /fairvalue_rooms\{state="active"\} 1/);
   assert.match(metrics.text, /fairvalue_room_players 1/);
   assert.match(metrics.text, /fairvalue_database_configured 0/);
+  assert.match(metrics.text, /fairvalue_room_event_log_enabled\{kind="json"\} 0/);
+  assert.match(metrics.text, /fairvalue_property_snapshot_loaded\{kind="json-property-snapshot",source_adapter="static-json-property-snapshot"\} 1/);
+  assert.match(metrics.text, /fairvalue_property_snapshot_rows\{kind="json-property-snapshot",source_adapter="static-json-property-snapshot"\} [1-9]/);
+  assert.match(metrics.text, /fairvalue_replay_integrity_checks_total 0/);
+  assert.match(metrics.text, /fairvalue_replay_integrity_failures_total 0/);
   assert.equal(metrics.text.includes(room.host_token), false);
 
   process.env.FAIRVALUE_OPS_TOKEN = 'prometheus-test-token';

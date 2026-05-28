@@ -1,0 +1,146 @@
+.host-room-intelligence {
+  padding: 16px;
+  background: var(--bg-surface);
+  border: 1px solid rgba(75, 163, 255, 0.28);
+  border-radius: 8px;
+}
+
+.host-room-intelligence__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.host-room-intelligence__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.host-room-intelligence__summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.host-room-intelligence__badge {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.host-room-intelligence__badge--high {
+  background: rgba(59, 167, 118, 0.16);
+  color: var(--accent-success);
+}
+
+.host-room-intelligence__badge--medium {
+  background: rgba(255, 184, 77, 0.16);
+  color: #704100;
+}
+
+.host-room-intelligence__badge--low {
+  background: rgba(255, 94, 94, 0.14);
+  color: #9a0010;
+}
+
+.host-room-intelligence__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.host-room-intelligence__metric {
+  padding: 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.host-room-intelligence__metric-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.host-room-intelligence__metric-value {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.host-room-intelligence__metric-detail {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.host-room-intelligence__movement {
+  padding: 12px;
+  margin-bottom: 14px;
+  background: rgba(75, 163, 255, 0.07);
+  border: 1px solid rgba(75, 163, 255, 0.16);
+  border-radius: 8px;
+}
+
+.host-room-intelligence__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.host-room-intelligence__column {
+  min-width: 0;
+}
+
+.host-room-intelligence__subtitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.host-room-intelligence__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.host-room-intelligence__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .host-room-intelligence__head {
+    flex-direction: column;
+  }
+
+  .host-room-intelligence__badge {
+    align-self: flex-start;
+  }
+}

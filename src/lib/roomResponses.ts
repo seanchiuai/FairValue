@@ -1,16 +1,30 @@
-import type { ActivityEntry, House, Market, PlayerData, SettleResult } from '../types';
+import type {
+  ActivityEntry,
+  House,
+  Market,
+  MarketDraftAudit,
+  PlayerData,
+  RoomMarketConfig,
+  RoomPhase,
+  SettleResult,
+} from '../types';
 
 export type RoomMutationResponse = {
   error?: string;
   market?: Market;
+  market_format?: string;
+  market_config?: RoomMarketConfig | null;
   players?: PlayerData[];
   player?: PlayerData;
   house?: House;
+  draft_audit?: MarketDraftAudit | null;
   activity?: ActivityEntry[];
+  phase?: RoomPhase;
   ai_enabled?: boolean;
   host_user_id?: string | null;
   settled?: boolean;
   settlement?: SettleResult;
+  event_sequence?: number;
 };
 
 export async function readRoomMutationResponse(response: Response): Promise<RoomMutationResponse> {
