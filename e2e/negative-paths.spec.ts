@@ -571,6 +571,37 @@ test('player wager rate limiter blocks a sixth rapid action before network mutat
   await expectNoSeriousAxeViolations(page, 'player wager rate-limit notification state');
 });
 
+test('market studio blocks empty and incomplete drafts before room creation', async ({ page }) => {
+  let roomCreateRequests = 0;
+  page.on('request', (sentRequest) => {
+    if (sentRequest.url().endsWith('/api/rooms') && sentRequest.method() === 'POST') roomCreateRequests += 1;
+  });
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Market Studio/ }).click();
+  await page.getByRole('button', { name: /Generate Market Draft/ }).click();
+  await expect(page.getByRole('alert')).toContainText('Paste a listing, address, or property notes first');
+  await expect(page.getByLabel('Listing text')).toHaveAttribute('aria-describedby', 'studio-room-error');
+  await expect(page.getByRole('button', { name: /Create Room From Draft/ })).toBeDisabled();
+
+  await page.getByLabel('Host nickname').fill('Incomplete Studio Host');
+  await page.getByLabel('Listing text').fill('No usable listing data yet');
+  await page.getByRole('button', { name: /Generate Market Draft/ }).click();
+  await expect(page.getByTestId('market-studio-draft')).toBeVisible();
+  await expect(page.getByLabel('Generated property address')).toHaveValue('');
+  await expect(page.getByLabel('Generated asking price')).toHaveValue('');
+
+  await page.getByRole('button', { name: /Save Draft/ }).click();
+  await expect(page.getByRole('alert')).toContainText('Property address is required. Asking price must be greater than $0.');
+  await expect(page.getByLabel('Generated property address')).toHaveAttribute('aria-describedby', 'studio-room-error');
+  await expect(page.getByLabel('Generated asking price')).toHaveAttribute('aria-describedby', 'studio-room-error');
+
+  await page.getByRole('button', { name: /Create Room From Draft/ }).click();
+  await expect(page.getByRole('alert')).toContainText('Property address is required. Asking price must be greater than $0.');
+  expect(roomCreateRequests).toBe(0);
+  await expectNoSeriousAxeViolations(page, 'incomplete market studio draft validation state');
+});
+
 test('market detail room creation failure is visible to the host', async ({ page }) => {
   await page.route('**/api/rooms', async (route) => {
     if (route.request().method() !== 'POST') {
