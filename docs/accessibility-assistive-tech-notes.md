@@ -15,6 +15,8 @@ This file records a local assistive-technology evidence pass for the rendered Fa
 
 The Browser plugin was listed but its required JavaScript browser-control runtime was not exposed in this session, so this pass used the repo Playwright path. No non-disruptive VoiceOver speech-output CLI was available; this pass verifies the macOS accessibility tree that VoiceOver consumes, but it is not a substitute for a human listening to VoiceOver output and using the rotor.
 
+On 2026-08-04, a separate live headed check enabled macOS VoiceOver and drove Chrome against the existing FairValue runtime (`http://127.0.0.1:3018`, backend `8018`). Browse, sort, property detail, join selection, create-room fields, host controls, and the host AI panel were reached through the rendered surface. The AI panel visibly rendered `Evidence used:` and `Limits:` after a fresh local AI response. VoiceOver Utility reported the caption panel setting as enabled, but the app-targeted control path did not expose a reliable rotor transcript or speech-output readback. No human listener was present, so this is live VoiceOver-assisted evidence only; the manual listening/rotor checklist below remains the release gate. VoiceOver was returned to off after the check.
+
 ## Result
 
 | Surface | Evidence source | Required accessible names | Result |
