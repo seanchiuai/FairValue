@@ -9,6 +9,7 @@ This is the implementation backlog for the August 4, 2026 product pass. It recor
 - [x] Room library: signed browser identities can retrieve their own live and settled rooms, search/filter them, reopen live rooms, open recaps/review, and download settled CSV summaries.
 - [x] Public recap export: settled rooms expose a public-safe JSON/CSV export; unfinished rooms return an explicit 409 and private tokens/session IDs are excluded.
 - [x] Persistence boundary: room creation timestamps and user membership survive the existing JSON/Postgres room snapshot path and room event replay.
+- [x] Disposable Postgres verification: the snapshot adapter and append-only event log pass save/load, retention, redaction, replay, and cleanup checks against `postgres:16-alpine`.
 - [x] Regression coverage: comparison unit tests, room library/export server tests, and a browser workflow covering browse through profile return.
 
 ## Existing Core Reused

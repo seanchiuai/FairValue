@@ -364,6 +364,8 @@ npm run test:a11y:assistive
 
 `test:persistence:live` is the production database readiness gate. With no `DATABASE_URL`, it records a local degraded/skip result unless `FAIRVALUE_REQUIRE_DATABASE_URL=1` or `FAIRVALUE_ROOM_STORE=postgres` is set. With `DATABASE_URL` configured, it verifies live connectivity and whether `fairvalue_room_snapshots` and `fairvalue_room_events` exist. Set `FAIRVALUE_LIVE_POSTGRES_SMOKE=1` to run the non-destructive live write/read/delete path against a single temporary `FV**` room row and its matching event stream rows; it never calls the whole-table snapshot replacement path against a live database.
 
+`test:persistence:postgres` starts an isolated disposable `postgres:16-alpine` container and verifies the Postgres snapshot/event adapters, retention pruning, redaction, replay data, and cleanup without requiring production credentials.
+
 ## Project Structure
 
 ```
