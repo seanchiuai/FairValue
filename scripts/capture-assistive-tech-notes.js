@@ -200,14 +200,28 @@ async function captureState({ label, page, expectedNames, appRegionMarker, macAx
   const aria = await page.locator('body').ariaSnapshot({ mode: 'ai' });
   let appAxRaw = '';
   let axLines = [];
+  let usedMacAx = macAx;
 
   if (macAx) {
-    const axRaw = captureMacAccessibilityTree();
-    appAxRaw = scopedAxTree(axRaw, appRegionMarker);
-    axLines = interestingAxLines(appAxRaw);
+    try {
+      const axRaw = captureMacAccessibilityTree();
+      appAxRaw = scopedAxTree(axRaw, appRegionMarker);
+      axLines = interestingAxLines(appAxRaw);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isBoundedAxFallback =
+        error?.code === 'ETIMEDOUT' ||
+        error?.signal === 'SIGTERM' ||
+        message.startsWith('Could not find macOS AX app-region marker:');
+      if (!isBoundedAxFallback) throw error;
+      usedMacAx = false;
+      macAxSkippedReason = message.startsWith('Could not find macOS AX app-region marker:')
+        ? `${message} The bounded Playwright ARIA snapshot is the fallback evidence source.`
+        : 'macOS System Events traversal timed out for this state; the bounded Playwright ARIA snapshot is the fallback evidence source.';
+    }
   }
 
-  const evidence = macAx ? appAxRaw : aria;
+  const evidence = usedMacAx ? appAxRaw : aria;
   const missing = expectedNames.filter((name) => !evidence.includes(name));
   assert.deepEqual(
     missing,
@@ -216,7 +230,7 @@ async function captureState({ label, page, expectedNames, appRegionMarker, macAx
   );
   return {
     label,
-    source: macAx ? 'macOS AX + Playwright ARIA' : 'Playwright ARIA',
+    source: usedMacAx ? 'macOS AX + Playwright ARIA' : 'Playwright ARIA',
     macAxSkippedReason,
     expectedNames,
     aria,
@@ -256,9 +270,11 @@ function renderReport({ frontendPort, backendPort, roomCode, captures }) {
     return `### ${capture.label}\n\nmacOS AX excerpt:\n\n\`\`\`text\n${axExcerpt}\n\`\`\`\n\nPlaywright ARIA snapshot excerpt:\n\n\`\`\`yaml\n${capture.aria.split('\n').slice(0, 80).join('\n')}\n\`\`\`\n`;
   }).join('\n');
 
+  const capturedDate = new Date().toISOString().slice(0, 10);
+
   return `# FairValue Assistive Technology Notes
 
-Last captured: 2026-05-11
+Last captured: ${capturedDate}
 
 ## Scope
 
@@ -289,7 +305,7 @@ Run this checklist with VoiceOver enabled before a public demo or release:
 4. On \`/join\`, use VO+Right from the top of the page. Confirm VoiceOver announces the FairValue heading, Create Room, and Join Room in that order.
 5. Activate Create Room. Confirm focus lands on Host nickname, then reaches Property address, Asking price, Back, and Create Room in a useful order.
 6. Create a room. Confirm the host screen announces room code, player count, connection status, AI toggle state, Settle, property address, probability, leaderboard, activity, QR/public URL controls, and AI analyst controls.
-7. Trigger the missing-key AI fallback. Confirm the degraded response is announced as an alert and does not trap focus.
+7. Trigger the missing-key AI fallback. Confirm the local room-state answer is announced as a live conversation update with evidence and limits, and does not trap focus.
 8. Open Settle. Confirm the dialog is announced as Settle Market, focus starts on Actual price, Escape closes the dialog, and focus returns to Settle.
 9. Open \`/play/:roomCode\` on a narrow viewport. Confirm Join Game, the room code, property address, Player nickname, and Join Room are announced.
 10. Join as a player. Confirm the probability meter announces the percentage, wager presets announce dollar amounts, Custom wager is editable, and OVER/UNDER buttons include the current wager in their names.
@@ -391,16 +407,21 @@ async function main() {
 
     await Promise.all([
       desktop.waitForResponse((response) => (
-        response.url().includes('/api/ai/cognee/markets') && response.status() === 503
+        response.url().includes('/api/ai/cognee/markets/') &&
+        response.url().includes('/search') &&
+        response.status() === 200
       )),
       desktop.getByRole('button', { name: 'Market summary' }).click(),
     ]);
-    await desktop.getByRole('alert').waitFor({ state: 'visible', timeout: 15_000 });
+    await desktop.getByRole('log', { name: 'AI analyst conversation' }).waitFor({ state: 'visible', timeout: 15_000 });
+    await desktop.getByText(/Local AI analyst/).waitFor({ state: 'visible', timeout: 15_000 });
+    await desktop.getByText('Evidence used:').waitFor({ state: 'visible', timeout: 15_000 });
+    await desktop.getByText('Limits:').waitFor({ state: 'visible', timeout: 15_000 });
     captures.push(await captureState({
-      label: '/host AI degraded alert',
+      label: '/host AI degraded live analysis',
       page: desktop,
       appRegionMarker: 'AXStaticText: AI ANALYST',
-      expectedNames: ['AI ANALYST', 'Give me a summary of this market', 'Set COGNEE_API_KEY on the server'],
+      expectedNames: ['AI ANALYST', 'Give me a summary of this market', 'Local AI analyst', 'Evidence used:', 'Limits:'],
     }));
 
     await desktop.getByRole('button', { name: /Settle/ }).click();
