@@ -192,7 +192,7 @@
 }
 
 .markets-landing-principles span {
-  color: #0071e3;
+  color: #005fcc;
   font-size: 11px;
   font-weight: 900;
 }
@@ -228,6 +228,11 @@
   line-height: 1.1;
 }
 
+.markets-landing-how__intro > .markets-landing-hero__kicker,
+.markets-landing-faq > div:first-child > .markets-landing-hero__kicker {
+  color: #005fcc;
+}
+
 .markets-landing-how__intro p {
   max-width: 340px;
   margin: 0;
@@ -256,7 +261,7 @@
 
 .markets-landing-how__steps li::before {
   content: counter(how-step, decimal-leading-zero);
-  color: #0071e3;
+  color: #005fcc;
   font-size: 11px;
   font-weight: 900;
 }
@@ -302,7 +307,7 @@
 }
 
 .markets-landing-use-cases span {
-  color: #0071e3;
+  color: #005fcc;
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
