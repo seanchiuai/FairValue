@@ -770,6 +770,65 @@ test('market detail malformed host auto-join success is visible to the host', as
   await expectNoSeriousAxeViolations(page, 'market detail malformed host auto-join notification state');
 });
 
+test('host phase failures are announced without changing the active phase', async ({ page }) => {
+  let phaseRequests = 0;
+
+  await page.goto('/join');
+  await page.getByRole('button', { name: /Create Room/ }).click();
+  await page.getByLabel('Host nickname').fill('Phase Failure Host');
+  await page.getByLabel('Property address').fill(property.address);
+  await page.getByLabel('Asking price').fill(String(property.askingPrice));
+  await page.getByRole('button', { name: /^Create Room$/ }).click();
+  await expect(page).toHaveURL(/\/host\/[A-Z0-9]{4}$/);
+  await expectConnected(page);
+  const roomCode = new URL(page.url()).pathname.split('/').pop();
+  if (!roomCode) throw new Error('Room code was not present in host URL');
+
+  await page.route(`**/api/rooms/${roomCode}/phase`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    phaseRequests += 1;
+    if (phaseRequests === 1) {
+      await route.fulfill({
+        status: 503,
+        contentType: 'text/plain',
+        body: 'phase store unavailable',
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    });
+  });
+
+  const discussionButton = page.getByRole('button', { name: 'Start 5 min discussion' });
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/phase`) && response.status() === 503
+    ),
+    discussionButton.click(),
+  ]);
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Unable to update room phase' })).toBeVisible();
+  await expect(page.getByTestId('host-phase-status')).toContainText('Betting open');
+  await expect(discussionButton).toBeEnabled();
+
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/phase`) && response.status() === 200
+    ),
+    discussionButton.click(),
+  ]);
+  await expect(page.getByRole('button', { name: 'Dismiss error notification: Room phase response was invalid' })).toBeVisible();
+  await expect(page.getByTestId('host-phase-status')).toContainText('Betting open');
+  await expect(discussionButton).toBeEnabled();
+  expect(phaseRequests).toBe(2);
+  await expectNoSeriousAxeViolations(page, 'host phase failure notification state');
+});
+
 test('host page without authority explains disabled controls', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
 
