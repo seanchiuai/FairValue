@@ -1,6 +1,13 @@
 const { after, afterEach, before, test } = require('node:test');
 const assert = require('node:assert/strict');
-const { server, rooms, configureRoomPersistence, roomEventStore, runAiBotTick } = require('../index');
+const {
+  server,
+  rooms,
+  configureRoomPersistence,
+  createRoom,
+  roomEventStore,
+  runAiBotTick,
+} = require('../index');
 const { publicLiveProjection } = require('../publicVerification');
 
 let baseUrl;
@@ -779,6 +786,104 @@ test('room mutation serialization protects queued bets from a failed rollback', 
   assert.equal(state.data.market.total_trades, 1);
   assert.equal(state.data.players[0].balance, 960);
   assert.equal(roomEventStore.list(code).filter((event) => event.type === 'bet_placed').length, 1);
+});
+
+function createFailingErrorPersistenceSql() {
+  const snapshotRows = new Map();
+  const eventRows = [];
+  let snapshotWrites = 0;
+  let releaseFirstSnapshot;
+  const firstSnapshotStarted = new Promise((resolve) => {
+    releaseFirstSnapshot = resolve;
+  });
+
+  async function sql(strings, ...values) {
+    const query = strings.join('?').replace(/\s+/g, ' ').trim();
+    if (query.startsWith('CREATE TABLE') || query.startsWith('CREATE INDEX')) return [];
+
+    if (query.startsWith('SELECT room_code, snapshot, updated_at FROM fairvalue_room_snapshots')) {
+      return Array.from(snapshotRows.entries()).map(([room_code, row]) => ({ room_code, ...row }));
+    }
+    if (query.startsWith('SELECT snapshot, updated_at FROM fairvalue_room_snapshots WHERE room_code')) {
+      const row = snapshotRows.get(values[0]);
+      return row ? [{ ...row }] : [];
+    }
+    if (query.startsWith('SELECT room_code FROM fairvalue_room_snapshots')) {
+      return Array.from(snapshotRows.keys()).map((room_code) => ({ room_code }));
+    }
+    if (query.startsWith('INSERT INTO fairvalue_room_snapshots')) {
+      snapshotWrites += 1;
+      const snapshot = JSON.parse(values[1]);
+      if (snapshotWrites === 1) {
+        releaseFirstSnapshot();
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        throw new Error('forced error-event durable write failure');
+      }
+      snapshotRows.set(values[0], { snapshot, updated_at: new Date() });
+      return [];
+    }
+    if (query.startsWith('DELETE FROM fairvalue_room_snapshots WHERE room_code')) {
+      snapshotRows.delete(values[0]);
+      return [];
+    }
+
+    if (query.startsWith('SELECT event_id, room_code, sequence')) {
+      return eventRows.map((event) => ({ ...event }));
+    }
+    if (query.startsWith('INSERT INTO fairvalue_room_events')) {
+      eventRows.push({
+        event_id: values[0],
+        room_code: values[1],
+        sequence: values[2],
+        type: values[3],
+        payload: JSON.parse(values[4]),
+        request_id: values[5],
+        occurred_at: new Date(values[6]),
+      });
+      return [];
+    }
+    if (query.startsWith('DELETE FROM fairvalue_room_events WHERE event_id')) {
+      const index = eventRows.findIndex((event) => event.event_id === values[0]);
+      if (index >= 0) eventRows.splice(index, 1);
+      return [];
+    }
+    return [];
+  }
+
+  sql.isConfigured = true;
+  sql.firstSnapshotStarted = firstSnapshotStarted;
+  sql.snapshotRows = snapshotRows;
+  sql.eventRows = eventRows;
+  return sql;
+}
+
+test('room error persistence cannot roll back a queued successful mutation', async () => {
+  const room = await createRoom({ address: 'Error Serialization Lane', asking_price: 600000 });
+  const code = room.code;
+  const joined = await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'error-serialization-player', nickname: 'Error Serialization Player' },
+  });
+  assert.equal(joined.status, 200);
+
+  const persistenceSql = createFailingErrorPersistenceSql();
+  await configureRoomPersistence({ mode: 'postgres', sql: persistenceSql });
+
+  const deniedAuditPromise = request(`/api/rooms/${code}/events`);
+  await persistenceSql.firstSnapshotStarted;
+  const betPromise = request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'error-serialization-bet' },
+    body: { session_id: 'error-serialization-player', outcome: 'over', wager: 25 },
+  });
+  const [deniedAudit, bet] = await Promise.all([deniedAuditPromise, betPromise]);
+
+  assert.equal(deniedAudit.status, 503);
+  assert.equal(bet.status, 200);
+  assert.equal(rooms[code].market.total_trades, 1);
+  assert.equal(roomEventStore.list(code).some((event) => event.type === 'error'), false);
+  assert.equal(persistenceSql.eventRows.some((event) => event.type === 'error'), false);
+  assert.equal(persistenceSql.snapshotRows.get(code).snapshot.market.total_trades, 1);
 });
 
 test('join route rate limits repeated submissions', async () => {

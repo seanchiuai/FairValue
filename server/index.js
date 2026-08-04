@@ -1273,19 +1273,21 @@ function appendRoomEvent(room, type, payload = {}, req) {
   return { event, activityEntry, persistence: eventPersistence };
 }
 
-function recordRoomError(room, action, message, status, req) {
-  observability.increment('room_lifecycle.room_errors');
-  const before = captureRoomMutationState(room);
-  const result = appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
-  const persistence = persistRoomMutation(room, result.event, result.persistence, before);
-  persistence.catch(() => {});
-  return { ...result, persistence };
+async function recordRoomError(room, action, message, status, req, { alreadyLocked = false } = {}) {
+  const mutation = async () => {
+    observability.increment('room_lifecycle.room_errors');
+    const before = captureRoomMutationState(room);
+    const result = appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
+    await persistRoomMutation(room, result.event, result.persistence, before);
+    return result;
+  };
+
+  return alreadyLocked ? mutation() : withRoomMutation(room, mutation);
 }
 
-async function rejectRoomAuth(res, room, action, message, status, req) {
-  const { persistence } = recordRoomError(room, action, message, status, req);
+async function respondWithRoomError(res, room, action, message, status, req, options = {}) {
   try {
-    await waitForRoomPersistence(persistence);
+    await recordRoomError(room, action, message, status, req, options);
   } catch (error) {
     roomPersistenceError(res, error);
     return false;
@@ -1293,6 +1295,10 @@ async function rejectRoomAuth(res, room, action, message, status, req) {
 
   res.status(status).json({ error: message });
   return false;
+}
+
+async function rejectRoomAuth(res, room, action, message, status, req) {
+  return respondWithRoomError(res, room, action, message, status, req);
 }
 
 async function requireMatchingUserIdentity(req, res, room, sessionId, action) {
@@ -2282,8 +2288,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
 
   const validated = validateJoinPayload(req.body);
   if (validated.error) {
-    recordRoomError(room, 'join', validated.error, 400, req);
-    return validationError(res, validated.error);
+    return respondWithRoomError(res, room, 'join', validated.error, 400, req);
   }
 
   const { session_id, nickname, user_id } = validated.value;
@@ -2466,15 +2471,13 @@ app.post('/api/rooms/:code/phase', limitRequests('rooms:phase', { max: 30 }), as
   if (!(await requireHostCapability(req, res, room))) return;
   return withRoomMutation(room, async () => {
     if (room.settled) {
-      recordRoomError(room, 'phase', 'Market is settled', 400, req);
-      return res.status(400).json({ error: 'Market is settled' });
+      return respondWithRoomError(res, room, 'phase', 'Market is settled', 400, req, { alreadyLocked: true });
     }
 
     const before = captureRoomMutationState(room);
     const validated = validateRoomPhasePayload(req.body);
     if (validated.error) {
-      recordRoomError(room, 'phase', validated.error, 400, req);
-      return validationError(res, validated.error);
+      return respondWithRoomError(res, room, 'phase', validated.error, 400, req, { alreadyLocked: true });
     }
 
     room.phase = validated.value;
@@ -2518,14 +2521,19 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
 
   const validated = validateBetPayload(req.body, room);
   if (validated.error) {
-    recordRoomError(room, 'bet', validated.error, 400, req);
-    return validationError(res, validated.error);
+    return respondWithRoomError(res, room, 'bet', validated.error, 400, req);
   }
 
   const idempotencyKey = getIdempotencyKey(req);
   if (!idempotencyKey) {
-    recordRoomError(room, 'bet', 'Idempotency-Key header is required for bets', 400, req);
-    return validationError(res, 'Idempotency-Key header is required for bets');
+    return respondWithRoomError(
+      res,
+      room,
+      'bet',
+      'Idempotency-Key header is required for bets',
+      400,
+      req,
+    );
   }
 
   const { session_id, outcome, wager, reason } = validated.value;
@@ -2535,8 +2543,15 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     const receipt = room.betReceipts.get(idempotencyKey);
     if (receipt) {
       if (receipt.fingerprint !== fingerprint) {
-        recordRoomError(room, 'bet', 'Idempotency key was already used for a different bet', 409, req);
-        return res.status(409).json({ error: 'Idempotency key was already used for a different bet' });
+        return respondWithRoomError(
+          res,
+          room,
+          'bet',
+          'Idempotency key was already used for a different bet',
+          409,
+          req,
+          { alreadyLocked: true },
+        );
       }
 
       res.set('Idempotent-Replay', 'true');
@@ -2544,22 +2559,34 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     }
 
     if (room.settled) {
-      recordRoomError(room, 'bet', 'Market is settled', 400, req);
-      return res.status(400).json({ error: 'Market is settled' });
+      return respondWithRoomError(res, room, 'bet', 'Market is settled', 400, req, { alreadyLocked: true });
     }
     if (room.phase?.betting_locked) {
-      recordRoomError(room, 'bet', 'Betting is locked by the host', 423, req);
-      return res.status(423).json({ error: 'Betting is locked by the host' });
+      return respondWithRoomError(
+        res,
+        room,
+        'bet',
+        'Betting is locked by the host',
+        423,
+        req,
+        { alreadyLocked: true },
+      );
     }
 
     const player = room.players[session_id];
     if (!player) {
-      recordRoomError(room, 'bet', 'Player not found in room', 404, req);
-      return res.status(404).json({ error: 'Player not found in room' });
+      return respondWithRoomError(
+        res,
+        room,
+        'bet',
+        'Player not found in room',
+        404,
+        req,
+        { alreadyLocked: true },
+      );
     }
     if (wager > player.balance) {
-      recordRoomError(room, 'bet', 'Insufficient balance', 400, req);
-      return res.status(400).json({ error: 'Insufficient balance' });
+      return respondWithRoomError(res, room, 'bet', 'Insufficient balance', 400, req, { alreadyLocked: true });
     }
 
     const before = captureRoomMutationState(room);
@@ -2635,8 +2662,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   return withRoomMutation(room, async () => {
     const validated = validateSettlePayload(req.body, room);
     if (validated.error) {
-      recordRoomError(room, 'settle', validated.error, 400, req);
-      return validationError(res, validated.error);
+      return respondWithRoomError(res, room, 'settle', validated.error, 400, req, { alreadyLocked: true });
     }
 
     const before = captureRoomMutationState(room);
@@ -2714,18 +2740,31 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
   if (!(await requireHostCapability(req, res, room))) return;
   return withRoomMutation(room, async () => {
     if (room.settled) {
-      recordRoomError(room, 'toggle-ai', 'Market is settled', 400, req);
-      return res.status(400).json({ error: 'Market is settled' });
+      return respondWithRoomError(res, room, 'toggle-ai', 'Market is settled', 400, req, { alreadyLocked: true });
     }
 
     const nextAiEnabled = !room.aiEnabled;
     if (nextAiEnabled && room.phase?.betting_locked) {
-      recordRoomError(room, 'toggle-ai', 'Betting is locked by the host', 400, req);
-      return res.status(400).json({ error: 'Betting is locked by the host' });
+      return respondWithRoomError(
+        res,
+        room,
+        'toggle-ai',
+        'Betting is locked by the host',
+        400,
+        req,
+        { alreadyLocked: true },
+      );
     }
     if (nextAiEnabled && (room.marketFormat || BINARY_MARKET_FORMAT) !== BINARY_MARKET_FORMAT) {
-      recordRoomError(room, 'toggle-ai', 'AI bot currently supports binary over/under rooms only', 400, req);
-      return res.status(400).json({ error: 'AI bot currently supports binary over/under rooms only' });
+      return respondWithRoomError(
+        res,
+        room,
+        'toggle-ai',
+        'AI bot currently supports binary over/under rooms only',
+        400,
+        req,
+        { alreadyLocked: true },
+      );
     }
 
     const before = captureRoomMutationState(room);
