@@ -260,6 +260,8 @@ Room snapshot note: `.fairvalue/` is git-ignored because snapshots include room 
 
 Security note: an older client-side Cognee key was committed in `src/services/cogneeService.ts`. Treat that key as compromised and rotate it before using Cognee in any environment.
 
+The current non-zero production dependency audit finding is documented in [SECURITY.md](SECURITY.md). FairValue currently uses client-side Vite `BrowserRouter` and does not enable React Router RSC; release-owner sign-off is still required before production deployment.
+
 HTTP hardening note: the Express server disables `X-Powered-By` and emits baseline browser security headers on every response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
 
 ## Operations

@@ -23,7 +23,8 @@ This is the implementation backlog for the August 4, 2026 product pass. It recor
 - [ ] Configure a dedicated `FAIRVALUE_PUBLIC_VERIFICATION_SECRET` for signed public verification artifacts.
 - [ ] Configure and validate any external intelligence, neighborhood evidence, Cognee, or alert webhook provider before presenting those adapters as provider-backed.
 - [ ] Run the deployment-specific migration, DNS, TLS, cookie, reverse-proxy, and browser callback checks in the target environment.
-- [ ] Resolve the remaining production dependency audit finding for the installed React Router range, or document the BrowserRouter-only risk acceptance with the release owner.
+- [x] Assess the React Router audit finding and document the BrowserRouter-only exposure boundary in `SECURITY.md`.
+- [ ] Obtain release-owner risk acceptance for that documented boundary, or resolve the dependency finding before production sign-off.
 - [x] Production entrypoint fails closed before binding when mandatory readiness checks fail; local/degraded mode remains available for development.
 
 ## Honest Classification
