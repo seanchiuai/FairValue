@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { buildProductionReadinessReport } = require('../../scripts/check-production-readiness');
+const { getProductionReadinessFailure } = require('../index');
 
 function baseProductionEnv(overrides = {}) {
   return {
@@ -93,4 +94,17 @@ test('production readiness requires Postgres-backed append-only room events', ()
   }));
   assert.equal(localPath.ok, false);
   assert.deepEqual(failedIds(localPath), ['room_event_log_postgres']);
+});
+
+test('production server refuses to start when mandatory checks fail', () => {
+  const failure = getProductionReadinessFailure(baseProductionEnv({
+    DATABASE_URL: '',
+    FAIRVALUE_ROOM_STORE: 'json',
+  }));
+
+  assert.ok(failure instanceof Error);
+  assert.match(failure.message, /database_url/);
+  assert.match(failure.message, /room_store_postgres/);
+  assert.equal(getProductionReadinessFailure(baseProductionEnv()), null);
+  assert.equal(getProductionReadinessFailure({ NODE_ENV: 'development' }), null);
 });

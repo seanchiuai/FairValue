@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { buildProductionReadinessReport } = require('../scripts/check-production-readiness');
 const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
@@ -2889,30 +2890,47 @@ wss.on('connection', (ws, req) => {
 const PORT = process.env.PORT || 8000;
 const HOST = process.env.FAIRVALUE_SERVER_HOST
   || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+
+function getProductionReadinessFailure(env = process.env) {
+  if (env.NODE_ENV !== 'production') return null;
+  const report = buildProductionReadinessReport(env);
+  const failures = report.checks
+    .filter((check) => check.severity === 'failure' && !check.ok)
+    .map((check) => check.id);
+  if (!failures.length) return null;
+  return new Error(`Production startup refused; failing checks: ${failures.join(', ')}`);
+}
+
 if (require.main === module) {
-  Promise.all([
-    Promise.resolve(configurePropertySnapshot()),
-    Promise.resolve(loadPersistedRooms()),
-  ])
-    .then(([propertyLoaded, restored]) => {
-      server.listen(PORT, HOST, () => {
-        console.log(`FairValue server running on http://${HOST}:${PORT}`);
-        if (propertyLoaded?.source === 'postgres') {
-          console.log(`Loaded ${propertyLoaded.count} property row(s) from ${propertyLoaded.table_name}`);
-        } else if (propertyLoaded?.fallback_reason) {
-          console.log(`Loaded static property snapshot after Postgres fallback: ${propertyLoaded.fallback_reason}`);
-        }
-        if (restored.loaded) {
-          const source = restored.filePath || restored.kind;
-          console.log(`Restored ${restored.loaded} room(s) from ${source}`);
-        }
-        startSimulations();
+  const productionFailure = getProductionReadinessFailure();
+  if (productionFailure) {
+    console.error(productionFailure.message);
+    process.exitCode = 1;
+  } else {
+    Promise.all([
+      Promise.resolve(configurePropertySnapshot()),
+      Promise.resolve(loadPersistedRooms()),
+    ])
+      .then(([propertyLoaded, restored]) => {
+        server.listen(PORT, HOST, () => {
+          console.log(`FairValue server running on http://${HOST}:${PORT}`);
+          if (propertyLoaded?.source === 'postgres') {
+            console.log(`Loaded ${propertyLoaded.count} property row(s) from ${propertyLoaded.table_name}`);
+          } else if (propertyLoaded?.fallback_reason) {
+            console.log(`Loaded static property snapshot after Postgres fallback: ${propertyLoaded.fallback_reason}`);
+          }
+          if (restored.loaded) {
+            const source = restored.filePath || restored.kind;
+            console.log(`Restored ${restored.loaded} room(s) from ${source}`);
+          }
+          startSimulations();
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to load server runtime dependencies:', error.message);
+        process.exitCode = 1;
       });
-    })
-    .catch((error) => {
-      console.error('Failed to load server runtime dependencies:', error.message);
-      process.exitCode = 1;
-    });
+  }
 }
 
 module.exports = {
@@ -2949,4 +2967,5 @@ module.exports = {
   createPublicVerificationArtifact,
   EVENT_TYPES,
   startSimulations,
+  getProductionReadinessFailure,
 };

@@ -23,6 +23,7 @@ This is the implementation backlog for the August 4, 2026 product pass. It recor
 - [ ] Configure and validate any external intelligence, neighborhood evidence, Cognee, or alert webhook provider before presenting those adapters as provider-backed.
 - [ ] Run the deployment-specific migration, DNS, TLS, cookie, reverse-proxy, and browser callback checks in the target environment.
 - [ ] Resolve the remaining production dependency audit finding for the installed React Router range, or document the BrowserRouter-only risk acceptance with the release owner.
+- [x] Production entrypoint fails closed before binding when mandatory readiness checks fail; local/degraded mode remains available for development.
 
 ## Honest Classification
 

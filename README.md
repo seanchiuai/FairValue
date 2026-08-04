@@ -309,7 +309,7 @@ npm run verify
 
 This runs a client secret scan, checks that the property data manifest is current, typechecks, runs server integration tests, runs the non-watch Vitest suite, builds the Vite bundle, enforces bundle budgets, and smoke-boots the local backend.
 
-`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 830 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
+`npm run check:bundle` defaults to 240 kB for any JS chunk, 25 kB for any CSS chunk, and 860 kB total JS after `npm run build`. Override with `FAIRVALUE_MAX_JS_CHUNK_KB`, `FAIRVALUE_MAX_CSS_CHUNK_KB`, or `FAIRVALUE_MAX_TOTAL_JS_KB` when intentionally raising a budget.
 
 For a deployment environment gate, run:
 
@@ -317,7 +317,7 @@ For a deployment environment gate, run:
 npm run check:production
 ```
 
-This prints a JSON report and exits non-zero until production-critical variables are set: `DATABASE_URL`, `FAIRVALUE_ROOM_STORE=postgres`, positive `FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS`, `FAIRVALUE_ROOM_EVENT_LOG=auto` or `postgres` without a local event-log path override, non-default `FAIRVALUE_IDENTITY_SECRET`, `FAIRVALUE_PUBLIC_VERIFICATION_SECRET`, enabled room persistence, and `FAIRVALUE_OPS_TOKEN`. Missing `COGNEE_API_KEY` is reported as a warning because the AI analyst can intentionally run degraded.
+This prints a JSON report and exits non-zero until production-critical variables are set: `DATABASE_URL`, `FAIRVALUE_ROOM_STORE=postgres`, positive `FAIRVALUE_POSTGRES_ROOM_RETENTION_DAYS`, `FAIRVALUE_ROOM_EVENT_LOG=auto` or `postgres` without a local event-log path override, non-default `FAIRVALUE_IDENTITY_SECRET`, `FAIRVALUE_PUBLIC_VERIFICATION_SECRET`, enabled room persistence, and `FAIRVALUE_OPS_TOKEN`. Missing `COGNEE_API_KEY` is reported as a warning because the AI analyst can intentionally run degraded. When `NODE_ENV=production`, the server runs the same mandatory checks before binding its listen socket and refuses startup on failure.
 
 For browser flow coverage, run:
 
