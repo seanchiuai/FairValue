@@ -55,4 +55,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run connected product workflow
+        env:
+          FAIRVALUE_ROOM_STORE_PATH: /tmp/fairvalue-ci-e2e-rooms.json
+          FAIRVALUE_ROOM_EVENT_LOG_PATH: /tmp/fairvalue-ci-e2e-events.ndjson
         run: npx playwright test e2e/product-workflows.spec.ts
