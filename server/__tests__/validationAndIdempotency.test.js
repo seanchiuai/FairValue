@@ -733,6 +733,54 @@ test('concurrent bet requests reconcile through the authoritative server market'
   assert.equal(rooms[code].activity.filter((entry) => entry.type === 'bet').length, 2);
 });
 
+function createFailOncePersistenceSql() {
+  let snapshotWrites = 0;
+  async function sql(strings) {
+    const query = strings.join('?').replace(/\s+/g, ' ').trim();
+    if (query.startsWith('CREATE TABLE')) return [];
+    if (query.startsWith('SELECT room_code')) return [];
+    if (query.startsWith('INSERT INTO fairvalue_room_snapshots')) {
+      snapshotWrites += 1;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      if (snapshotWrites === 1) throw new Error('forced first durable write failure');
+      return [];
+    }
+    return [];
+  }
+  sql.isConfigured = true;
+  return sql;
+}
+
+test('room mutation serialization protects queued bets from a failed rollback', async () => {
+  const room = await createHostedRoom();
+  const code = room.room_code;
+  await request(`/api/rooms/${code}/join`, {
+    method: 'POST',
+    body: { session_id: 'serialized-player', nickname: 'Serialized Player' },
+  });
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailOncePersistenceSql() });
+  const [firstBet, queuedBet] = await Promise.all([
+    request(`/api/rooms/${code}/bet`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'serialized-first-bet' },
+      body: { session_id: 'serialized-player', outcome: 'over', wager: 25 },
+    }),
+    request(`/api/rooms/${code}/bet`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'serialized-queued-bet' },
+      body: { session_id: 'serialized-player', outcome: 'under', wager: 40 },
+    }),
+  ]);
+
+  assert.equal(firstBet.status, 503);
+  assert.equal(queuedBet.status, 200);
+  const state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.data.market.total_trades, 1);
+  assert.equal(state.data.players[0].balance, 960);
+  assert.equal(roomEventStore.list(code).filter((event) => event.type === 'bet_placed').length, 1);
+});
+
 test('join route rate limits repeated submissions', async () => {
   const room = await createHostedRoom();
   const code = room.room_code;

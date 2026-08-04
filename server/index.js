@@ -124,6 +124,7 @@ let propertySnapshot = createPropertySnapshot(resolveStaticPropertySnapshotOptio
 let operatorIncidentWorkflowStore = createOperatorIncidentWorkflowStore(resolveOperatorIncidentWorkflowOptions());
 const roomEventStore = createInMemoryRoomEventStore();
 let roomPersistenceWriteQueue = Promise.resolve();
+const roomMutationQueues = new Map();
 
 function isPromiseLike(value) {
   return value && typeof value.then === 'function';
@@ -362,8 +363,9 @@ function captureRoomMutationState(room) {
   };
 }
 
-function restoreRoomMutationState(room, state, { restartAi = false } = {}) {
+function restoreRoomMutationState(room, state, { restartAi = false, event = null } = {}) {
   if (!room || !state?.snapshot) return;
+  if (event && roomEventStore.list(room.code).at(-1)?.id !== event.id) return;
   const restored = hydrateRoomSnapshot(state.snapshot);
   Object.assign(room, restored);
   room.aiEnabled = Boolean(state.snapshot.aiEnabled);
@@ -418,6 +420,25 @@ async function waitForRoomPersistence(persistenceResult) {
   if (isPromiseLike(persistenceResult)) await persistenceResult;
 }
 
+async function withRoomMutation(room, mutation) {
+  if (!room?.code) return mutation();
+
+  const previous = roomMutationQueues.get(room.code) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => {
+    release = resolve;
+  });
+  roomMutationQueues.set(room.code, current);
+  await previous;
+
+  try {
+    return await mutation();
+  } finally {
+    release();
+    if (roomMutationQueues.get(room.code) === current) roomMutationQueues.delete(room.code);
+  }
+}
+
 async function removePersistedRoomEvent(event) {
   if (!roomEventLog.enabled || typeof roomEventLog.remove !== 'function') return;
   try {
@@ -441,7 +462,7 @@ async function persistRoomMutation(room, event, eventPersistence, before, { rest
         error.rollback_error = rollbackError.message;
       }
     }
-    restoreRoomMutationState(room, before, { restartAi });
+    restoreRoomMutationState(room, before, { restartAi, event });
     throw error;
   }
 }
@@ -484,7 +505,12 @@ function stopAiBotInterval(room) {
 }
 
 async function runAiBotTick(room) {
-  if (!room || !room.aiEnabled || room.settled || room.phase?.betting_locked) {
+  if (!room) return { ok: false, skipped: true };
+  return withRoomMutation(room, () => runAiBotTickUnlocked(room));
+}
+
+async function runAiBotTickUnlocked(room) {
+  if (!room.aiEnabled || room.settled || room.phase?.betting_locked) {
     stopAiBotInterval(room);
     return { ok: false, skipped: true };
   }
@@ -2262,71 +2288,73 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
 
   const { session_id, nickname, user_id } = validated.value;
   if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'join'))) return;
-  const before = captureRoomMutationState(room);
-  const joinedUserId = user_id || req.userIdentity?.user_id || null;
-  if (joinedUserId) room.userIdsBySession[session_id] = joinedUserId;
+  return withRoomMutation(room, async () => {
+    const before = captureRoomMutationState(room);
+    const joinedUserId = user_id || req.userIdentity?.user_id || null;
+    if (joinedUserId) room.userIdsBySession[session_id] = joinedUserId;
 
-  let player = room.players[session_id];
-  let joinBroadcast = null;
-  let persistence = null;
-  let joinEvent = null;
-  let joinLifecycleCounter = null;
-  if (player) {
-    player.nickname = nickname;
-    joinLifecycleCounter = 'room_lifecycle.reconnected';
-    ({ event: joinEvent, persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
-      session_id,
-      nickname,
-      user_id: joinedUserId,
-      player: cloneJson(player),
-      source: 'join',
-    }, req));
-  } else {
-    player = { session_id, nickname, balance: 1000, bets: [] };
-    room.players[session_id] = player;
-    joinLifecycleCounter = 'room_lifecycle.joined';
-    const { event: newJoinEvent, activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
-      session_id,
-      nickname,
-      user_id: joinedUserId,
-      player: cloneJson(player),
-      player_count: Object.keys(room.players).length,
-    }, req);
-    joinEvent = newJoinEvent;
-    persistence = joinPersistence;
-    joinBroadcast = {
-      type: 'join',
-      nickname,
+    let player = room.players[session_id];
+    let joinBroadcast = null;
+    let persistence = null;
+    let joinEvent = null;
+    let joinLifecycleCounter = null;
+    if (player) {
+      player.nickname = nickname;
+      joinLifecycleCounter = 'room_lifecycle.reconnected';
+      ({ event: joinEvent, persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
+        session_id,
+        nickname,
+        user_id: joinedUserId,
+        player: cloneJson(player),
+        source: 'join',
+      }, req));
+    } else {
+      player = { session_id, nickname, balance: 1000, bets: [] };
+      room.players[session_id] = player;
+      joinLifecycleCounter = 'room_lifecycle.joined';
+      const { event: newJoinEvent, activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
+        session_id,
+        nickname,
+        user_id: joinedUserId,
+        player: cloneJson(player),
+        player_count: Object.keys(room.players).length,
+      }, req);
+      joinEvent = newJoinEvent;
+      persistence = joinPersistence;
+      joinBroadcast = {
+        type: 'join',
+        nickname,
+        player,
+        player_count: Object.keys(room.players).length,
+        activity: activityEntry,
+      };
+    }
+
+    try {
+      await persistRoomMutation(room, joinEvent, persistence, before);
+    } catch (error) {
+      return roomPersistenceError(res, error);
+    }
+
+    if (joinBroadcast) broadcast(room, joinBroadcast);
+    if (joinLifecycleCounter) observability.increment(joinLifecycleCounter);
+
+    const state = getRoomStatePayload(room);
+    res.json({
       player,
-      player_count: Object.keys(room.players).length,
-      activity: activityEntry,
-    };
-  }
-
-  try {
-    await persistRoomMutation(room, joinEvent, persistence, before);
-  } catch (error) {
-    return roomPersistenceError(res, error);
-  }
-
-  if (joinBroadcast) broadcast(room, joinBroadcast);
-  if (joinLifecycleCounter) observability.increment(joinLifecycleCounter);
-
-  const state = getRoomStatePayload(room);
-  res.json({
-    player,
-    market: state.market,
-    market_format: state.market_format,
-    market_config: state.market_config,
-    players: state.players,
-    house: state.house,
-    activity: state.activity,
-    phase: state.phase,
-    host_user_id: state.host_user_id,
-    draft_audit: state.draft_audit,
-    settled: state.settled,
-    settlement: state.settlement,
-    event_sequence: state.event_sequence,
+      market: state.market,
+      market_format: state.market_format,
+      market_config: state.market_config,
+      players: state.players,
+      house: state.house,
+      activity: state.activity,
+      phase: state.phase,
+      host_user_id: state.host_user_id,
+      draft_audit: state.draft_audit,
+      settled: state.settled,
+      settlement: state.settlement,
+      event_sequence: state.event_sequence,
+    });
   });
 });
 
@@ -2436,51 +2464,52 @@ app.post('/api/rooms/:code/phase', limitRequests('rooms:phase', { max: 30 }), as
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!(await requireHostCapability(req, res, room))) return;
+  return withRoomMutation(room, async () => {
+    if (room.settled) {
+      recordRoomError(room, 'phase', 'Market is settled', 400, req);
+      return res.status(400).json({ error: 'Market is settled' });
+    }
 
-  if (room.settled) {
-    recordRoomError(room, 'phase', 'Market is settled', 400, req);
-    return res.status(400).json({ error: 'Market is settled' });
-  }
+    const before = captureRoomMutationState(room);
+    const validated = validateRoomPhasePayload(req.body);
+    if (validated.error) {
+      recordRoomError(room, 'phase', validated.error, 400, req);
+      return validationError(res, validated.error);
+    }
 
-  const before = captureRoomMutationState(room);
-  const validated = validateRoomPhasePayload(req.body);
-  if (validated.error) {
-    recordRoomError(room, 'phase', validated.error, 400, req);
-    return validationError(res, validated.error);
-  }
+    room.phase = validated.value;
+    if (room.phase.betting_locked && room.aiEnabled) {
+      room.aiEnabled = false;
+      stopAiBotInterval(room);
+    }
 
-  room.phase = validated.value;
-  if (room.phase.betting_locked && room.aiEnabled) {
-    room.aiEnabled = false;
-    stopAiBotInterval(room);
-  }
+    const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
+      phase: room.phase.status,
+      room_phase: room.phase,
+      betting_locked: room.phase.betting_locked,
+      ai_enabled: room.aiEnabled,
+    }, req);
 
-  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
-    phase: room.phase.status,
-    room_phase: room.phase,
-    betting_locked: room.phase.betting_locked,
-    ai_enabled: room.aiEnabled,
-  }, req);
+    try {
+      await persistRoomMutation(room, event, persistence, before, {
+        restartAi: Boolean(before.aiInterval && before.snapshot.aiEnabled),
+      });
+      clearRoomDurabilityError(room, 'phase');
+    } catch (error) {
+      return roomPersistenceError(res, error);
+    }
 
-  try {
-    await persistRoomMutation(room, event, persistence, before, {
-      restartAi: Boolean(before.aiInterval && before.snapshot.aiEnabled),
+    broadcast(room, {
+      type: 'phase',
+      phase: room.phase,
+      ai_enabled: room.aiEnabled,
+      activity: activityEntry,
+      event_sequence: event.sequence,
     });
-    clearRoomDurabilityError(room, 'phase');
-  } catch (error) {
-    return roomPersistenceError(res, error);
-  }
+    observability.increment('room_lifecycle.phase_changes');
 
-  broadcast(room, {
-    type: 'phase',
-    phase: room.phase,
-    ai_enabled: room.aiEnabled,
-    activity: activityEntry,
-    event_sequence: event.sequence,
+    res.json({ phase: room.phase, ai_enabled: room.aiEnabled, event_sequence: event.sequence });
   });
-  observability.increment('room_lifecycle.phase_changes');
-
-  res.json({ phase: room.phase, ai_enabled: room.aiEnabled, event_sequence: event.sequence });
 });
 
 app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async (req, res) => {
@@ -2501,221 +2530,225 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
 
   const { session_id, outcome, wager, reason } = validated.value;
   if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'bet'))) return;
+  return withRoomMutation(room, async () => {
+    const fingerprint = betFingerprint(validated.value);
+    const receipt = room.betReceipts.get(idempotencyKey);
+    if (receipt) {
+      if (receipt.fingerprint !== fingerprint) {
+        recordRoomError(room, 'bet', 'Idempotency key was already used for a different bet', 409, req);
+        return res.status(409).json({ error: 'Idempotency key was already used for a different bet' });
+      }
 
-  const fingerprint = betFingerprint(validated.value);
-  const receipt = room.betReceipts.get(idempotencyKey);
-  if (receipt) {
-    if (receipt.fingerprint !== fingerprint) {
-      recordRoomError(room, 'bet', 'Idempotency key was already used for a different bet', 409, req);
-      return res.status(409).json({ error: 'Idempotency key was already used for a different bet' });
+      res.set('Idempotent-Replay', 'true');
+      return res.json({ ...cloneJson(receipt.response), idempotent_replay: true });
     }
 
-    res.set('Idempotent-Replay', 'true');
-    return res.json({ ...cloneJson(receipt.response), idempotent_replay: true });
-  }
+    if (room.settled) {
+      recordRoomError(room, 'bet', 'Market is settled', 400, req);
+      return res.status(400).json({ error: 'Market is settled' });
+    }
+    if (room.phase?.betting_locked) {
+      recordRoomError(room, 'bet', 'Betting is locked by the host', 423, req);
+      return res.status(423).json({ error: 'Betting is locked by the host' });
+    }
 
-  if (room.settled) {
-    recordRoomError(room, 'bet', 'Market is settled', 400, req);
-    return res.status(400).json({ error: 'Market is settled' });
-  }
-  if (room.phase?.betting_locked) {
-    recordRoomError(room, 'bet', 'Betting is locked by the host', 423, req);
-    return res.status(423).json({ error: 'Betting is locked by the host' });
-  }
+    const player = room.players[session_id];
+    if (!player) {
+      recordRoomError(room, 'bet', 'Player not found in room', 404, req);
+      return res.status(404).json({ error: 'Player not found in room' });
+    }
+    if (wager > player.balance) {
+      recordRoomError(room, 'bet', 'Insufficient balance', 400, req);
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
 
-  const player = room.players[session_id];
-  if (!player) {
-    recordRoomError(room, 'bet', 'Player not found in room', 404, req);
-    return res.status(404).json({ error: 'Player not found in room' });
-  }
-  if (wager > player.balance) {
-    recordRoomError(room, 'bet', 'Insufficient balance', 400, req);
-    return res.status(400).json({ error: 'Insufficient balance' });
-  }
+    const before = captureRoomMutationState(room);
+    const execution = placeRoomBetWithBudget(room, outcome, wager, player.nickname);
+    room.market = execution.market;
+    const shares = execution.shares;
+    const trade = execution.trade;
 
-  const before = captureRoomMutationState(room);
-  const execution = placeRoomBetWithBudget(room, outcome, wager, player.nickname);
-  room.market = execution.market;
-  const shares = execution.shares;
-  const trade = execution.trade;
+    player.balance -= trade.wager;
+    player.bets.push({
+      outcome,
+      wager: trade.wager,
+      shares: Math.round(shares * 100) / 100,
+      prob_at_entry: selectedProbabilityAfter(room, trade, outcome),
+      timestamp: trade.timestamp,
+      reason: reason || null,
+    });
 
-  player.balance -= trade.wager;
-  player.bets.push({
-    outcome,
-    wager: trade.wager,
-    shares: Math.round(shares * 100) / 100,
-    prob_at_entry: selectedProbabilityAfter(room, trade, outcome),
-    timestamp: trade.timestamp,
-    reason: reason || null,
+    const marketState = execution.publicMarket;
+    const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
+      session_id,
+      nickname: player.nickname,
+      outcome,
+      wager: trade.wager,
+      reason: reason || null,
+      shares: Math.round(shares * 100) / 100,
+      trade,
+      market: marketState,
+      player: cloneJson(player),
+      idempotency_key: idempotencyKey,
+    }, req);
+
+    // Persist to DB in background (don't block response)
+    if (isBinaryMarket(room)) {
+      persistTrade(room.marketId, trade, shares);
+      updateMarketState(room.marketId, room.market);
+    }
+
+    const response = { trade, market: marketState, player, event_sequence: event.sequence };
+    room.betReceipts.set(idempotencyKey, {
+      fingerprint,
+      response: cloneJson(response),
+      createdAt: Date.now(),
+    });
+    try {
+      await persistRoomMutation(room, event, persistence, before);
+    } catch (error) {
+      return roomPersistenceError(res, error);
+    }
+
+    broadcast(room, {
+      type: 'bet',
+      nickname: player.nickname,
+      outcome,
+      wager: trade.wager,
+      reason: reason || null,
+      trade,
+      market: marketState,
+      player,
+      activity: activityEntry,
+      event_sequence: event.sequence,
+    });
+    observability.increment('room_lifecycle.bets');
+
+    res.json(response);
   });
-
-  const marketState = execution.publicMarket;
-  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.BET_PLACED, {
-    session_id,
-    nickname: player.nickname,
-    outcome,
-    wager: trade.wager,
-    reason: reason || null,
-    shares: Math.round(shares * 100) / 100,
-    trade,
-    market: marketState,
-    player: cloneJson(player),
-    idempotency_key: idempotencyKey,
-  }, req);
-
-  // Persist to DB in background (don't block response)
-  if (isBinaryMarket(room)) {
-    persistTrade(room.marketId, trade, shares);
-    updateMarketState(room.marketId, room.market);
-  }
-
-  const response = { trade, market: marketState, player, event_sequence: event.sequence };
-  room.betReceipts.set(idempotencyKey, {
-    fingerprint,
-    response: cloneJson(response),
-    createdAt: Date.now(),
-  });
-  try {
-    await persistRoomMutation(room, event, persistence, before);
-  } catch (error) {
-    return roomPersistenceError(res, error);
-  }
-
-  broadcast(room, {
-    type: 'bet',
-    nickname: player.nickname,
-    outcome,
-    wager: trade.wager,
-    reason: reason || null,
-    trade,
-    market: marketState,
-    player,
-    activity: activityEntry,
-    event_sequence: event.sequence,
-  });
-  observability.increment('room_lifecycle.bets');
-
-  res.json(response);
 });
 
 app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!(await requireHostCapability(req, res, room))) return;
+  return withRoomMutation(room, async () => {
+    const validated = validateSettlePayload(req.body, room);
+    if (validated.error) {
+      recordRoomError(room, 'settle', validated.error, 400, req);
+      return validationError(res, validated.error);
+    }
 
-  const validated = validateSettlePayload(req.body, room);
-  if (validated.error) {
-    recordRoomError(room, 'settle', validated.error, 400, req);
-    return validationError(res, validated.error);
-  }
-
-  const before = captureRoomMutationState(room);
-  if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
-  room.aiEnabled = false;
-  room.settled = true;
-  room.phase = normalizeRoomPhase({
-    status: 'settled',
-    betting_locked: true,
-    updated_at: Date.now() / 1000,
-  });
-
-  const { actual_price, evidence_packet } = validated.value;
-  const settlementMetrics = settlementMetricsForRoom(room, validated.value);
-  const winningOutcome = winningOutcomeForRoom(room, validated.value);
-  const settlement = settlePlayersForRoom(room, Object.values(room.players), winningOutcome);
-  for (const player of settlement.players) {
-    room.players[player.session_id] = player;
-  }
-  const { results } = settlement;
-  const reputation_summary = createRoomReputationSummary(Object.values(room.players), {
-    winning_outcome: winningOutcome,
-    actual_price,
-    results,
-  });
-
-  room.settlement = {
-    winning_outcome: winningOutcome,
-    actual_price,
-    ...settlementMetrics,
-    results,
-    evidence_packet,
-    reputation_summary,
-  };
-  const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
-    actual_price,
-    winning_outcome: winningOutcome,
-    evidence_packet,
-    results,
-    reputation_summary,
-    settlement: room.settlement,
-    room_phase: room.phase,
-    players: Object.values(room.players).map((player) => cloneJson(player)),
-  }, req);
-
-  try {
-    await persistRoomMutation(room, event, persistence, before, {
-      restartAi: Boolean(before.aiInterval && before.snapshot.aiEnabled),
+    const before = captureRoomMutationState(room);
+    if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
+    room.aiEnabled = false;
+    room.settled = true;
+    room.phase = normalizeRoomPhase({
+      status: 'settled',
+      betting_locked: true,
+      updated_at: Date.now() / 1000,
     });
-  } catch (error) {
-    return roomPersistenceError(res, error);
-  }
-  try {
-    userReputationStore.recordRoomSettlement(room, { settledAt: Date.now() / 1000 });
-  } catch (error) {
-    observability.recordError('user_reputation', error, { operation: 'record_room_settlement' });
-  }
 
-  broadcast(room, {
-    type: 'settle',
-    ...room.settlement,
-    phase: room.phase,
-    activity: activityEntry,
-    event_sequence: event.sequence,
+    const { actual_price, evidence_packet } = validated.value;
+    const settlementMetrics = settlementMetricsForRoom(room, validated.value);
+    const winningOutcome = winningOutcomeForRoom(room, validated.value);
+    const settlement = settlePlayersForRoom(room, Object.values(room.players), winningOutcome);
+    for (const player of settlement.players) {
+      room.players[player.session_id] = player;
+    }
+    const { results } = settlement;
+    const reputation_summary = createRoomReputationSummary(Object.values(room.players), {
+      winning_outcome: winningOutcome,
+      actual_price,
+      results,
+    });
+
+    room.settlement = {
+      winning_outcome: winningOutcome,
+      actual_price,
+      ...settlementMetrics,
+      results,
+      evidence_packet,
+      reputation_summary,
+    };
+    const { event, activityEntry, persistence } = appendRoomEvent(room, EVENT_TYPES.SETTLEMENT_COMPLETED, {
+      actual_price,
+      winning_outcome: winningOutcome,
+      evidence_packet,
+      results,
+      reputation_summary,
+      settlement: room.settlement,
+      room_phase: room.phase,
+      players: Object.values(room.players).map((player) => cloneJson(player)),
+    }, req);
+
+    try {
+      await persistRoomMutation(room, event, persistence, before, {
+        restartAi: Boolean(before.aiInterval && before.snapshot.aiEnabled),
+      });
+    } catch (error) {
+      return roomPersistenceError(res, error);
+    }
+    try {
+      userReputationStore.recordRoomSettlement(room, { settledAt: Date.now() / 1000 });
+    } catch (error) {
+      observability.recordError('user_reputation', error, { operation: 'record_room_settlement' });
+    }
+
+    broadcast(room, {
+      type: 'settle',
+      ...room.settlement,
+      phase: room.phase,
+      activity: activityEntry,
+      event_sequence: event.sequence,
+    });
+    observability.increment('room_lifecycle.settlements');
+
+    res.json({ ...room.settlement, event_sequence: event.sequence });
   });
-  observability.increment('room_lifecycle.settlements');
-
-  res.json({ ...room.settlement, event_sequence: event.sequence });
 });
 
 app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 20 }), async (req, res) => {
   const room = getRoomFromCodeParam(req, res);
   if (!room) return;
   if (!(await requireHostCapability(req, res, room))) return;
-  if (room.settled) {
-    recordRoomError(room, 'toggle-ai', 'Market is settled', 400, req);
-    return res.status(400).json({ error: 'Market is settled' });
-  }
+  return withRoomMutation(room, async () => {
+    if (room.settled) {
+      recordRoomError(room, 'toggle-ai', 'Market is settled', 400, req);
+      return res.status(400).json({ error: 'Market is settled' });
+    }
 
-  const nextAiEnabled = !room.aiEnabled;
-  if (nextAiEnabled && room.phase?.betting_locked) {
-    recordRoomError(room, 'toggle-ai', 'Betting is locked by the host', 400, req);
-    return res.status(400).json({ error: 'Betting is locked by the host' });
-  }
-  if (nextAiEnabled && (room.marketFormat || BINARY_MARKET_FORMAT) !== BINARY_MARKET_FORMAT) {
-    recordRoomError(room, 'toggle-ai', 'AI bot currently supports binary over/under rooms only', 400, req);
-    return res.status(400).json({ error: 'AI bot currently supports binary over/under rooms only' });
-  }
+    const nextAiEnabled = !room.aiEnabled;
+    if (nextAiEnabled && room.phase?.betting_locked) {
+      recordRoomError(room, 'toggle-ai', 'Betting is locked by the host', 400, req);
+      return res.status(400).json({ error: 'Betting is locked by the host' });
+    }
+    if (nextAiEnabled && (room.marketFormat || BINARY_MARKET_FORMAT) !== BINARY_MARKET_FORMAT) {
+      recordRoomError(room, 'toggle-ai', 'AI bot currently supports binary over/under rooms only', 400, req);
+      return res.status(400).json({ error: 'AI bot currently supports binary over/under rooms only' });
+    }
 
-  const before = captureRoomMutationState(room);
-  room.aiEnabled = nextAiEnabled;
-  const { event, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
-    phase: 'ai_toggled',
-    ai_enabled: room.aiEnabled,
-  }, req);
+    const before = captureRoomMutationState(room);
+    room.aiEnabled = nextAiEnabled;
+    const { event, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
+      phase: 'ai_toggled',
+      ai_enabled: room.aiEnabled,
+    }, req);
 
-  try {
-    await persistRoomMutation(room, event, persistence, before);
-  } catch (error) {
-    return roomPersistenceError(res, error);
-  }
+    try {
+      await persistRoomMutation(room, event, persistence, before);
+    } catch (error) {
+      return roomPersistenceError(res, error);
+    }
 
-  if (room.aiEnabled) {
-    runAiBotInterval(room);
-  } else {
-    if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
-  }
+    if (room.aiEnabled) {
+      runAiBotInterval(room);
+    } else {
+      if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
+    }
 
-  res.json({ ai_enabled: room.aiEnabled, event_sequence: event.sequence });
+    res.json({ ai_enabled: room.aiEnabled, event_sequence: event.sequence });
+  });
 });
 
 app.get('/api/rooms/:code/leaderboard', (req, res) => {
@@ -2930,29 +2963,34 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  const connectionBefore = captureRoomMutationState(room);
-  room.connections.push(ws);
-  observability.increment('websocket.current_connections');
-  observability.increment('websocket.total_connections');
-  const connectedEvent = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
-    source: 'websocket',
-    connection_count: room.connections.length,
-  });
-  persistRoomMutation(room, connectedEvent.event, connectedEvent.persistence, connectionBefore)
+  withRoomMutation(room, async () => {
+    const connectionBefore = captureRoomMutationState(room);
+    room.connections.push(ws);
+    observability.increment('websocket.current_connections');
+    observability.increment('websocket.total_connections');
+    const connectedEvent = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
+      source: 'websocket',
+      connection_count: room.connections.length,
+    });
+    await persistRoomMutation(room, connectedEvent.event, connectedEvent.persistence, connectionBefore);
+  })
     .catch((error) => {
       if (error?.roomPersistenceFailed) ws.close(1011, 'Room persistence failed');
     });
   ws.on('close', () => {
-    const disconnectedBefore = captureRoomMutationState(room);
-    room.connections = room.connections.filter(c => c !== ws);
-    observability.increment('websocket.current_connections', -1);
-    observability.increment('websocket.total_disconnects');
-    const disconnectedEvent = appendRoomEvent(room, EVENT_TYPES.PLAYER_LEFT, {
-      source: 'websocket',
-      connection_count: room.connections.length,
+    withRoomMutation(room, async () => {
+      const disconnectedBefore = captureRoomMutationState(room);
+      room.connections = room.connections.filter(c => c !== ws);
+      observability.increment('websocket.current_connections', -1);
+      observability.increment('websocket.total_disconnects');
+      const disconnectedEvent = appendRoomEvent(room, EVENT_TYPES.PLAYER_LEFT, {
+        source: 'websocket',
+        connection_count: room.connections.length,
+      });
+      await persistRoomMutation(room, disconnectedEvent.event, disconnectedEvent.persistence, disconnectedBefore);
+    }).catch(() => {
+      room.connections = room.connections.filter(c => c !== ws);
     });
-    persistRoomMutation(room, disconnectedEvent.event, disconnectedEvent.persistence, disconnectedBefore)
-      .catch(() => {});
   });
 });
 
