@@ -7,6 +7,7 @@ import {
   Home,
   Map as MapIcon,
   UserRound,
+  Users,
 } from 'lucide-react';
 import MarketCard from '../components/MarketCard';
 import FeaturedMarket from '../components/FeaturedMarket';
@@ -85,7 +86,7 @@ function Markets() {
   const selectSort = useCallback((value) => {
     setSortBy(value);
     setShowSortDropdown(false);
-    window.requestAnimationFrame(() => sortButtonRef.current?.focus());
+    sortButtonRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -139,6 +140,10 @@ function Markets() {
         </div>
 
         <div className="header-right">
+          <Link to="/join" className="room-link" aria-label="Host or join a room" title="Host or join a room">
+            <Users size={14} />
+            <span className="room-link-label">Host or join</span>
+          </Link>
           <Link to="/me" className="profile-link" aria-label="Open prediction profile">
             <UserRound size={14} />
             Profile
@@ -327,7 +332,8 @@ function Markets() {
         }
         .search-clear:hover { background: #E8E8ED; color: #1D1D1F; }
         .header-right { display: flex; align-items: center; gap: 12px; }
-        .profile-link {
+        .profile-link,
+        .room-link {
           display: inline-flex;
           align-items: center;
           gap: 6px;
@@ -341,8 +347,17 @@ function Markets() {
           text-decoration: none;
           transition: all 0.2s ease;
         }
-        .profile-link svg { color: #636366; }
-        .profile-link:hover { border-color: #55565C; }
+        .profile-link svg,
+        .room-link svg { color: #636366; }
+        .profile-link:hover,
+        .room-link:hover { border-color: #55565C; }
+        .room-link {
+          color: #005FCC;
+          border-color: rgba(0,95,204,0.3);
+        }
+        .room-link svg { color: #005FCC; }
+        .room-link:hover { border-color: #005FCC; background: #F2F7FF; }
+        .room-link-label { white-space: nowrap; }
         .map-toggle {
           display: inline-flex;
           align-items: center;
@@ -481,6 +496,8 @@ function Markets() {
         @media (max-width: 768px) {
           .header { padding: 0 16px; height: 52px; }
           .header-center { display: none; }
+          .room-link { padding: 6px 8px; }
+          .room-link-label { display: none; }
           .filters-bar { padding: 10px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
           .filters-right { width: 100%; justify-content: space-between; }
           .results-layout { flex-direction: column; padding: 0 16px 32px; gap: 12px; }

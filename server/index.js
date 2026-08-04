@@ -2747,14 +2747,16 @@ wss.on('connection', (ws, req) => {
 // ─── Start ──────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 8000;
+const HOST = process.env.FAIRVALUE_SERVER_HOST
+  || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 if (require.main === module) {
   Promise.all([
     Promise.resolve(configurePropertySnapshot()),
     Promise.resolve(loadPersistedRooms()),
   ])
     .then(([propertyLoaded, restored]) => {
-      server.listen(PORT, () => {
-        console.log(`FairValue server running on http://localhost:${PORT}`);
+      server.listen(PORT, HOST, () => {
+        console.log(`FairValue server running on http://${HOST}:${PORT}`);
         if (propertyLoaded?.source === 'postgres') {
           console.log(`Loaded ${propertyLoaded.count} property row(s) from ${propertyLoaded.table_name}`);
         } else if (propertyLoaded?.fallback_reason) {

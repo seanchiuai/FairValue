@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const frontendPort = process.env.E2E_FRONTEND_PORT || '3001';
 const backendPort = process.env.E2E_BACKEND_PORT || '8000';
 const reuseExistingServer = !process.env.CI && process.env.E2E_REUSE_EXISTING !== 'false';
+const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
 
 export default defineConfig({
   testDir: './e2e',
@@ -17,6 +18,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    ...(executablePath ? { launchOptions: { executablePath } } : {}),
   },
   projects: [
     {

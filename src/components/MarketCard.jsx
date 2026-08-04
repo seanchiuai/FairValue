@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Bed, Bath, Maximize, MapPin } from 'lucide-react';
 import Sparkline from './Sparkline';
+import './MarketCard.css';
 
 function MarketCard({ property, chartData }) {
   const formatPrice = (n) => n ? `$${n.toLocaleString()}` : '—';
@@ -62,120 +63,6 @@ function MarketCard({ property, chartData }) {
         )}
       </div>
 
-      <style>{`
-        .market-card-wrapper {
-          display: block;
-          text-decoration: none;
-          color: inherit;
-          background: #FFFFFF;
-          border: 1px solid #E8E8ED;
-          border-radius: 16px;
-          overflow: hidden;
-          transition: all 0.25s ease;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        }
-        .market-card-wrapper:hover {
-          border-color: #D2D2D7;
-          box-shadow: 0 8px 28px rgba(0,0,0,0.1);
-          transform: translateY(-3px);
-        }
-
-        .card-image {
-          position: relative;
-          width: 100%;
-          aspect-ratio: 16 / 10;
-          overflow: hidden;
-          background: #F0F0F2;
-        }
-        .card-image img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-          transition: transform 0.4s ease;
-        }
-        .market-card-wrapper:hover .card-image img {
-          transform: scale(1.04);
-        }
-        .card-image-placeholder {
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(135deg, #F0F0F2 0%, #E8E8ED 100%);
-        }
-
-        .card-badges {
-          position: absolute;
-          top: 10px;
-          left: 10px;
-          display: flex;
-          gap: 6px;
-        }
-        .card-type-badge {
-          padding: 4px 10px;
-          background: rgba(255,255,255,0.92);
-          backdrop-filter: blur(8px);
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          color: #1D1D1F;
-        }
-        .card-chart {
-          padding: 8px 12px 0;
-          background: #FAFAFA;
-          border-bottom: 1px solid #F0F0F2;
-        }
-        .card-body {
-          padding: 14px 16px 16px;
-        }
-
-        .card-price {
-          font-size: 22px;
-          font-weight: 700;
-          color: #1D1D1F;
-          letter-spacing: -0.5px;
-          margin-bottom: 6px;
-        }
-
-        .card-specs {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 8px;
-        }
-        .card-spec {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 13px;
-          color: #6E6E73;
-          font-weight: 500;
-        }
-
-        .card-address {
-          margin: 0 0 2px 0;
-          font-size: 14px;
-          font-weight: 600;
-          color: #1D1D1F;
-          letter-spacing: -0.2px;
-        }
-
-        .card-location {
-          display: flex;
-          align-items: center;
-          gap: 3px;
-          color: #55565C;
-          font-size: 12px;
-          margin-bottom: 8px;
-        }
-
-        .card-zestimate {
-          font-size: 12px;
-          color: #55565C;
-          padding-top: 8px;
-          border-top: 1px solid #F0F0F2;
-        }
-        .zest-up { color: #0B6F32; font-weight: 700; }
-        .zest-down { color: #B42318; font-weight: 700; }
-      `}</style>
     </Link>
   );
 }
