@@ -1,0 +1,58 @@
+name: FairValue Verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: true
+      E2E_BACKEND_PORT: 8127
+      E2E_FRONTEND_PORT: 3127
+      FAIRVALUE_ROOM_STORE_PATH: /tmp/fairvalue-ci-rooms.json
+      FAIRVALUE_ROOM_EVENT_LOG_PATH: /tmp/fairvalue-ci-events.ndjson
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run repository verification
+        run: npm run verify
+
+      - name: Verify production startup fails closed
+        shell: bash
+        run: |
+          set +e
+          output="$(NODE_ENV=production PORT=38991 node server/index.js 2>&1)"
+          status=$?
+          printf '%s\n' "$output"
+          test "$status" -ne 0
+          printf '%s\n' "$output" | grep -F "Production startup refused" >/dev/null
+
+      - name: Verify disposable Postgres persistence
+        run: npm run test:persistence:postgres
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run connected product workflow
+        run: npx playwright test e2e/product-workflows.spec.ts
