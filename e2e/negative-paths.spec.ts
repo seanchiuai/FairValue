@@ -196,6 +196,43 @@ test('host room state outage shows a retryable room load error', async ({ page, 
   await expectNoSeriousAxeViolations(page, 'host room state outage error state');
 });
 
+test('room state retry reloads after a transient outage', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  let stateRequests = 0;
+  await page.route(`**/api/rooms/${roomCode}/state`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    stateRequests += 1;
+    if (stateRequests === 1) {
+      await route.fulfill({
+        status: 503,
+        contentType: 'text/plain',
+        body: 'transient state store outage',
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto(`/host/${roomCode}`);
+  await expect(page.getByTestId('room-load-error')).toContainText('Room temporarily unavailable');
+
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/state`) && response.status() === 200
+    ),
+    page.getByRole('button', { name: /Retry/ }).click(),
+  ]);
+
+  await expect(page.getByTestId('room-load-error')).not.toBeVisible();
+  await expect(page.getByText('Connected').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(roomCode).first()).toBeVisible();
+  expect(stateRequests).toBeGreaterThanOrEqual(2);
+  await expectNoSeriousAxeViolations(page, 'room state retry recovery state');
+});
+
 test('player malformed room state response shows a non-mutating load error', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.route(`**/api/rooms/${roomCode}/state`, async (route) => {
