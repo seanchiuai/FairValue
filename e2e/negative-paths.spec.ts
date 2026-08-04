@@ -516,6 +516,61 @@ test('player bet API failure rolls back and is announced', async ({ page, reques
   await expectNoSeriousAxeViolations(page, 'player bet API failure notification state');
 });
 
+test('player wager rate limiter blocks a sixth rapid action before network mutation', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  await page.goto(`/play/${roomCode}`);
+  await page.getByLabel('Player nickname').fill('Rate Limit Player');
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes(`/api/rooms/${roomCode}/join`) && response.status() === 200
+    ),
+    page.getByRole('button', { name: /^Join Room$/ }).click(),
+  ]);
+  await expectConnected(page);
+
+  const roomStateResponse = await request.get(`${apiBaseUrl}/api/rooms/${roomCode}/state`);
+  expect(roomStateResponse.status()).toBe(200);
+  const roomState = await roomStateResponse.json();
+  const player = roomState.players.find((candidate: { nickname?: string }) => candidate.nickname === 'Rate Limit Player');
+  expect(player).toBeTruthy();
+
+  let mockedBetCount = 0;
+  await page.route(`**/api/rooms/${roomCode}/bet`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    mockedBetCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ market: roomState.market, player }),
+    });
+  });
+
+  // Keep the token bucket at the initial timestamp so the test is independent of UI timing.
+  await page.evaluate(() => {
+    const fixedNow = Date.now();
+    Date.now = () => fixedNow;
+  });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes(`/api/rooms/${roomCode}/bet`) && response.status() === 200
+      ),
+      page.getByRole('button', { name: /Bet \$25 on OVER/ }).click(),
+    ]);
+  }
+
+  expect(mockedBetCount).toBe(5);
+  await page.getByRole('button', { name: /Bet \$25 on OVER/ }).click();
+  await expect(page.getByTestId('bet-error')).toContainText('Slow down! Wait');
+  await expect(page.getByRole('button', { name: /Dismiss error notification: Slow down! Wait \d+s before betting again\./ })).toBeVisible();
+  expect(mockedBetCount).toBe(5);
+  await expectNoSeriousAxeViolations(page, 'player wager rate-limit notification state');
+});
+
 test('market detail room creation failure is visible to the host', async ({ page }) => {
   await page.route('**/api/rooms', async (route) => {
     if (route.request().method() !== 'POST') {
