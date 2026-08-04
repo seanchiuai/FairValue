@@ -671,6 +671,28 @@ test('host page without authority explains disabled controls', async ({ page, re
   await expectNoSeriousAxeViolations(page, 'missing host authority disabled controls state');
 });
 
+test('operator review keeps public evidence visible without requesting private event history', async ({ page, request }) => {
+  const { room_code: roomCode, host_token: hostToken } = await createRoom(request);
+  let eventRequests = 0;
+  page.on('request', (sentRequest) => {
+    if (sentRequest.url().includes(`/api/rooms/${roomCode}/events`)) eventRequests += 1;
+  });
+
+  await page.goto(`/review/${roomCode}`);
+
+  await expect(page.getByTestId('room-review-page')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('room-review-summary')).toContainText('host-only event log');
+  await expect(page.getByTestId('room-review-event-lock')).toContainText('Host authority required to load event history.');
+  await expect(page.getByTestId('room-review-event-lock')).toContainText('Public room state is still shown below.');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Market question');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Required settlement evidence');
+  await expect(page.getByTestId('room-review-evidence')).toContainText('Event history');
+  await expect(page.getByTestId('room-review-timeline')).toContainText('No room events are available');
+  expect(eventRequests).toBe(0);
+  await expect(page.getByTestId('room-review-page')).not.toContainText(hostToken);
+  await expectNoSeriousAxeViolations(page, 'operator review without host authority');
+});
+
 test('fake host token cannot settle a room from the host UI', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.addInitScript((code) => {
