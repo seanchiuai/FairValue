@@ -353,6 +353,32 @@ function hydrateRoomSnapshot(snapshot) {
   };
 }
 
+function captureRoomMutationState(room) {
+  return {
+    snapshot: serializeRoomSnapshot(room),
+    connections: room.connections,
+    aiInterval: room.aiInterval,
+    aiTradeInFlight: Boolean(room.aiTradeInFlight),
+  };
+}
+
+function restoreRoomMutationState(room, state, { restartAi = false } = {}) {
+  if (!room || !state?.snapshot) return;
+  const restored = hydrateRoomSnapshot(state.snapshot);
+  Object.assign(room, restored);
+  room.aiEnabled = Boolean(state.snapshot.aiEnabled);
+  room.connections = state.connections || [];
+  room.aiTradeInFlight = state.aiTradeInFlight;
+  roomEventStore.replace(room.code, state.snapshot.events || []);
+
+  if (restartAi && room.aiEnabled && !room.settled && !room.phase?.betting_locked) {
+    room.aiInterval = null;
+    runAiBotInterval(room);
+  } else {
+    room.aiInterval = state.aiInterval || null;
+  }
+}
+
 function persistRooms() {
   if (!roomPersistence.enabled) return;
   const snapshots = {};
@@ -388,14 +414,36 @@ function persistRoomEvent(event) {
   }
 }
 
-function combinePersistenceResults(...results) {
-  const pending = results.filter(Boolean);
-  if (!pending.length) return;
-  if (pending.some(isPromiseLike)) return Promise.all(pending);
-}
-
 async function waitForRoomPersistence(persistenceResult) {
   if (isPromiseLike(persistenceResult)) await persistenceResult;
+}
+
+async function removePersistedRoomEvent(event) {
+  if (!roomEventLog.enabled || typeof roomEventLog.remove !== 'function') return;
+  try {
+    await waitForRoomPersistence(roomEventLog.remove(event));
+  } catch (error) {
+    throw tagRoomEventLogPersistenceError(error);
+  }
+}
+
+async function persistRoomMutation(room, event, eventPersistence, before, { restartAi = false } = {}) {
+  let eventPersisted = false;
+  try {
+    await waitForRoomPersistence(eventPersistence);
+    eventPersisted = Boolean(event && roomEventLog.enabled);
+    await waitForRoomPersistence(persistRoom(room));
+  } catch (error) {
+    if (eventPersisted) {
+      try {
+        await removePersistedRoomEvent(event);
+      } catch (rollbackError) {
+        error.rollback_error = rollbackError.message;
+      }
+    }
+    restoreRoomMutationState(room, before, { restartAi });
+    throw error;
+  }
 }
 
 function roomPersistenceError(res, error) {
@@ -447,6 +495,7 @@ async function runAiBotTick(room) {
   }
   if (room.aiTradeInFlight) return { ok: false, skipped: true, reason: 'ai_trade_in_flight' };
 
+  const before = captureRoomMutationState(room);
   room.aiTradeInFlight = true;
   try {
     if (!room.aiEnabled || room.settled || room.phase?.betting_locked) {
@@ -479,7 +528,7 @@ async function runAiBotTick(room) {
     });
 
     try {
-      await waitForRoomPersistence(persistence);
+      await persistRoomMutation(room, aiEvent, persistence, before);
       clearRoomDurabilityError(room, 'ai_trade');
     } catch (error) {
       const durabilityError = setRoomDurabilityError(room, 'ai_trade', error);
@@ -1145,7 +1194,7 @@ async function createRoom(house, roomCode, options = {}) {
   }
 
   rooms[code] = room;
-  const { persistence } = appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
+  const { event, persistence } = appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
     created_at: room.createdAt,
     house: room.house,
     market_format: room.marketFormat,
@@ -1155,7 +1204,13 @@ async function createRoom(house, roomCode, options = {}) {
     draft_audit: room.draftAudit,
     room_phase: room.phase,
   });
-  await waitForRoomPersistence(persistence);
+  try {
+    await persistRoomMutation(room, event, persistence, null);
+  } catch (error) {
+    delete rooms[code];
+    roomEventStore.clear(code);
+    throw error;
+  }
   return room;
 }
 
@@ -1184,24 +1239,21 @@ function appendRoomEvent(room, type, payload = {}, req) {
   const activityEntry = roomEventToActivity(event);
   if (activityEntry) room.activity.push(activityEntry);
   let eventPersistence;
-  let roomSnapshotPersistence;
   try {
     eventPersistence = persistRoomEvent(event);
   } catch (error) {
     eventPersistence = Promise.reject(error);
   }
-  try {
-    roomSnapshotPersistence = persistRoom(room);
-  } catch (error) {
-    roomSnapshotPersistence = Promise.reject(error);
-  }
-  const persistence = combinePersistenceResults(eventPersistence, roomSnapshotPersistence);
-  return { event, activityEntry, persistence };
+  return { event, activityEntry, persistence: eventPersistence };
 }
 
 function recordRoomError(room, action, message, status, req) {
   observability.increment('room_lifecycle.room_errors');
-  return appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
+  const before = captureRoomMutationState(room);
+  const result = appendRoomEvent(room, EVENT_TYPES.ERROR, { action, message, status }, req);
+  const persistence = persistRoomMutation(room, result.event, result.persistence, before);
+  persistence.catch(() => {});
+  return { ...result, persistence };
 }
 
 async function rejectRoomAuth(res, room, action, message, status, req) {
@@ -2210,17 +2262,19 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
 
   const { session_id, nickname, user_id } = validated.value;
   if (!(await requireMatchingUserIdentity(req, res, room, session_id, 'join'))) return;
+  const before = captureRoomMutationState(room);
   const joinedUserId = user_id || req.userIdentity?.user_id || null;
   if (joinedUserId) room.userIdsBySession[session_id] = joinedUserId;
 
   let player = room.players[session_id];
   let joinBroadcast = null;
   let persistence = null;
+  let joinEvent = null;
   let joinLifecycleCounter = null;
   if (player) {
     player.nickname = nickname;
     joinLifecycleCounter = 'room_lifecycle.reconnected';
-    ({ persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
+    ({ event: joinEvent, persistence } = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
       session_id,
       nickname,
       user_id: joinedUserId,
@@ -2231,13 +2285,14 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
     player = { session_id, nickname, balance: 1000, bets: [] };
     room.players[session_id] = player;
     joinLifecycleCounter = 'room_lifecycle.joined';
-    const { activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
+    const { event: newJoinEvent, activityEntry, persistence: joinPersistence } = appendRoomEvent(room, EVENT_TYPES.PLAYER_JOINED, {
       session_id,
       nickname,
       user_id: joinedUserId,
       player: cloneJson(player),
       player_count: Object.keys(room.players).length,
     }, req);
+    joinEvent = newJoinEvent;
     persistence = joinPersistence;
     joinBroadcast = {
       type: 'join',
@@ -2249,7 +2304,7 @@ app.post('/api/rooms/:code/join', limitRequests('rooms:join', { max: 30 }), asyn
   }
 
   try {
-    await waitForRoomPersistence(persistence);
+    await persistRoomMutation(room, joinEvent, persistence, before);
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -2387,6 +2442,7 @@ app.post('/api/rooms/:code/phase', limitRequests('rooms:phase', { max: 30 }), as
     return res.status(400).json({ error: 'Market is settled' });
   }
 
+  const before = captureRoomMutationState(room);
   const validated = validateRoomPhasePayload(req.body);
   if (validated.error) {
     recordRoomError(room, 'phase', validated.error, 400, req);
@@ -2407,7 +2463,9 @@ app.post('/api/rooms/:code/phase', limitRequests('rooms:phase', { max: 30 }), as
   }, req);
 
   try {
-    await waitForRoomPersistence(persistence);
+    await persistRoomMutation(room, event, persistence, before, {
+      restartAi: Boolean(before.aiInterval && before.snapshot.aiEnabled),
+    });
     clearRoomDurabilityError(room, 'phase');
   } catch (error) {
     return roomPersistenceError(res, error);
@@ -2475,6 +2533,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     return res.status(400).json({ error: 'Insufficient balance' });
   }
 
+  const before = captureRoomMutationState(room);
   const execution = placeRoomBetWithBudget(room, outcome, wager, player.nickname);
   room.market = execution.market;
   const shares = execution.shares;
@@ -2517,7 +2576,7 @@ app.post('/api/rooms/:code/bet', limitRequests('rooms:bet', { max: 30 }), async 
     createdAt: Date.now(),
   });
   try {
-    await waitForRoomPersistence(combinePersistenceResults(persistence, persistRoom(room)));
+    await persistRoomMutation(room, event, persistence, before);
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -2550,6 +2609,7 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
     return validationError(res, validated.error);
   }
 
+  const before = captureRoomMutationState(room);
   if (room.aiInterval) { clearInterval(room.aiInterval); room.aiInterval = null; }
   room.aiEnabled = false;
   room.settled = true;
@@ -2593,7 +2653,9 @@ app.post('/api/rooms/:code/settle', limitRequests('rooms:settle', { max: 20 }), 
   }, req);
 
   try {
-    await waitForRoomPersistence(persistence);
+    await persistRoomMutation(room, event, persistence, before, {
+      restartAi: Boolean(before.aiInterval && before.snapshot.aiEnabled),
+    });
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -2634,6 +2696,7 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
     return res.status(400).json({ error: 'AI bot currently supports binary over/under rooms only' });
   }
 
+  const before = captureRoomMutationState(room);
   room.aiEnabled = nextAiEnabled;
   const { event, persistence } = appendRoomEvent(room, EVENT_TYPES.PHASE_CHANGED, {
     phase: 'ai_toggled',
@@ -2641,7 +2704,7 @@ app.post('/api/rooms/:code/toggle-ai', limitRequests('rooms:toggle-ai', { max: 2
   }, req);
 
   try {
-    await waitForRoomPersistence(persistence);
+    await persistRoomMutation(room, event, persistence, before);
   } catch (error) {
     return roomPersistenceError(res, error);
   }
@@ -2867,21 +2930,29 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
+  const connectionBefore = captureRoomMutationState(room);
   room.connections.push(ws);
   observability.increment('websocket.current_connections');
   observability.increment('websocket.total_connections');
-  appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
+  const connectedEvent = appendRoomEvent(room, EVENT_TYPES.RECONNECT, {
     source: 'websocket',
     connection_count: room.connections.length,
   });
+  persistRoomMutation(room, connectedEvent.event, connectedEvent.persistence, connectionBefore)
+    .catch((error) => {
+      if (error?.roomPersistenceFailed) ws.close(1011, 'Room persistence failed');
+    });
   ws.on('close', () => {
+    const disconnectedBefore = captureRoomMutationState(room);
     room.connections = room.connections.filter(c => c !== ws);
     observability.increment('websocket.current_connections', -1);
     observability.increment('websocket.total_disconnects');
-    appendRoomEvent(room, EVENT_TYPES.PLAYER_LEFT, {
+    const disconnectedEvent = appendRoomEvent(room, EVENT_TYPES.PLAYER_LEFT, {
       source: 'websocket',
       connection_count: room.connections.length,
     });
+    persistRoomMutation(room, disconnectedEvent.event, disconnectedEvent.persistence, disconnectedBefore)
+      .catch(() => {});
   });
 });
 

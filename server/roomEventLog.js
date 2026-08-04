@@ -203,6 +203,7 @@ function createDisabledRoomEventLog({ kind = 'disabled', reason = 'Room event lo
     loadRoom() {
       return [];
     },
+    remove() {},
     clear() {},
   };
 }
@@ -257,6 +258,22 @@ function createJsonRoomEventLog({ filePath } = {}) {
     })}\n`);
   }
 
+  function remove(event) {
+    if (!fs.existsSync(resolvedPath) || !event?.id) return;
+    const eventId = String(event.id);
+    const lines = fs.readFileSync(resolvedPath, 'utf8').split(/\r?\n/).filter((line) => line.trim());
+    const keptLines = lines.filter((line) => {
+      const parsed = JSON.parse(line);
+      const normalized = normalizeEventRecord(parsed.event || parsed);
+      return normalized.id !== eventId;
+    });
+    if (keptLines.length === lines.length) return;
+
+    const tempPath = `${resolvedPath}.${process.pid}.${Date.now()}.rollback.tmp`;
+    fs.writeFileSync(tempPath, keptLines.length ? `${keptLines.join('\n')}\n` : '');
+    fs.renameSync(tempPath, resolvedPath);
+  }
+
   function load({ roomCode } = {}) {
     if (!fs.existsSync(resolvedPath)) return [];
     const normalizedRoomCode = roomCode ? normalizeRoomCode(roomCode) : null;
@@ -289,6 +306,7 @@ function createJsonRoomEventLog({ filePath } = {}) {
     enabled: true,
     filePath: resolvedPath,
     append,
+    remove,
     load,
     loadRoom,
     clear,
@@ -367,6 +385,13 @@ function createPostgresRoomEventLog({ sql } = {}) {
     `;
   }
 
+  async function remove(event) {
+    const eventId = event?.id ? String(event.id) : '';
+    if (!eventId) return;
+    await ensureSchema();
+    await sql`DELETE FROM fairvalue_room_events WHERE event_id = ${eventId}`;
+  }
+
   async function load({ roomCode } = {}) {
     await ensureSchema();
     const normalizedRoomCode = roomCode ? normalizeRoomCode(roomCode) : null;
@@ -408,6 +433,7 @@ function createPostgresRoomEventLog({ sql } = {}) {
     tableName: DEFAULT_POSTGRES_EVENT_TABLE,
     filePath: null,
     append,
+    remove,
     load,
     loadRoom,
     deleteRoom,

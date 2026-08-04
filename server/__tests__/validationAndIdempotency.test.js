@@ -770,6 +770,7 @@ function createFailingPersistenceSql() {
 }
 
 test('configured durable room persistence failures return a 503 for critical mutations', async () => {
+  const roomCountBeforeFailedCreate = Object.keys(rooms).length;
   configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
   const failedCreate = await request('/api/rooms', {
     method: 'POST',
@@ -777,6 +778,7 @@ test('configured durable room persistence failures return a 503 for critical mut
   });
   assert.equal(failedCreate.status, 503);
   assert.equal(failedCreate.data.error, 'Room persistence failed');
+  assert.equal(Object.keys(rooms).length, roomCountBeforeFailedCreate);
 
   configureRoomPersistence(null);
   const room = await createHostedRoom();
@@ -789,6 +791,10 @@ test('configured durable room persistence failures return a 503 for critical mut
   });
   assert.equal(failedJoin.status, 503);
   assert.equal(failedJoin.data.error, 'Room persistence failed');
+  let state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.status, 200);
+  assert.equal(state.data.players.length, 0);
+  assert.equal(roomEventStore.list(code).some((event) => event.type === 'player_joined'), false);
 
   configureRoomPersistence(null);
   const joined = await request(`/api/rooms/${code}/join`, {
@@ -805,6 +811,20 @@ test('configured durable room persistence failures return a 503 for critical mut
   });
   assert.equal(failedBet.status, 503);
   assert.equal(failedBet.data.error, 'Room persistence failed');
+  state = await request(`/api/rooms/${code}/state`);
+  assert.equal(state.data.market.total_trades, 0);
+  assert.equal(state.data.players[0].balance, 1000);
+  assert.equal(state.data.players[0].bets.length, 0);
+  assert.equal(roomEventStore.list(code).some((event) => event.type === 'bet_placed'), false);
+
+  configureRoomPersistence(null);
+  const retryBet = await request(`/api/rooms/${code}/bet`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': 'durability-retry-bet' },
+    body: { session_id: 'durability-player', outcome: 'over', wager: 25 },
+  });
+  assert.equal(retryBet.status, 200);
+  assert.equal(retryBet.data.market.total_trades, 1);
 
   configureRoomPersistence(null);
   const cleanRoom = await createHostedRoom();
@@ -815,6 +835,29 @@ test('configured durable room persistence failures return a 503 for critical mut
   assert.equal(cleanJoin.status, 200);
 
   configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const failedPhase = await request(`/api/rooms/${cleanRoom.room_code}/phase`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': cleanRoom.host_token },
+    body: { phase: 'locked' },
+  });
+  assert.equal(failedPhase.status, 503);
+  assert.equal(failedPhase.data.error, 'Room persistence failed');
+  configureRoomPersistence(null);
+  state = await request(`/api/rooms/${cleanRoom.room_code}/state`);
+  assert.equal(state.data.phase.status, 'open');
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
+  const failedToggle = await request(`/api/rooms/${cleanRoom.room_code}/toggle-ai`, {
+    method: 'POST',
+    headers: { 'X-FairValue-Host-Token': cleanRoom.host_token },
+  });
+  assert.equal(failedToggle.status, 503);
+  assert.equal(failedToggle.data.error, 'Room persistence failed');
+  configureRoomPersistence(null);
+  state = await request(`/api/rooms/${cleanRoom.room_code}/state`);
+  assert.equal(state.data.ai_enabled, false);
+
+  configureRoomPersistence({ mode: 'postgres', sql: createFailingPersistenceSql() });
   const failedSettle = await request(`/api/rooms/${cleanRoom.room_code}/settle`, {
     method: 'POST',
     headers: { 'X-FairValue-Host-Token': cleanRoom.host_token },
@@ -822,6 +865,14 @@ test('configured durable room persistence failures return a 503 for critical mut
   });
   assert.equal(failedSettle.status, 503);
   assert.equal(failedSettle.data.error, 'Room persistence failed');
+  state = await request(`/api/rooms/${cleanRoom.room_code}/state`);
+  assert.equal(state.data.settled, false);
+  assert.equal(state.data.phase.status, 'open');
+  assert.equal(state.data.settlement, null);
+  assert.equal(
+    roomEventStore.list(cleanRoom.room_code).some((event) => event.type === 'settlement_completed'),
+    false
+  );
 });
 
 test('host-only audit errors report durable persistence failures before returning auth status', async () => {

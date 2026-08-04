@@ -176,6 +176,12 @@ function createFakeSql() {
       }
       return [];
     }
+    if (query.startsWith('DELETE FROM fairvalue_room_events WHERE event_id')) {
+      for (let index = eventRows.length - 1; index >= 0; index -= 1) {
+        if (eventRows[index].event_id === values[0]) eventRows.splice(index, 1);
+      }
+      return [];
+    }
     if (query.startsWith('DELETE FROM fairvalue_room_events')) {
       eventRows.length = 0;
       return [];
@@ -406,6 +412,9 @@ test('json room event log appends canonical events without rewriting the stream'
   assert.deepEqual(loaded.map((event) => event.sequence), [1, 2]);
   assert.equal(loaded[1].payload.player.session_id, 'event-log-player');
   assert.equal(JSON.stringify(loaded).includes('host_token'), false);
+
+  eventLog.remove(joined);
+  assert.deepEqual(eventLog.loadRoom('evlg').map((event) => event.sequence), [1]);
 });
 
 test('postgres room event log appends canonical events into an ordered stream', async () => {
@@ -458,6 +467,9 @@ test('postgres room event log appends canonical events into an ordered stream', 
     },
     timestamp: 3,
   }), /duplicate/);
+
+  await eventLog.remove({ id: 'PGEV-00000002' });
+  assert.deepEqual((await eventLog.loadRoom('PGEV')).map((event) => event.sequence), [1]);
 
   await eventLog.clear();
   assert.deepEqual(await eventLog.load(), []);
