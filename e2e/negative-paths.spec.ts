@@ -172,6 +172,39 @@ test('malformed identity success is announced before direct player join', async 
   await expectNoSeriousAxeViolations(page, 'malformed identity direct player join notification state');
 });
 
+test('direct player identity outage is announced before room join', async ({ page, request }) => {
+  const { room_code: roomCode } = await createRoom(request);
+  let identityRequests = 0;
+  let joinRequests = 0;
+  await page.route('**/api/identity', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    identityRequests += 1;
+    await route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'identity service unavailable',
+    });
+  });
+  page.on('request', (sentRequest) => {
+    if (sentRequest.url().includes(`/api/rooms/${roomCode}/join`)) joinRequests += 1;
+  });
+
+  await page.goto(`/play/${roomCode}`);
+  await expect(page.getByRole('alert')).toContainText('Identity unavailable');
+  await page.getByLabel('Player nickname').fill('Identity Failure Player');
+  await page.getByRole('button', { name: /^Join Room$/ }).click();
+  await expect(page.locator('#player-join-error')).toContainText('Identity unavailable');
+  await expect(page.getByLabel('Player nickname')).toHaveAttribute('aria-describedby', 'player-join-error');
+  await expect(page.getByLabel('Player nickname')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByRole('button', { name: /^Join Room$/ })).toBeEnabled();
+  expect(identityRequests).toBeGreaterThan(0);
+  expect(joinRequests).toBe(0);
+  await expectNoSeriousAxeViolations(page, 'direct player identity outage notification state');
+});
+
 test('host room state outage shows a retryable room load error', async ({ page, request }) => {
   const { room_code: roomCode } = await createRoom(request);
   await page.route(`**/api/rooms/${roomCode}/state`, async (route) => {
