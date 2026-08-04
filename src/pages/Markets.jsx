@@ -44,6 +44,9 @@ function Markets() {
   const [compareLimitReached, setCompareLimitReached] = useState(false);
   const sortButtonRef = useRef(null);
   const comparison = usePropertyComparison();
+  const comparisonLabels = useMemo(() => Object.fromEntries(
+    properties.map((property) => [property.id, property.address])
+  ), [properties]);
 
   const fetchCharts = useCallback(() => {
     fetch('/api/markets/charts')
@@ -369,7 +372,7 @@ function Markets() {
       </footer>
 
       {compareLimitReached && <div className="markets-compare-limit" role="status">Comparison is limited to 4 properties. Remove one before adding another.</div>}
-      <CompareTray propertyIds={comparison.propertyIds} max={comparison.max} onRemove={comparison.remove} onClear={comparison.clear} />
+      <CompareTray propertyIds={comparison.propertyIds} propertyLabels={comparisonLabels} max={comparison.max} onRemove={comparison.remove} onClear={comparison.clear} />
 
       <style>{`
         .markets-page {

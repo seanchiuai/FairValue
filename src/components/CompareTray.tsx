@@ -5,12 +5,13 @@ import './CompareTray.css';
 
 interface CompareTrayProps {
   propertyIds: string[];
+  propertyLabels?: Record<string, string>;
   max: number;
   onRemove: (propertyId: string) => void;
   onClear: () => void;
 }
 
-export default function CompareTray({ propertyIds, max, onRemove, onClear }: CompareTrayProps) {
+export default function CompareTray({ propertyIds, propertyLabels = {}, max, onRemove, onClear }: CompareTrayProps) {
   if (propertyIds.length === 0) return null;
 
   return (
@@ -23,8 +24,8 @@ export default function CompareTray({ propertyIds, max, onRemove, onClear }: Com
       <div className="compare-tray__items">
         {propertyIds.map((propertyId) => (
           <span key={propertyId} className="compare-tray__item">
-            {propertyId}
-            <button type="button" onClick={() => onRemove(propertyId)} aria-label={`Remove property ${propertyId} from comparison`}>
+            {propertyLabels[propertyId] || propertyId}
+            <button type="button" onClick={() => onRemove(propertyId)} aria-label={`Remove property ${propertyLabels[propertyId] || propertyId} from comparison`}>
               <X size={13} aria-hidden="true" />
             </button>
           </span>
