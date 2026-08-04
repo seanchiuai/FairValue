@@ -7,6 +7,8 @@ import { usePropertyWatchlist } from '../hooks/usePropertyWatchlist';
 import { useSession } from '../hooks/useSession';
 import { useUserReputation } from '../hooks/useUserReputation';
 import { useWatchlistAlerts, type WatchlistAlert } from '../hooks/useWatchlistAlerts';
+import { useRoomLibrary } from '../hooks/useRoomLibrary';
+import RoomLibraryPanel from '../components/profile/RoomLibraryPanel';
 import { formatOutcomeLabel } from '../lib/roomMarketDisplay';
 import type { UserReputationRoom } from '../types';
 import './ProfilePage.css';
@@ -81,6 +83,12 @@ export default function ProfilePage() {
     refreshWatchlistAlerts,
     acknowledgeWatchlistAlert,
   } = useWatchlistAlerts(userToken);
+  const {
+    rooms: roomLibrary,
+    loading: roomLibraryLoading,
+    error: roomLibraryError,
+    refresh: refreshRoomLibrary,
+  } = useRoomLibrary(userToken);
 
   const marketFormatRows = useMemo(
     () => Object.entries(reputation?.market_formats || {})
@@ -196,6 +204,13 @@ export default function ProfilePage() {
           </div>
         </section>
       </section>
+
+      <RoomLibraryPanel
+        rooms={roomLibrary}
+        loading={roomLibraryLoading || identityLoading}
+        error={roomLibraryError}
+        onRefresh={refreshRoomLibrary}
+      />
 
       <section className="profile-page__panel" data-testid="profile-history" aria-label="Recent prediction history">
         <div className="profile-page__section-head">

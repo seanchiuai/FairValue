@@ -294,6 +294,7 @@ function cloneJson(value) {
 function serializeRoomSnapshot(room) {
   return {
     code: room.code,
+    createdAt: room.createdAt || null,
     hostToken: room.hostToken,
     hostUserId: room.hostUserId || null,
     house: cloneJson(room.house),
@@ -321,6 +322,9 @@ function hydrateRoomSnapshot(snapshot) {
 
   return {
     code,
+    createdAt: Number.isFinite(Number(snapshot.createdAt || snapshot.created_at))
+      ? Number(snapshot.createdAt || snapshot.created_at)
+      : null,
     hostToken: snapshot.hostToken || generateHostToken(),
     hostUserId: normalizeUserId(snapshot.hostUserId) || null,
     house: cloneJson(snapshot.house),
@@ -1094,6 +1098,7 @@ async function createRoom(house, roomCode, options = {}) {
   const marketConfig = options.marketConfig || createMarketConfigForRoom(marketFormat, house, {}, DEFAULT_B).value;
   const room = {
     code,
+    createdAt: Date.now() / 1000,
     hostToken: generateHostToken(),
     hostUserId: normalizeUserId(options.hostUserId) || null,
     house,
@@ -1140,6 +1145,7 @@ async function createRoom(house, roomCode, options = {}) {
 
   rooms[code] = room;
   const { persistence } = appendRoomEvent(room, EVENT_TYPES.ROOM_CREATED, {
+    created_at: room.createdAt,
     house: room.house,
     market_format: room.marketFormat,
     market_config: marketConfigPayload(room),
@@ -1285,6 +1291,96 @@ function getRoomFromCodeParam(req, res) {
   }
 
   return room;
+}
+
+function roomLifecycleEvents(room) {
+  return roomEventStore.list(room.code).sort((left, right) => left.sequence - right.sequence);
+}
+
+function roomLibraryEntry(room, userId) {
+  const events = roomLifecycleEvents(room);
+  const createdEvent = events.find((event) => event.type === EVENT_TYPES.ROOM_CREATED);
+  const settlementEvent = events.find((event) => event.type === EVENT_TYPES.SETTLEMENT_COMPLETED);
+  const lastEvent = events[events.length - 1];
+  const createdAt = Number(room.createdAt || createdEvent?.timestamp || Date.now() / 1000);
+  const settledAt = settlementEvent?.timestamp || null;
+  const isHost = room.hostUserId === userId;
+  const isParticipant = isHost || Object.values(room.userIdsBySession || {}).includes(userId);
+  if (!isParticipant) return null;
+
+  const players = Object.values(room.players || {});
+  const totalWagered = players.reduce((roomTotal, player) => (
+    roomTotal + (Array.isArray(player.bets)
+      ? player.bets.reduce((playerTotal, bet) => playerTotal + (Number(bet.wager) || 0), 0)
+      : 0)
+  ), 0);
+
+  return {
+    room_code: room.code,
+    address: typeof room.house?.address === 'string' ? room.house.address : 'Untitled property room',
+    asking_price: Number(room.house?.asking_price) || 0,
+    market_format: room.marketFormat || BINARY_MARKET_FORMAT,
+    phase: normalizeRoomPhase(room.phase),
+    settled: Boolean(room.settled),
+    created_at: createdAt,
+    settled_at: settledAt,
+    last_activity_at: lastEvent?.timestamp || createdAt,
+    player_count: players.length,
+    total_wagered: Math.round(totalWagered * 100) / 100,
+    event_sequence: Number(lastEvent?.sequence || 0),
+    winning_outcome: room.settlement?.winning_outcome || settlementEvent?.payload?.winning_outcome || null,
+    actual_price: Number(room.settlement?.actual_price || settlementEvent?.payload?.actual_price) || null,
+    is_host: isHost,
+  };
+}
+
+function roomLibraryEntries(userId, query = {}) {
+  const normalizedQuery = String(query.q || '').trim().toLowerCase();
+  const status = String(query.status || 'all').trim().toLowerCase();
+  const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit || '50', 10) || 50));
+  if (!['all', 'live', 'settled'].includes(status)) return { error: 'status must be all, live, or settled' };
+
+  const entries = Object.values(rooms)
+    .map((room) => roomLibraryEntry(room, userId))
+    .filter(Boolean)
+    .filter((entry) => status === 'all' || (status === 'settled' ? entry.settled : !entry.settled))
+    .filter((entry) => !normalizedQuery || `${entry.room_code} ${entry.address}`.toLowerCase().includes(normalizedQuery))
+    .sort((left, right) => (right.last_activity_at || 0) - (left.last_activity_at || 0))
+    .slice(0, limit);
+
+  return {
+    schema_version: 'fairvalue.roomLibrary.v1',
+    rooms: entries,
+    count: entries.length,
+    total_count: Object.values(rooms).filter((room) => roomLibraryEntry(room, userId)).length,
+    filters: { q: normalizedQuery, status, limit },
+  };
+}
+
+function escapeCsvCell(value) {
+  const text = value == null ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function roomExportSummary(room, verification) {
+  const totalWagered = Object.values(room.players || {}).reduce((roomTotal, player) => (
+    roomTotal + (Array.isArray(player.bets)
+      ? player.bets.reduce((playerTotal, bet) => playerTotal + (Number(bet.wager) || 0), 0)
+      : 0)
+  ), 0);
+  return {
+    room_code: room.code,
+    address: room.house?.address || '',
+    asking_price: Number(room.house?.asking_price) || 0,
+    market_format: room.marketFormat || BINARY_MARKET_FORMAT,
+    settled: Boolean(room.settled),
+    winning_outcome: room.settlement?.winning_outcome || null,
+    actual_price: Number(room.settlement?.actual_price) || null,
+    player_count: Object.keys(room.players || {}).length,
+    total_wagered: Math.round(totalWagered * 100) / 100,
+    event_sequence: roomEventStore.list(room.code).length,
+    replay_match: Boolean(verification?.replay?.live_match),
+  };
 }
 
 function getRoomReplay(room) {
@@ -1674,6 +1770,14 @@ app.get('/api/me/reputation', limitRequests('identity:reputation', { max: 120 })
   const identity = requireExpectedUserIdentity(req, res);
   if (!identity) return;
   res.json(userReputationStore.getUser(identity.user_id));
+});
+
+app.get('/api/me/rooms', limitRequests('identity:rooms', { max: 120 }), (req, res) => {
+  const identity = requireExpectedUserIdentity(req, res);
+  if (!identity) return;
+  const result = roomLibraryEntries(identity.user_id, req.query);
+  if (result.error) return validationError(res, result.error);
+  res.json(result);
 });
 
 app.get('/api/me/watchlist', limitRequests('identity:watchlist', { max: 180 }), (req, res) => {
@@ -2234,6 +2338,42 @@ app.get('/api/rooms/:code/public-verification', (req, res) => {
   }
 
   res.status(artifact.replay.live_match ? 200 : 409).json(artifact);
+});
+
+app.get('/api/rooms/:code/export', (req, res) => {
+  const room = getRoomFromCodeParam(req, res);
+  if (!room) return;
+
+  const format = String(req.query.format || 'json').trim().toLowerCase();
+  if (!['csv', 'json'].includes(format)) return validationError(res, 'format must be csv or json');
+  if (!room.settled) {
+    return res.status(409).json({ error: 'Room export is available after settlement' });
+  }
+
+  const events = roomEventStore.list(room.code);
+  const report = createReplayIntegrityReport(room, events);
+  const artifact = createPublicVerificationArtifact(room, events, { integrityReport: report });
+  if (!artifact.settled) {
+    return res.status(409).json({ error: 'Room export is available after settlement' });
+  }
+
+  const summary = roomExportSummary(room, artifact);
+  const filenameBase = `fairvalue-${room.code.toLowerCase()}-recap`;
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.${format}"`);
+  if (format === 'json') {
+    return res.type('application/json').send(JSON.stringify({
+      schema_version: 'fairvalue.roomExport.v1',
+      summary,
+      verification: artifact,
+    }, null, 2));
+  }
+
+  const rows = [
+    ['field', 'value'],
+    ...Object.entries(summary),
+  ].map(([key, value]) => `${escapeCsvCell(key)},${escapeCsvCell(value)}`);
+  return res.type('text/csv').send(`${rows.join('\n')}\n`);
 });
 
 app.post('/api/rooms/:code/phase', limitRequests('rooms:phase', { max: 30 }), async (req, res) => {

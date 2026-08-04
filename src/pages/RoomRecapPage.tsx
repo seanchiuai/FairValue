@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ClipboardCheck, ListChecks, RadioTower, ShieldCheck, Sparkles } from 'lucide-react';
+import { ClipboardCheck, Download, ListChecks, RadioTower, ShieldCheck, Sparkles } from 'lucide-react';
 import RoomLoadError from '../components/RoomLoadError';
 import {
   RoomArtifactBulletList,
@@ -166,6 +166,14 @@ export default function RoomRecapPage() {
                   downloadTestId="public-verification-download"
                   statusTestId="public-verification-export-status"
                 />
+                <a
+                  className="room-artifact-export-button"
+                  href={`/api/rooms/${encodeURIComponent(roomCode || '')}/export?format=csv`}
+                  download={`fairvalue-${roomCode?.toLowerCase()}-recap.csv`}
+                  data-testid="public-recap-csv-download"
+                >
+                  <Download size={15} aria-hidden="true" /> Download recap CSV
+                </a>
               </>
             ) : (
               <p className="room-artifact-empty">

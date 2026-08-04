@@ -1,10 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bed, Bath, Maximize, MapPin } from 'lucide-react';
+import { Bed, Bath, GitCompareArrows, Maximize, MapPin } from 'lucide-react';
 import Sparkline from './Sparkline';
 import './MarketCard.css';
 
-function MarketCard({ property, chartData }) {
+function MarketCard({ property, chartData, compared = false, onToggleCompare }) {
   const formatPrice = (n) => n ? `$${n.toLocaleString()}` : '—';
   const typeLabel = (t) => {
     const map = { SINGLE_FAMILY: 'House', CONDO: 'Condo', MULTI_FAMILY: 'Multi-Family', APARTMENT: 'Apartment', LOT: 'Lot' };
@@ -12,7 +12,8 @@ function MarketCard({ property, chartData }) {
   };
 
   return (
-    <Link to={`/market/${property.id}`} className="market-card-wrapper">
+    <article className={`market-card-wrapper${compared ? ' is-compared' : ''}`}>
+      <Link to={`/market/${property.id}`} className="market-card-link">
       <div className="card-image">
         {property.imgSrc ? (
           <img src={property.imgSrc} alt={property.address} loading="lazy" />
@@ -62,8 +63,20 @@ function MarketCard({ property, chartData }) {
           </div>
         )}
       </div>
-
-    </Link>
+      </Link>
+      {onToggleCompare && (
+        <button
+          type="button"
+          className={`card-compare-button${compared ? ' active' : ''}`}
+          onClick={() => onToggleCompare(property.id)}
+          aria-pressed={compared}
+          aria-label={`${compared ? 'Remove' : 'Add'} ${property.address} ${compared ? 'from' : 'to'} comparison`}
+        >
+          <GitCompareArrows size={14} aria-hidden="true" />
+          {compared ? 'Compared' : 'Compare'}
+        </button>
+      )}
+    </article>
   );
 }
 

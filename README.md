@@ -12,12 +12,14 @@ A host creates a room and selects a property. Players join via QR code or room c
 - **Public bet reasoning** — Player bets can include an optional public thesis from the mobile betting panel. Reasons are cleared after a successful bet, replayed with the player position, shown in host activity, and carried into public recap/review surfaces.
 - **Room and user reputation** — Settled rooms produce a `room-reputation/v1` summary from public bet history, public reason counts, final outcome accuracy, and Brier-style calibration. Signed-in players also accumulate a private `fairvalue.userReputation.v1` cross-room projection behind their user token, surfaced on the player room view after settlement and at `/me`. Public artifacts deliberately exclude session IDs, host/user tokens, and private evidence.
 - **Private profile and watchlist** — `/me` shows the signed-in player's private prediction history, calibration, simulation-credit portfolio totals, property watchlist, and in-app price alert inbox. Signed users sync watchlist items, private notes, saved price thresholds, and deduped threshold-crossing alerts through `/api/me/watchlist` and `/api/me/alerts`; threshold evaluation can also send redacted, signed webhook payloads when `FAIRVALUE_ALERT_WEBHOOK_URL` is configured. The browser still keeps `fv_property_watchlist_v1` as a local fallback.
+- **Comparison workspace and room library** — Browse and property detail surfaces can select up to four properties into a URL-shareable comparison workspace at `/compare`. A comparison can launch a prefilled host flow. `/me` also exposes a signed-identity room library with live/settled filters, return links, host review links, and settled CSV exports.
 - **Property data provenance** — `public/data/property-data-manifest.json` is generated from the static provider snapshot with source hashes, field coverage, freshness windows, provider counts, and legal limitations. Property pages surface that data-quality contract beside listing provenance, `/api/properties` exposes a manifest-backed query API, neighborhood draft markets have a provider-gated evidence adapter, `npm run data:postgres:properties` dry-runs or writes a PostGIS-ready public-safe projection, and `FAIRVALUE_PROPERTY_SNAPSHOT_STORE=postgres` can explicitly switch property/neighborhood/geospatial read APIs to that projection after it has been written. `npm run verify` fails if the manifest drifts from `properties.json`.
 - **Market template registry** — `/api/market-templates` publishes `market-template-registry/v1`, including playable binary LMSR, rendered range price-band, rendered rent-yield, rendered time-on-market, rendered renovation-budget over/under, and neighborhood price-momentum rooms, plus draft-only neighborhood rent-yield/outperformance formats that are registered but blocked from live room creation.
 - **Structured intelligence** — Property pages emit deterministic `fairvalue.marketIntelligence.v2` output with bull, bear, comp, affordability, fraud/data-quality, and neighborhood analyst cases. The server also exposes a provider contract plus a credential-gated generation endpoint that validates provider-backed output or returns deterministic local fallback. These are debate prompts with explicit limitations, not appraisals or compliance findings.
 - **Market Studio** — Hosts can use `/join` to paste listing text and generate a local market draft with normalized address, asking price, market question, evidence checklist, provenance, warnings, existing-property matches, local saved drafts, server-validated draft audit metadata, and editable fields before creating a real room.
 - **Operator review** — Hosts can open `/review/:roomCode` from the host dashboard to compare draft audits, event history, live market movement, settlement evidence, integrity checks, and a deterministic generated recap. Operators can open `/ops/incidents` for the redacted incident queue and persisted workflow triage.
 - **Public recap** — Hosts and players can open `/recap/:roomCode` to share a deterministic recap generated only from public room state. It summarizes live or settled LMSR movement, public activity, settlement result, and trust guardrails without fetching host-only events or showing host/user tokens.
+- **Public recap export** — `GET /api/rooms/:code/export?format=json|csv` returns a share-safe settled-room artifact. Unsettled rooms return `409` rather than a fake export.
 - **Solo browsing** — Browse market cards at `/` and view individual markets at `/market/:propertyId` with chart, static ZIP neighborhood context, centroid geospatial context, playable-plus-draft neighborhood scenario market cards, neighborhood evidence readiness, deterministic market intelligence, provider/fallback status, scenario prompts, settlement checklist, and trading panel.
 - **Market trust** — Property detail, host, player, and settlement surfaces explain simulated credits, LMSR probability, implied fair value, listing provenance, and settlement evidence so FairValue does not imply unsupported real-money or appraisal authority.
 
@@ -27,18 +29,18 @@ A host creates a room and selects a property. Players join via QR code or room c
 |-------|-----------|
 | Frontend | React 19, TypeScript, Vite |
 | Backend | Node.js, Express 5 |
-| Database | Neon / Qdrant |
+| Database | Neon/Postgres for production; JSON snapshots for local degraded mode |
 | Real-time | WebSocket (`ws`) |
 | Charting | TradingView Lightweight Charts |
-| AI Chat | Cognee Knowledge Graph API |
-| Property Data | Zillow (static dataset) |
+| AI / evidence | Optional server-side Cognee and structured provider adapters |
+| Property Data | Static provider snapshot with manifest; optional PostGIS projection |
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
-- A Neon database with `DATABASE_URL` in `.env`
+- `DATABASE_URL` for production-grade Postgres persistence; local development can boot in explicit degraded mode without it
 
 ### Install & Run
 
@@ -48,7 +50,7 @@ npm install
 # Start the backend (port 8000)
 npm run server
 
-# In another terminal, start the frontend (Vite defaults to port 5173)
+# In another terminal, start the frontend (Vite defaults to port 5173 and proxies to backend port 8000)
 npm start
 ```
 
@@ -84,7 +86,7 @@ npm run data:postgres:properties -- --write
 
 ```
 Browser (React)
-  ├── /api/*  ──proxy──▶  Express server (port 8000)  ──▶  Neon Postgres
+  ├── /api/*  ──proxy──▶  Express server (port 8000)  ──▶  Neon Postgres or JSON room snapshots
   ├── /ws/*   ──proxy──▶  WebSocket server
   ├── /api/ai/cognee/* ──▶ server-side Cognee AI proxy
   └── IndexedDB (local image cache)
@@ -92,9 +94,9 @@ Browser (React)
 
 ### Frontend
 
-- **Routing** (React Router v7): `/` browse, `/join` create/join room, `/host/:roomCode` host dashboard, `/play/:roomCode` player UI, `/me` private prediction profile, `/review/:roomCode` operator review, `/ops/incidents` operator incident console, `/recap/:roomCode` public recap, `/market/:propertyId` solo market
+- **Routing** (React Router v7): `/` browse/landing, `/compare` comparison workspace, `/join` create/join room, `/host/:roomCode` host dashboard, `/play/:roomCode` player UI, `/me` private prediction profile and room library, `/review/:roomCode` operator review, `/ops/incidents` operator incident console, `/recap/:roomCode` public recap, `/market/:propertyId` solo market, `/privacy` and `/terms` product disclosures
 - **State management:** React hooks only, no global store
-- **Styling:** CSS custom properties (`--bg-primary: #1F2A36`, `--accent-primary: #4BA3FF`), dark theme
+- **Styling:** CSS custom properties plus scoped CSS, with a light property data desk and high-contrast room/artifact surfaces
 
 ### Backend (`server/index.js`)
 
@@ -146,6 +148,7 @@ Browser (React)
 | POST | `/api/rooms` | Create room |
 | POST | `/api/identity` | Mint signed user identity |
 | GET | `/api/me/reputation` | Signed user's private cross-room reputation |
+| GET | `/api/me/rooms` | Signed user's live and settled room library with search/status filters |
 | GET | `/api/market-templates` | Public market template registry |
 | GET | `/api/geospatial/properties` | Static centroid radius/bounding-box property query |
 | GET | `/api/properties/:propertyId/nearby` | Nearby static centroid property query |
@@ -158,6 +161,7 @@ Browser (React)
 | GET | `/api/rooms/:code/replay` | Host-only replayed room state |
 | GET | `/api/rooms/:code/replay/verify` | Host-only replay/live integrity verification |
 | GET | `/api/rooms/:code/public-verification` | Public settled-room verification digest |
+| GET | `/api/rooms/:code/export?format=json\|csv` | Public-safe settled-room export |
 | POST | `/api/rooms/:code/phase` | Host-only room phase/timer/lock control |
 | POST | `/api/rooms/:code/bet` | Place bet |
 | POST | `/api/rooms/:code/settle` | Settle market |

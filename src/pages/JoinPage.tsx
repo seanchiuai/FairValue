@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { loadProperties } from '../data/properties';
 import { useSession } from '../hooks/useSession';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
@@ -39,6 +39,7 @@ async function readJson<T>(response: Response): Promise<T> {
 
 export default function JoinPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     nickname,
     saveNickname,
@@ -61,6 +62,23 @@ export default function JoinPage() {
   const [matchingProperties, setMatchingProperties] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const propertyId = searchParams.get('propertyId');
+    if (!propertyId) return;
+    let cancelled = false;
+    loadProperties().then((properties) => {
+      if (cancelled) return;
+      const property = properties.find((item) => item.id === propertyId);
+      if (!property) return;
+      setAddress(property.address);
+      setAskingPrice(String(property.price || ''));
+      setMode('create');
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   const sanitize = (s: string, max: number) => s.trim().replace(/<[^>]*>/g, '').slice(0, max);
   const formatRoomCodeInput = (value: string) =>

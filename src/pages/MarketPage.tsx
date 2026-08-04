@@ -18,12 +18,14 @@ import {
   AlertTriangle,
   ListChecks,
   Sparkles,
-  Target
+  Target,
+  GitCompareArrows
 } from 'lucide-react';
 import { useProperties } from '../data/properties';
 import { usePropertyDataManifest } from '../data/propertyManifest';
 import { useSession } from '../hooks/useSession';
 import { usePropertyWatchlist } from '../hooks/usePropertyWatchlist';
+import { usePropertyComparison } from '../hooks/usePropertyComparison';
 import { buildUserAuthHeaders, saveHostToken } from '../lib/fairValueAuth';
 import { getRoomJoinError, readRoomMutationResponse } from '../lib/roomResponses';
 import { useMarketChart } from '../hooks/useMarketChart';
@@ -172,6 +174,7 @@ const MarketPage: React.FC = () => {
   const { manifest, loading: manifestLoading } = usePropertyDataManifest();
   const { ensureIdentity, userToken } = useSession();
   const { isWatched, toggleProperty } = usePropertyWatchlist({ userToken });
+  const comparison = usePropertyComparison();
   const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -380,6 +383,17 @@ const MarketPage: React.FC = () => {
     showToast(added ? 'Property added to watchlist' : 'Property removed from watchlist', 'success');
   };
 
+  const handleToggleCompare = () => {
+    if (!property) return;
+    const wasCompared = comparison.isCompared(property.id);
+    const added = comparison.toggle(property.id);
+    if (!wasCompared && !added) {
+      showToast('Comparison is limited to 4 properties', 'error');
+      return;
+    }
+    showToast(added ? 'Property added to comparison' : 'Property removed from comparison', 'success');
+  };
+
   if (loading || !property) {
     return <div className="market-page"><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#7F93A8' }}>Loading property...</div></div>;
   }
@@ -514,6 +528,16 @@ const MarketPage: React.FC = () => {
             >
               <Bookmark size={16} />
               {watched ? 'Watching' : 'Watch'}
+            </button>
+            <button
+              type="button"
+              className={`watchlist-toggle market-compare-toggle ${comparison.isCompared(property.id) ? 'active' : ''}`}
+              onClick={handleToggleCompare}
+              aria-pressed={comparison.isCompared(property.id)}
+              aria-label={`${comparison.isCompared(property.id) ? 'Remove from' : 'Add to'} property comparison`}
+            >
+              <GitCompareArrows size={16} />
+              {comparison.isCompared(property.id) ? 'Compared' : 'Compare'}
             </button>
             {property.zestimate && priceDiff !== null && (
               <div className={`detail-zestimate ${priceDiff >= 0 ? 'up' : 'down'}`}>
